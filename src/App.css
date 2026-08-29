@@ -1,0 +1,1 @@
+.loading-indicator {\n  font-size: 12px;\n  color: rgba(255, 255, 255, 0.8);\n  margin-top: 5px;\n  animation: pulse 1s infinite;\n}\n\n@keyframes pulse {\n  0%, 100% { opacity: 1; }\n  50% { opacity: 0.5; }\n}\n
