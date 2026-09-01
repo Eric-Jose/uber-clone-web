@@ -1,1 +1,38 @@
-{\n  "name": "uber-clone-web",\n  "version": "1.0.0",\n  "description": "App tipo Uber com mapa e sistema de corridas",\n  "private": true,\n  "homepage": "https://uber-clone-eric.vercel.app",\n  "dependencies": {\n    "react": "^18.2.0",\n    "react-dom": "^18.2.0",\n    "react-scripts": "5.0.1",\n    "react-leaflet": "^4.2.1",\n    "leaflet": "^1.9.4",\n    "axios": "^1.6.0"\n  },\n  "scripts": {\n    "start": "react-scripts start",\n    "build": "react-scripts build",\n    "test": "react-scripts test",\n    "eject": "react-scripts eject"\n  },\n  "eslintConfig": {\n    "extends": [\n      "react-app"\n    ]\n  },\n  "browserslist": {\n    "production": [\n      ">0.2%",\n      "not dead",\n      "not op_mini all"\n    ],\n    "development": [\n      "last 1 chrome version",\n      "last 1 firefox version",\n      "last 1 safari version"\n    ]\n  }\n}\n
+{
+  "name": "uber-clone-web",
+  "version": "1.0.0",
+  "description": "App tipo Uber com mapa e sistema de corridas",
+  "private": true,
+  "homepage": "https://uber-clone-eric.vercel.app",
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-scripts": "5.0.1",
+    "react-leaflet": "^4.2.1",
+    "leaflet": "^1.9.4",
+    "axios": "^1.6.0"
+  },
+  "scripts": {
+    "start": "react-scripts start",
+    "build": "react-scripts build",
+    "test": "react-scripts test",
+    "eject": "react-scripts eject"
+  },
+  "eslintConfig": {
+    "extends": [
+      "react-app"
+    ]
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  }
+}
