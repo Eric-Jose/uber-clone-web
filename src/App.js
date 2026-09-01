@@ -1,1 +1,112 @@
-import React, { useState, useEffect } from 'react';\nimport './App.css';\nimport MapComponent from './components/MapComponent';\nimport RideRequest from './components/RideRequest';\nimport DriverList from './components/DriverList';\n\nconst BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:5000';\n\nfunction App() {\n  const [userLocation, setUserLocation] = useState(null);\n  const [drivers, setDrivers] = useState([]);\n  const [rideRequested, setRideRequested] = useState(false);\n  const [selectedDriver, setSelectedDriver] = useState(null);\n  const [userId, setUserId] = useState(localStorage.getItem('userId') || null);\n  const [loading, setLoading] = useState(false);\n\n  // Obter localização do usuário\n  useEffect(() => {\n    if (navigator.geolocation) {\n      navigator.geolocation.watchPosition(\n        (position) => {\n          setUserLocation({\n            lat: position.coords.latitude,\n            lng: position.coords.longitude\n          });\n\n          // Atualizar localização no backend\n          if (userId) {\n            updateLocationBackend(\n              position.coords.latitude,\n              position.coords.longitude\n            );\n          }\n        },\n        (error) => console.log('Erro de localização:', error),\n        { enableHighAccuracy: true }\n      );\n    }\n  }, [userId]);\n\n  // Buscar motoristas disponíveis\n  useEffect(() => {\n    if (userLocation && !rideRequested) {\n      fetchAvailableDrivers();\n    }\n  }, [userLocation, rideRequested]);\n\n  const updateLocationBackend = async (lat, lng) => {\n    try {\n      await fetch(`${BACKEND_URL}/api/location/update`, {\n        method: 'POST',\n        headers: { 'Content-Type': 'application/json' },\n        body: JSON.stringify({ userId, lat, lng })\n      });\n    } catch (error) {\n      console.error('Erro ao atualizar localização:', error);\n    }\n  };\n\n  const fetchAvailableDrivers = async () => {\n    try {\n      setLoading(true);\n      const response = await fetch(\n        `${BACKEND_URL}/api/drivers/available?lat=${userLocation.lat}&lng=${userLocation.lng}&radius=10`\n      );\n      const data = await response.json();\n      setDrivers(data.drivers || []);\n    } catch (error) {\n      console.error('Erro ao buscar motoristas:', error);\n      // Simular motoristas se backend não estiver disponível\n      const simulatedDrivers = [\n        {\n          id: 1,\n          name: 'João Silva',\n          lat: userLocation.lat + 0.01,\n          lng: userLocation.lng + 0.01,\n          rating: 4.8,\n          vehicle: 'Toyota Corolla - Branco',\n          distance: 2.5,\n          eta: '5 min'\n        },\n        {\n          id: 2,\n          name: 'Maria Santos',\n          lat: userLocation.lat - 0.01,\n          lng: userLocation.lng - 0.01,\n          rating: 4.9,\n          vehicle: 'Honda Civic - Preto',\n          distance: 1.8,\n          eta: '3 min'\n        }\n      ];\n      setDrivers(simulatedDrivers);\n    } finally {\n      setLoading(false);\n    }\n  };\n\n  const handleRideRequest = async (destination) => {\n    try {\n      setLoading(true);\n      const response = await fetch(`${BACKEND_URL}/api/rides/request`, {\n        method: 'POST',\n        headers: { 'Content-Type': 'application/json' },\n        body: JSON.stringify({\n          userId: userId || 'guest_' + Date.now(),\n          pickup: 'Sua localização',\n          destination: destination.destination,\n          pickupLat: userLocation.lat,\n          pickupLng: userLocation.lng,\n          destinationLat: userLocation.lat + 0.02,\n          destinationLng: userLocation.lng + 0.02\n        })\n      });\n      const data = await response.json();\n      console.log('Corrida solicitada:', data);\n      setRideRequested(true);\n    } catch (error) {\n      console.error('Erro ao solicitar corrida:', error);\n      setRideRequested(true);\n    } finally {\n      setLoading(false);\n    }\n  };\n\n  const handleSelectDriver = (driver) => {\n    setSelectedDriver(driver);\n  };\n\n  const handleCancelRide = () => {\n    setRideRequested(false);\n    setSelectedDriver(null);\n  };\n\n  return (\n    <div className=\"app\">\n      <div className=\"app-container\">\n        <div className=\"map-container\">\n          {userLocation && (\n            <MapComponent \n              userLocation={userLocation} \n              drivers={drivers}\n              selectedDriver={selectedDriver}\n            />\n          )}\n        </div>\n\n        <div className=\"sidebar\">\n          <div className=\"app-header\">\n            <h1>🚗 UberClone</h1>\n            {loading && <p className=\"loading-indicator\">⏳ Carregando...</p>}\n          </div>\n\n          {!rideRequested ? (\n            <>\n              <RideRequest onSubmit={handleRideRequest} />\n              <DriverList \n                drivers={drivers} \n                onSelectDriver={handleSelectDriver}\n                userLocation={userLocation}\n              />\n            </>\n          ) : (\n            <div className=\"ride-active\">\n              {selectedDriver ? (\n                <>\n                  <div className=\"driver-info\">\n                    <h3>Motorista Confirmado</h3>\n                    <div className=\"driver-card\">\n                      <div className=\"driver-details\">\n                        <h4>{selectedDriver.name}</h4>\n                        <p className=\"vehicle\">{selectedDriver.vehicle}</p>\n                        <p className=\"rating\">⭐ {selectedDriver.rating}</p>\n                        <p className=\"eta\">ETA: {selectedDriver.eta}</p>\n                      </div>\n                    </div>\n                  </div>\n                  <button \n                    className=\"cancel-btn\" \n                    onClick={handleCancelRide}\n                  >\n                    Cancelar Corrida\n                  </button>\n                </>\n              ) : (\n                <div className=\"waiting\">\n                  <p>⏳ Procurando motorista...</p>\n                  <div className=\"loader\"></div>\n                </div>\n              )}\n            </div>\n          )}\n        </div>\n      </div>\n    </div>\n  );\n}\n\nexport default App;\n
+import React, { useState, useEffect } from 'react';
+import AdminLogin from './pages/AdminLogin';
+import AdminDashboard from './pages/AdminDashboard';
+import Login from './pages/Login';
+import Register from './pages/Register';
+import UserProfile from './pages/UserProfile';
+import DriverRegistration from './pages/DriverRegistration';
+import AdminPanel from './pages/AdminPanel';
+import Payment from './pages/Payment';
+import NotificationCenter from './pages/NotificationCenter';
+import './App.css';
+
+function App() {
+  const [currentPage, setCurrentPage] = useState('home');
+  const [user, setUser] = useState(localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')) : null);
+  const [admin, setAdmin] = useState(localStorage.getItem('admin') ? JSON.parse(localStorage.getItem('admin')) : null);
+
+  const handleUserLogin = (userData) => {
+    setUser(userData);
+    setCurrentPage('profile');
+  };
+
+  const handleUserLogout = () => {
+    setUser(null);
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    setCurrentPage('home');
+  };
+
+  const handleAdminLogin = (adminData) => {
+    setAdmin(adminData);
+    setCurrentPage('admin-dashboard');
+  };
+
+  const handleAdminLogout = () => {
+    setAdmin(null);
+    localStorage.removeItem('adminToken');
+    localStorage.removeItem('admin');
+    setCurrentPage('home');
+  };
+
+  // Se admin está logado, mostrar painel admin
+  if (admin) {
+    return (
+      <AdminDashboard 
+        admin={admin} 
+        onLogout={handleAdminLogout}
+      />
+    );
+  }
+
+  // Se admin não está logado e tenta acessar admin, mostrar login admin
+  if (currentPage === 'admin-login' || currentPage === 'admin-dashboard') {
+    return (
+      <AdminLogin onAdminLogin={handleAdminLogin} />
+    );
+  }
+
+  // Renderizar páginas normais do usuário
+  switch (currentPage) {
+    case 'login':
+      return <Login onLoginSuccess={handleUserLogin} />;
+    
+    case 'register':
+      return <Register onRegisterSuccess={handleUserLogin} />;
+    
+    case 'driver-registration':
+      return (
+        <DriverRegistration 
+          onRegistrationSubmit={() => setCurrentPage('profile')}
+        />
+      );
+    
+    case 'profile':
+      return user ? (
+        <UserProfile user={user} onLogout={handleUserLogout} />
+      ) : (
+        <Login onLoginSuccess={handleUserLogin} />
+      );
+    
+    case 'admin-panel':
+      return <AdminPanel />;
+    
+    case 'payment':
+      return (
+        <Payment 
+          rideId="RIDE001"
+          amount={32.50}
+          onPaymentSuccess={() => alert('Pagamento realizado!')}
+        />
+      );
+    
+    case 'notifications':
+      return <NotificationCenter />;
+    
+    default:
+      return (
+        <div className="home-page">
+          <div className="home-container">
+            <h1>🚗 UberClone - Bem-vindo!</h1>
+            <p>Escolha uma opção para continuar:</p>
+            <div className="home-buttons">
+              <button onClick={() => setCurrentPage('login')} className="btn-home">👤 Usuário</button>
+              <button onClick={() => setCurrentPage('admin-login')} className="btn-home admin">🔐 Administrador</button>
+            </div>
+          </div>
+        </div>
+      );
+  }
+}
+
+export default App;
