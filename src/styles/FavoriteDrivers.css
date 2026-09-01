@@ -1,0 +1,151 @@
+.favorites-container {
+  background: white;
+  border-radius: 12px;
+  padding: 30px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+}
+
+.favorites-container h2 {
+  margin: 0 0 10px 0;
+  color: #333;
+  font-size: 24px;
+}
+
+.subtitle {
+  margin: 0 0 25px 0;
+  color: #999;
+  font-size: 14px;
+}
+
+.drivers-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 20px;
+}
+
+.driver-card {
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.05) 0%, rgba(118, 75, 162, 0.05) 100%);
+  border: 2px solid rgba(102, 126, 234, 0.2);
+  border-radius: 12px;
+  padding: 20px;
+  transition: all 0.3s;
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.driver-card:hover {
+  border-color: #667eea;
+  box-shadow: 0 8px 20px rgba(102, 126, 234, 0.2);
+  transform: translateY(-5px);
+}
+
+.driver-header {
+  display: flex;
+  gap: 15px;
+  align-items: flex-start;
+}
+
+.driver-avatar {
+  font-size: 48px;
+  min-width: 60px;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: white;
+  border-radius: 8px;
+}
+
+.driver-info {
+  flex: 1;
+}
+
+.driver-info h3 {
+  margin: 0 0 8px 0;
+  color: #333;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.driver-stats {
+  display: flex;
+  gap: 12px;
+  font-size: 12px;
+}
+
+.driver-stats .rating {
+  color: #ff9800;
+  font-weight: 600;
+}
+
+.driver-stats .rides {
+  color: #667eea;
+  font-weight: 600;
+}
+
+.driver-details {
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
+  padding-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.car-info,
+.response {
+  margin: 0;
+  color: #666;
+  font-size: 13px;
+}
+
+.driver-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.btn-select {
+  flex: 1;
+  padding: 10px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  font-size: 13px;
+  transition: all 0.3s;
+}
+
+.btn-select:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+.btn-remove {
+  padding: 10px 12px;
+  background: #fee;
+  color: #c33;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.3s;
+}
+
+.btn-remove:hover {
+  background: #fdd;
+}
+
+.empty-state {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 40px 20px;
+  color: #999;
+}
+
+@media (max-width: 600px) {
+  .drivers-grid {
+    grid-template-columns: 1fr;
+  }
+}

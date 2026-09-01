@@ -1,0 +1,136 @@
+.safety-container {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  min-height: 100vh;
+  padding: 40px 20px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto';
+}
+
+.safety-header {
+  text-align: center;
+  margin-bottom: 50px;
+  padding: 30px 0;
+}
+
+.safety-header h1 {
+  margin: 0 0 10px 0;
+  font-size: 32px;
+  font-weight: 700;
+}
+
+.safety-header p {
+  margin: 0;
+  font-size: 16px;
+  opacity: 0.9;
+}
+
+.features-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 25px;
+  max-width: 1200px;
+  margin: 0 auto 50px;
+}
+
+.feature-card {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-radius: 12px;
+  padding: 30px;
+  text-align: center;
+  transition: all 0.3s;
+}
+
+.feature-card:hover {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.4);
+  transform: translateY(-5px);
+}
+
+.feature-icon {
+  font-size: 48px;
+  margin-bottom: 15px;
+  display: block;
+}
+
+.feature-card h3 {
+  margin: 0 0 12px 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.feature-card p {
+  margin: 0;
+  font-size: 14px;
+  opacity: 0.9;
+}
+
+.safety-contact {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 16px;
+  padding: 40px 30px;
+  text-align: center;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.safety-contact h2 {
+  margin: 0 0 25px 0;
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.contact-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.btn-contact {
+  padding: 14px;
+  border: 2px solid white;
+  border-radius: 10px;
+  color: white;
+  background: transparent;
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 600;
+  transition: all 0.3s;
+}
+
+.btn-contact:hover {
+  background: white;
+  color: #667eea;
+  transform: translateY(-2px);
+}
+
+.btn-contact.emergency {
+  border-color: #ff4444;
+  color: #ff4444;
+}
+
+.btn-contact.emergency:hover {
+  background: #ff4444;
+  color: white;
+}
+
+.btn-contact.support {
+  border-color: #44ff88;
+  color: #44ff88;
+}
+
+.btn-contact.support:hover {
+  background: #44ff88;
+  color: #667eea;
+}
+
+@media (max-width: 600px) {
+  .features-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .safety-header h1 {
+    font-size: 24px;
+  }
+}
