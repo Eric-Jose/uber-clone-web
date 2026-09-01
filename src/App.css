@@ -1,83 +1,127 @@
-/* Home Page */
-.home-page {
-  width: 100%;
-  min-height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto';
+import React, { useState } from 'react';
+import { NavigationContainer } from '@react-navigation/native';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { Text, View, StyleSheet } from 'react-native';
+
+// Screens
+import LoginMobile from './screens/LoginMobile';
+import ProfileMobile from './screens/ProfileMobile';
+import MapRideMobile from './screens/MapRideMobile';
+
+const Stack = createNativeStackNavigator();
+const Tab = createBottomTabNavigator();
+
+function HomeScreen() {
+  return <MapRideMobile />;
 }
 
-.home-container {
-  text-align: center;
-  color: white;
-  padding: 40px 20px;
+function HistoryScreen() {
+  return (
+    <View style={styles.center}>
+      <Text style={styles.text}>📜 Histórico</Text>
+    </View>
+  );
 }
 
-.home-container h1 {
-  font-size: 48px;
-  margin: 0 0 15px 0;
-  animation: slideDown 0.5s ease-out;
+function PromotionsScreen() {
+  return (
+    <View style={styles.center}>
+      <Text style={styles.text}>🎁 Promoções</Text>
+    </View>
+  );
 }
 
-.home-container p {
-  font-size: 18px;
-  margin: 0 0 40px 0;
-  opacity: 0.9;
+function SupportScreen() {
+  return (
+    <View style={styles.center}>
+      <Text style={styles.text}>❓ Suporte</Text>
+    </View>
+  );
 }
 
-.home-buttons {
-  display: flex;
-  gap: 20px;
-  justify-content: center;
-  flex-wrap: wrap;
+function MainTabs() {
+  return (
+    <Tab.Navigator
+      screenOptions={{
+        tabBarActiveTintColor: '#667eea',
+        tabBarInactiveTintColor: '#ccc',
+        headerShown: false,
+      }}
+    >
+      <Tab.Screen
+        name="Home"
+        component={HomeScreen}
+        options={{
+          tabBarLabel: '🏠',
+          tabBarShowLabel: false,
+        }}
+      />
+      <Tab.Screen
+        name="History"
+        component={HistoryScreen}
+        options={{
+          tabBarLabel: '📜',
+          tabBarShowLabel: false,
+        }}
+      />
+      <Tab.Screen
+        name="Promotions"
+        component={PromotionsScreen}
+        options={{
+          tabBarLabel: '🎁',
+          tabBarShowLabel: false,
+        }}
+      />
+      <Tab.Screen
+        name="Support"
+        component={SupportScreen}
+        options={{
+          tabBarLabel: '❓',
+          tabBarShowLabel: false,
+        }}
+      />
+      <Tab.Screen
+        name="Profile"
+        component={ProfileMobile}
+        options={{
+          tabBarLabel: '👤',
+          tabBarShowLabel: false,
+        }}
+      />
+    </Tab.Navigator>
+  );
 }
 
-.btn-home {
-  padding: 16px 40px;
-  background: white;
-  color: #667eea;
-  border: none;
-  border-radius: 12px;
-  font-size: 16px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+export default function App() {
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  return (
+    <NavigationContainer>
+      <Stack.Navigator screenOptions={{ headerShown: false }}>
+        {!isLoggedIn ? (
+          <Stack.Screen name="Login">
+            {(props) => (
+              <LoginMobile {...props} onLogin={() => setIsLoggedIn(true)} />
+            )}
+          </Stack.Screen>
+        ) : (
+          <Stack.Screen name="Main" component={MainTabs} />
+        )}
+      </Stack.Navigator>
+    </NavigationContainer>
+  );
 }
 
-.btn-home:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.3);
-}
-
-.btn-home.admin {
-  background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
-  color: white;
-}
-
-@keyframes slideDown {
-  from {
-    opacity: 0;
-    transform: translateY(-20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@media (max-width: 600px) {
-  .home-container h1 {
-    font-size: 32px;
-  }
-
-  .home-buttons {
-    flex-direction: column;
-  }
-
-  .btn-home {
-    width: 100%;
-  }
-}
+const styles = StyleSheet.create({
+  center: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+  },
+  text: {
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+});
