@@ -14,6 +14,7 @@ function MapRide({ onRideCreate, onBack }) {
   const [routeInfo, setRouteInfo] = useState(null);
   const [loading, setLoading] = useState(false);
   const [requesting, setRequesting] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
   const [ride, setRide] = useState(null);
   const [userLocation, setUserLocation] = useState(null);
   const [directionsRenderer, setDirectionsRenderer] = useState(null);
@@ -37,8 +38,10 @@ function MapRide({ onRideCreate, onBack }) {
       setRide(prev => ({ ...(prev || {}), ...data, status: 'ACCEPTED', driverId: data.driverId }));
     };
     const onLocation = (data) => {
-      if (!ride?.id || data?.rideId && data.rideId !== ride.id) return;
-      setDriverLocation({ lat: Number(data.latitude ?? data.lat), lng: Number(data.longitude ?? data.lng) });
+      if (!ride?.id || (data?.rideId && data.rideId !== ride.id)) return;
+      const lat = Number(data.latitude ?? data.lat);
+      const lng = Number(data.longitude ?? data.lng);
+      if (Number.isFinite(lat) && Number.isFinite(lng)) setDriverLocation({ lat, lng });
     };
     const onStarted = (data) => {
       if (data?.rideId === ride?.id) setRide(prev => ({ ...(prev || {}), status: 'IN_PROGRESS' }));
@@ -46,20 +49,25 @@ function MapRide({ onRideCreate, onBack }) {
     const onEnded = (data) => {
       if (data?.rideId === ride?.id) setRide(prev => ({ ...(prev || {}), status: 'COMPLETED' }));
     };
+    const onCancelled = (data) => {
+      if (data?.rideId === ride?.id) setRide(prev => ({ ...(prev || {}), status: 'CANCELLED' }));
+    };
     WebSocketService.onRideAccepted(onAccepted);
     WebSocketService.onDriverLocationUpdate(onLocation);
     WebSocketService.onRideStarted(onStarted);
     WebSocketService.onRideEnded(onEnded);
+    WebSocketService.ensureSocket().on('ride-cancelled', onCancelled);
     return () => {
       WebSocketService.off('ride-accepted', onAccepted);
       WebSocketService.off('update-driver-location', onLocation);
       WebSocketService.off('ride-started', onStarted);
       WebSocketService.off('ride-ended', onEnded);
+      WebSocketService.off('ride-cancelled', onCancelled);
     };
   }, [ride?.id]);
 
   useEffect(() => {
-    if (!map || !driverLocation || !Number.isFinite(driverLocation.lat) || !Number.isFinite(driverLocation.lng)) return;
+    if (!map || !driverLocation) return;
     if (!driverMarkerRef.current) driverMarkerRef.current = new window.google.maps.Marker({ map, title: 'Motorista' });
     driverMarkerRef.current.setPosition(driverLocation);
   }, [map, driverLocation]);
@@ -100,17 +108,38 @@ function MapRide({ onRideCreate, onBack }) {
     if (!user?.uid || !token) return alert('Faça login novamente.');
     setRequesting(true);
     try {
-      const response = await fetch(`${BACKEND_URL}/api/rides/request`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ userId: user.uid, origin: { address: routeInfo.origin, location: userLocation }, destination: { address: routeInfo.destination }, distance: Number(routeInfo.distance), price: Number(routeInfo.price) }) });
+      const response = await fetch(`${BACKEND_URL}/api/rides/request`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ origin: { address: routeInfo.origin, location: userLocation }, destination: { address: routeInfo.destination }, distance: Number(routeInfo.distance), price: Number(routeInfo.price) }) });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Erro ao solicitar corrida.');
       setRide(data.ride);
       WebSocketService.connect();
       WebSocketService.joinRideRoom(data.ride.id);
-      WebSocketService.requestRide(data.ride);
+      WebSocketService.requestRide({ rideId: data.ride.id });
       onRideCreate?.(data.ride);
     } catch (error) { alert(error.message); }
     finally { setRequesting(false); }
   };
+
+  const handleCancelRide = async () => {
+    if (!ride?.id || cancelling || ['COMPLETED', 'CANCELLED'].includes(ride.status)) return;
+    if (!window.confirm('Deseja cancelar esta corrida?')) return;
+    const token = localStorage.getItem('token');
+    setCancelling(true);
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/rides/${ride.id}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ status: 'CANCELLED', cancellationReason: 'Cancelada pelo passageiro' })
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Não foi possível cancelar a corrida.');
+      setRide(data.ride);
+      WebSocketService.ensureSocket().emit('ride-cancelled', { rideId: ride.id });
+    } catch (error) { alert(error.message); }
+    finally { setCancelling(false); }
+  };
+
+  const statusLabel = { SEARCHING: 'Procurando motorista', ACCEPTED: 'Motorista a caminho', IN_PROGRESS: 'Corrida em andamento', COMPLETED: 'Corrida finalizada', CANCELLED: 'Corrida cancelada' };
 
   return (
     <div className="map-ride-container">
@@ -119,11 +148,11 @@ function MapRide({ onRideCreate, onBack }) {
         {onBack && <button onClick={onBack} className="btn-calculate">← Voltar</button>}
         <h2>🚗 Solicitar Corrida</h2>
         {!GOOGLE_MAPS_API_KEY && <div className="error-message">Configure REACT_APP_GOOGLE_MAPS_KEY na Vercel.</div>}
-        <div className="input-group"><label>📍 Origem</label><input value={originInput} onChange={e => setOriginInput(e.target.value)} placeholder="Onde você está?" /></div>
-        <div className="input-group"><label>🎯 Destino</label><input value={destinationInput} onChange={e => setDestinationInput(e.target.value)} placeholder="Para onde você vai?" /></div>
-        <button className="btn-calculate" onClick={calculateRoute} disabled={loading || !map}>{loading ? '🔄 Calculando...' : '🔍 Calcular Rota'}</button>
+        <div className="input-group"><label>📍 Origem</label><input value={originInput} onChange={e => setOriginInput(e.target.value)} placeholder="Onde você está?" disabled={!!ride} /></div>
+        <div className="input-group"><label>🎯 Destino</label><input value={destinationInput} onChange={e => setDestinationInput(e.target.value)} placeholder="Para onde você vai?" disabled={!!ride} /></div>
+        {!ride && <button className="btn-calculate" onClick={calculateRoute} disabled={loading || !map}>{loading ? '🔄 Calculando...' : '🔍 Calcular Rota'}</button>}
         {routeInfo && !ride && <div className="route-info"><h3>📊 Detalhes</h3><p>📏 {routeInfo.distance} km</p><p>⏱️ {routeInfo.duration} min</p><p>💰 R$ {routeInfo.price}</p><button className="btn-request" onClick={handleCreateRide} disabled={requesting}>{requesting ? '⏳ Solicitando...' : '🚀 Solicitar Corrida'}</button></div>}
-        {ride && <div className="route-info"><h3>🚕 Corrida</h3><p>ID: {ride.id}</p><p><strong>Status:</strong> {ride.status}</p>{ride.driverId ? <p>👨‍✈️ Motorista encontrado! A localização será atualizada em tempo real.</p> : <p>🔎 Procurando motorista...</p>}{driverLocation && <p>📍 Motorista: {driverLocation.lat.toFixed(5)}, {driverLocation.lng.toFixed(5)}</p>}{ride.status === 'COMPLETED' && <p>✅ Corrida finalizada.</p>}</div>}
+        {ride && <div className="route-info"><h3>🚕 Corrida</h3><p>ID: {ride.id}</p><p><strong>Status:</strong> {statusLabel[ride.status] || ride.status}</p>{ride.driverId ? <p>👨‍✈️ Motorista encontrado! A localização será atualizada em tempo real.</p> : <p>🔎 Procurando motorista...</p>}{driverLocation && <p>📍 Motorista: {driverLocation.lat.toFixed(5)}, {driverLocation.lng.toFixed(5)}</p>}{!['COMPLETED', 'CANCELLED'].includes(ride.status) && <button className="btn-calculate" onClick={handleCancelRide} disabled={cancelling}>{cancelling ? '⏳ Cancelando...' : '✕ Cancelar corrida'}</button>}{ride.status === 'COMPLETED' && <p>✅ Corrida finalizada.</p>}{ride.status === 'CANCELLED' && <p>⚠️ Corrida cancelada.</p>}</div>}
       </div>
     </div>
   );
