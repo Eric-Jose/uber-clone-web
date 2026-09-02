@@ -24,10 +24,15 @@ function DriverDashboard() {
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const watchId = useRef(null);
+  const activeRideRef = useRef(null);
 
   const token = localStorage.getItem('token');
   const uid = user?.uid;
   const authConfig = { headers: { Authorization: `Bearer ${token}` } };
+
+  useEffect(() => {
+    activeRideRef.current = activeRide;
+  }, [activeRide]);
 
   const updateDriverStatus = useCallback(async (isOnline, position) => {
     if (!uid || !token) return;
@@ -36,9 +41,10 @@ function DriverDashboard() {
   }, [uid, token]);
 
   const sendPosition = useCallback((position) => {
-    if (!activeRide?.id || !uid) return;
-    WebSocketService.sendLocation(activeRide.id, uid, position.coords.latitude, position.coords.longitude);
-  }, [activeRide, uid]);
+    const ride = activeRideRef.current;
+    if (!ride?.id || !uid) return;
+    WebSocketService.sendLocation(ride.id, uid, position.coords.latitude, position.coords.longitude);
+  }, [uid]);
 
   const startWatchingLocation = useCallback(() => {
     if (!navigator.geolocation || watchId.current !== null) return;
@@ -52,19 +58,20 @@ function DriverDashboard() {
 
   useEffect(() => {
     if (!token || !uid) return undefined;
-    const socket = WebSocketService.connect();
+    WebSocketService.connect();
     const onRequest = (ride) => {
-      if (ride?.id) setRequests(prev => prev.some(r => r.id === ride.id) ? prev : [ride, ...prev]);
+      if (ride?.id || ride?.rideId) {
+        const normalized = { ...ride, id: ride.id || ride.rideId };
+        setRequests(prev => prev.some(r => r.id === normalized.id) ? prev : [normalized, ...prev]);
+      }
     };
     const onAccepted = (ride) => {
-      if (ride?.id) setActiveRide(ride);
+      if (ride?.id || ride?.rideId) setActiveRide(prev => ({ ...(prev || {}), ...ride, id: ride.id || ride.rideId }));
     };
     const onStarted = (ride) => {
-      if (ride?.id) setActiveRide(prev => ({ ...(prev || {}), ...ride, status: 'IN_PROGRESS' }));
+      if (ride?.id || ride?.rideId) setActiveRide(prev => ({ ...(prev || {}), ...ride, id: ride.id || ride.rideId, status: 'IN_PROGRESS' }));
     };
-    const onEnded = (ride) => {
-      if (ride?.id) setActiveRide(null);
-    };
+    const onEnded = () => setActiveRide(null);
     WebSocketService.onNewRideRequest(onRequest);
     WebSocketService.onRideAccepted(onAccepted);
     WebSocketService.onRideStarted(onStarted);
@@ -103,6 +110,7 @@ function DriverDashboard() {
   };
 
   const acceptRide = async (ride) => {
+    if (activeRideRef.current) return;
     setLoading(true); setMessage('');
     try {
       const response = await axios.post(`${BACKEND_URL}/api/rides/accept`, { rideId: ride.id }, authConfig);
@@ -110,6 +118,7 @@ function DriverDashboard() {
       setActiveRide(accepted);
       setRequests(prev => prev.filter(item => item.id !== ride.id));
       WebSocketService.joinRideRoom(ride.id);
+      WebSocketService.emit('accept-ride', { rideId: ride.id });
       setMessage('Corrida aceita. Vá até o passageiro.');
       startWatchingLocation();
     } catch (error) { setMessage(error.response?.data?.error || 'Não foi possível aceitar esta corrida.'); }
