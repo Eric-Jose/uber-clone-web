@@ -37,12 +37,14 @@ class WebSocketService {
   acceptRide(rideId, driverId) { this.ensureSocket().emit('accept-ride', { rideId, driverId }); }
   startRide(rideId, driverId) { this.ensureSocket().emit('start-ride', { rideId, driverId }); }
   endRide(rideId, driverId) { this.ensureSocket().emit('end-ride', { rideId, driverId }); }
+  cancelRide(rideId) { if (rideId) this.ensureSocket().emit('ride-cancelled', { rideId }); }
 
   onDriverLocationUpdate(callback) { return this.ensureSocket().on('update-driver-location', callback); }
   onNewRideRequest(callback) { return this.ensureSocket().on('new-ride-request', callback); }
   onRideAccepted(callback) { return this.ensureSocket().on('ride-accepted', callback); }
   onRideStarted(callback) { return this.ensureSocket().on('ride-started', callback); }
   onRideEnded(callback) { return this.ensureSocket().on('ride-ended', callback); }
+  onRideCancelled(callback) { return this.ensureSocket().on('ride-cancelled', callback); }
   off(event, callback) { this.socket?.off(event, callback); }
 }
 
