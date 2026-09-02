@@ -5,6 +5,7 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import UserProfile from './pages/UserProfile';
 import DriverRegistration from './pages/DriverRegistration';
+import DriverDashboard from './pages/DriverDashboard';
 import AdminPanel from './pages/AdminPanel';
 import Payment from './pages/Payment';
 import NotificationCenter from './pages/NotificationCenter';
@@ -16,7 +17,7 @@ function App() {
   const [user, setUser] = useState(() => { try { return JSON.parse(localStorage.getItem('user')) || null; } catch { return null; } });
   const [admin, setAdmin] = useState(() => { try { return JSON.parse(localStorage.getItem('admin')) || null; } catch { return null; } });
 
-  const handleUserLogin = (userData) => { setUser(userData); setCurrentPage(userData?.userType === 'driver' ? 'driver-registration' : 'profile'); };
+  const handleUserLogin = (userData) => { setUser(userData); setCurrentPage(userData?.userType === 'driver' ? 'driver-dashboard' : 'profile'); };
   const handleUserLogout = () => { setUser(null); localStorage.removeItem('token'); localStorage.removeItem('user'); setCurrentPage('home'); };
   const handleAdminLogin = (adminData) => { setAdmin(adminData); setCurrentPage('admin-dashboard'); };
   const handleAdminLogout = () => { setAdmin(null); localStorage.removeItem('adminToken'); localStorage.removeItem('admin'); setCurrentPage('home'); };
@@ -28,7 +29,8 @@ function App() {
     case 'login': return <Login onLoginSuccess={handleUserLogin} />;
     case 'register': return <Register onRegisterSuccess={handleUserLogin} />;
     case 'ride': return <MapRide onRideCreate={() => setCurrentPage('profile')} onBack={() => setCurrentPage('profile')} />;
-    case 'driver-registration': return <DriverRegistration onRegistrationSubmit={() => setCurrentPage('profile')} />;
+    case 'driver-registration': return <DriverRegistration onRegistrationSubmit={() => setCurrentPage('driver-dashboard')} />;
+    case 'driver-dashboard': return <DriverDashboard />;
     case 'profile': return user ? <UserProfile user={user} onLogout={handleUserLogout} onRequestRide={() => setCurrentPage('ride')} /> : <Login onLoginSuccess={handleUserLogin} />;
     case 'admin-panel': return <AdminPanel />;
     case 'payment': return <Payment rideId="RIDE001" amount={32.50} onPaymentSuccess={() => alert('Pagamento realizado!')} />;
