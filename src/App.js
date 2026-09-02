@@ -10,6 +10,7 @@ import AdminPanel from './pages/AdminPanel';
 import Payment from './pages/Payment';
 import NotificationCenter from './pages/NotificationCenter';
 import MapRide from './pages/MapRide';
+import RideHistory from './pages/RideHistory';
 import './App.css';
 
 function App() {
@@ -29,9 +30,10 @@ function App() {
     case 'login': return <Login onLoginSuccess={handleUserLogin} />;
     case 'register': return <Register onRegisterSuccess={handleUserLogin} />;
     case 'ride': return <MapRide onRideCreate={() => setCurrentPage('profile')} onBack={() => setCurrentPage('profile')} />;
+    case 'ride-history': return user ? <RideHistory user={user} onBack={() => setCurrentPage(user.userType === 'driver' ? 'driver-dashboard' : 'profile')} /> : <Login onLoginSuccess={handleUserLogin} />;
     case 'driver-registration': return <DriverRegistration onRegistrationSubmit={() => setCurrentPage('driver-dashboard')} />;
     case 'driver-dashboard': return <DriverDashboard />;
-    case 'profile': return user ? <UserProfile user={user} onLogout={handleUserLogout} onRequestRide={() => setCurrentPage('ride')} /> : <Login onLoginSuccess={handleUserLogin} />;
+    case 'profile': return user ? <UserProfile user={user} onLogout={handleUserLogout} onRequestRide={() => setCurrentPage('ride')} onHistory={() => setCurrentPage('ride-history')} /> : <Login onLoginSuccess={handleUserLogin} />;
     case 'admin-panel': return <AdminPanel />;
     case 'payment': return <Payment rideId="RIDE001" amount={32.50} onPaymentSuccess={() => alert('Pagamento realizado!')} />;
     case 'notifications': return <NotificationCenter />;
