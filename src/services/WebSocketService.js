@@ -1,90 +1,49 @@
-import React from 'react';
 import io from 'socket.io-client';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:5000';
 
 class WebSocketService {
-  constructor() {
-    this.socket = null;
-  }
+  constructor() { this.socket = null; }
 
   connect() {
+    if (this.socket?.connected) return this.socket;
+    const token = localStorage.getItem('token');
     this.socket = io(BACKEND_URL, {
+      auth: { token },
+      transports: ['websocket', 'polling'],
       reconnection: true,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
       reconnectionAttempts: 5
     });
-
-    this.socket.on('connect', () => {
-      console.log('✅ Conectado ao servidor');
-    });
-
-    this.socket.on('disconnect', () => {
-      console.log('❌ Desconectado do servidor');
-    });
+    return this.socket;
   }
 
   disconnect() {
-    if (this.socket) {
-      this.socket.disconnect();
-    }
+    if (this.socket) { this.socket.disconnect(); this.socket = null; }
   }
 
-  // Enviar localização
-  sendLocation(userId, lat, lng) {
-    this.socket.emit('driver-location', {
-      userId,
-      lat,
-      lng,
-      timestamp: new Date().toISOString()
-    });
+  ensureSocket() { return this.socket || this.connect(); }
+
+  joinRideRoom(rideId) { if (rideId) this.ensureSocket().emit('join-ride-room', rideId); }
+  leaveRideRoom(rideId) { if (rideId) this.ensureSocket().emit('leave-ride-room', rideId); }
+  joinDriversRoom() { this.ensureSocket().emit('join-drivers-room'); }
+
+  sendLocation(rideId, driverId, latitude, longitude) {
+    this.ensureSocket().emit('driver-location', { rideId, driverId, latitude, longitude, timestamp: new Date().toISOString() });
   }
 
-  // Solicitar corrida
-  requestRide(rideData) {
-    this.socket.emit('request-ride', rideData);
-  }
+  requestRide(rideData) { this.ensureSocket().emit('request-ride', rideData); }
+  acceptRide(rideId, driverId) { this.ensureSocket().emit('accept-ride', { rideId, driverId }); }
+  startRide(rideId, driverId) { this.ensureSocket().emit('start-ride', { rideId, driverId }); }
+  endRide(rideId, driverId) { this.ensureSocket().emit('end-ride', { rideId, driverId }); }
 
-  // Aceitar corrida
-  acceptRide(rideId, driverId) {
-    this.socket.emit('accept-ride', { rideId, driverId });
-  }
-
-  // Iniciar corrida
-  startRide(rideId) {
-    this.socket.emit('start-ride', { rideId });
-  }
-
-  // Finalizar corrida
-  endRide(rideId) {
-    this.socket.emit('end-ride', { rideId });
-  }
-
-  // Escutar atualizações de localização
-  onDriverLocationUpdate(callback) {
-    this.socket.on('update-driver-location', callback);
-  }
-
-  // Escutar novas solicitações
-  onNewRideRequest(callback) {
-    this.socket.on('new-ride-request', callback);
-  }
-
-  // Escutar aceitação de corrida
-  onRideAccepted(callback) {
-    this.socket.on('ride-accepted', callback);
-  }
-
-  // Escutar corrida iniciada
-  onRideStarted(callback) {
-    this.socket.on('ride-started', callback);
-  }
-
-  // Escutar corrida finalizada
-  onRideEnded(callback) {
-    this.socket.on('ride-ended', callback);
-  }
+  onDriverLocationUpdate(callback) { return this.ensureSocket().on('update-driver-location', callback); }
+  onNewRideRequest(callback) { return this.ensureSocket().on('new-ride-request', callback); }
+  onRideAccepted(callback) { return this.ensureSocket().on('ride-accepted', callback); }
+  onRideStarted(callback) { return this.ensureSocket().on('ride-started', callback); }
+  onRideEnded(callback) { return this.ensureSocket().on('ride-ended', callback); }
+  off(event, callback) { this.socket?.off(event, callback); }
 }
 
 export default new WebSocketService();
