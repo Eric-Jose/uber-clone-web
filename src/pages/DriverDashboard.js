@@ -30,9 +30,7 @@ function DriverDashboard() {
   const uid = user?.uid;
   const authConfig = { headers: { Authorization: `Bearer ${token}` } };
 
-  useEffect(() => {
-    activeRideRef.current = activeRide;
-  }, [activeRide]);
+  useEffect(() => { activeRideRef.current = activeRide; }, [activeRide]);
 
   const updateDriverStatus = useCallback(async (isOnline, position) => {
     if (!uid || !token) return;
@@ -118,7 +116,7 @@ function DriverDashboard() {
       setActiveRide(accepted);
       setRequests(prev => prev.filter(item => item.id !== ride.id));
       WebSocketService.joinRideRoom(ride.id);
-      WebSocketService.emit('accept-ride', { rideId: ride.id });
+      WebSocketService.acceptRide(ride.id, uid);
       setMessage('Corrida aceita. Vá até o passageiro.');
       startWatchingLocation();
     } catch (error) { setMessage(error.response?.data?.error || 'Não foi possível aceitar esta corrida.'); }
