@@ -103,9 +103,8 @@ function MapRide({ onRideCreate, onBack }) {
 
   const handleCreateRide = async () => {
     if (!routeInfo || requesting) return;
-    const user = JSON.parse(localStorage.getItem('user') || 'null');
     const token = localStorage.getItem('token');
-    if (!user?.uid || !token) return alert('Faça login novamente.');
+    if (!token) return alert('Faça login novamente.');
     setRequesting(true);
     try {
       const response = await fetch(`${BACKEND_URL}/api/rides/request`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ origin: { address: routeInfo.origin, location: userLocation }, destination: { address: routeInfo.destination }, distance: Number(routeInfo.distance), price: Number(routeInfo.price) }) });
@@ -124,13 +123,10 @@ function MapRide({ onRideCreate, onBack }) {
     if (!ride?.id || cancelling || ['COMPLETED', 'CANCELLED'].includes(ride.status)) return;
     if (!window.confirm('Deseja cancelar esta corrida?')) return;
     const token = localStorage.getItem('token');
+    if (!token) return alert('Faça login novamente.');
     setCancelling(true);
     try {
-      const response = await fetch(`${BACKEND_URL}/api/rides/${ride.id}/status`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ status: 'CANCELLED', cancellationReason: 'Cancelada pelo passageiro' })
-      });
+      const response = await fetch(`${BACKEND_URL}/api/rides/${ride.id}/status`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ status: 'CANCELLED', cancellationReason: 'Cancelada pelo passageiro' }) });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Não foi possível cancelar a corrida.');
       setRide(data.ride);
