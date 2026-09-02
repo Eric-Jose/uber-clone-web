@@ -7,6 +7,7 @@ const GOOGLE_MAPS_API_KEY = process.env.REACT_APP_GOOGLE_MAPS_KEY;
 
 function MapRide({ onRideCreate, onBack }) {
   const mapRef = useRef(null);
+  const driverMarkerRef = useRef(null);
   const [map, setMap] = useState(null);
   const [originInput, setOriginInput] = useState('');
   const [destinationInput, setDestinationInput] = useState('');
@@ -16,9 +17,10 @@ function MapRide({ onRideCreate, onBack }) {
   const [ride, setRide] = useState(null);
   const [userLocation, setUserLocation] = useState(null);
   const [directionsRenderer, setDirectionsRenderer] = useState(null);
+  const [driverLocation, setDriverLocation] = useState(null);
 
   useEffect(() => {
-    if (!GOOGLE_MAPS_API_KEY) return;
+    if (!GOOGLE_MAPS_API_KEY) return undefined;
     if (!window.google) {
       const script = document.createElement('script');
       script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=places`;
@@ -28,6 +30,39 @@ function MapRide({ onRideCreate, onBack }) {
     } else initMap();
     return () => WebSocketService.disconnect();
   }, []);
+
+  useEffect(() => {
+    const onAccepted = (data) => {
+      if (!ride?.id || data?.rideId !== ride.id) return;
+      setRide(prev => ({ ...(prev || {}), ...data, status: 'ACCEPTED', driverId: data.driverId }));
+    };
+    const onLocation = (data) => {
+      if (!ride?.id || data?.rideId && data.rideId !== ride.id) return;
+      setDriverLocation({ lat: Number(data.latitude ?? data.lat), lng: Number(data.longitude ?? data.lng) });
+    };
+    const onStarted = (data) => {
+      if (data?.rideId === ride?.id) setRide(prev => ({ ...(prev || {}), status: 'IN_PROGRESS' }));
+    };
+    const onEnded = (data) => {
+      if (data?.rideId === ride?.id) setRide(prev => ({ ...(prev || {}), status: 'COMPLETED' }));
+    };
+    WebSocketService.onRideAccepted(onAccepted);
+    WebSocketService.onDriverLocationUpdate(onLocation);
+    WebSocketService.onRideStarted(onStarted);
+    WebSocketService.onRideEnded(onEnded);
+    return () => {
+      WebSocketService.off('ride-accepted', onAccepted);
+      WebSocketService.off('update-driver-location', onLocation);
+      WebSocketService.off('ride-started', onStarted);
+      WebSocketService.off('ride-ended', onEnded);
+    };
+  }, [ride?.id]);
+
+  useEffect(() => {
+    if (!map || !driverLocation || !Number.isFinite(driverLocation.lat) || !Number.isFinite(driverLocation.lng)) return;
+    if (!driverMarkerRef.current) driverMarkerRef.current = new window.google.maps.Marker({ map, title: 'Motorista' });
+    driverMarkerRef.current.setPosition(driverLocation);
+  }, [map, driverLocation]);
 
   const initMap = () => {
     if (!mapRef.current || !window.google) return;
@@ -49,19 +84,13 @@ function MapRide({ onRideCreate, onBack }) {
     if (!originInput || !destinationInput || !map) return alert('Preencha origem e destino.');
     setLoading(true);
     try {
-      const result = await new window.google.maps.DirectionsService().route({
-        origin: originInput,
-        destination: destinationInput,
-        travelMode: window.google.maps.TravelMode.DRIVING
-      });
+      const result = await new window.google.maps.DirectionsService().route({ origin: originInput, destination: destinationInput, travelMode: window.google.maps.TravelMode.DRIVING });
       directionsRenderer?.setDirections(result);
       const leg = result.routes[0].legs[0];
       const distanceKm = leg.distance.value / 1000;
       setRouteInfo({ distance: distanceKm.toFixed(2), duration: Math.ceil(leg.duration.value / 60), price: (distanceKm * 5 + 10).toFixed(2), origin: originInput, destination: destinationInput });
-    } catch (error) {
-      console.error(error);
-      alert('Não foi possível calcular a rota.');
-    } finally { setLoading(false); }
+    } catch (error) { console.error(error); alert('Não foi possível calcular a rota.'); }
+    finally { setLoading(false); }
   };
 
   const handleCreateRide = async () => {
@@ -71,17 +100,7 @@ function MapRide({ onRideCreate, onBack }) {
     if (!user?.uid || !token) return alert('Faça login novamente.');
     setRequesting(true);
     try {
-      const response = await fetch(`${BACKEND_URL}/api/rides/request`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          userId: user.uid,
-          origin: { address: routeInfo.origin, location: userLocation },
-          destination: { address: routeInfo.destination },
-          distance: Number(routeInfo.distance),
-          price: Number(routeInfo.price)
-        })
-      });
+      const response = await fetch(`${BACKEND_URL}/api/rides/request`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ userId: user.uid, origin: { address: routeInfo.origin, location: userLocation }, destination: { address: routeInfo.destination }, distance: Number(routeInfo.distance), price: Number(routeInfo.price) }) });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Erro ao solicitar corrida.');
       setRide(data.ride);
@@ -89,9 +108,8 @@ function MapRide({ onRideCreate, onBack }) {
       WebSocketService.joinRideRoom(data.ride.id);
       WebSocketService.requestRide(data.ride);
       onRideCreate?.(data.ride);
-    } catch (error) {
-      alert(error.message);
-    } finally { setRequesting(false); }
+    } catch (error) { alert(error.message); }
+    finally { setRequesting(false); }
   };
 
   return (
@@ -105,7 +123,7 @@ function MapRide({ onRideCreate, onBack }) {
         <div className="input-group"><label>🎯 Destino</label><input value={destinationInput} onChange={e => setDestinationInput(e.target.value)} placeholder="Para onde você vai?" /></div>
         <button className="btn-calculate" onClick={calculateRoute} disabled={loading || !map}>{loading ? '🔄 Calculando...' : '🔍 Calcular Rota'}</button>
         {routeInfo && !ride && <div className="route-info"><h3>📊 Detalhes</h3><p>📏 {routeInfo.distance} km</p><p>⏱️ {routeInfo.duration} min</p><p>💰 R$ {routeInfo.price}</p><button className="btn-request" onClick={handleCreateRide} disabled={requesting}>{requesting ? '⏳ Solicitando...' : '🚀 Solicitar Corrida'}</button></div>}
-        {ride && <div className="route-info"><h3>✅ Corrida solicitada</h3><p>ID: {ride.id}</p><p>Status: {ride.status}</p><p>Procurando motorista...</p></div>}
+        {ride && <div className="route-info"><h3>🚕 Corrida</h3><p>ID: {ride.id}</p><p><strong>Status:</strong> {ride.status}</p>{ride.driverId ? <p>👨‍✈️ Motorista encontrado! A localização será atualizada em tempo real.</p> : <p>🔎 Procurando motorista...</p>}{driverLocation && <p>📍 Motorista: {driverLocation.lat.toFixed(5)}, {driverLocation.lng.toFixed(5)}</p>}{ride.status === 'COMPLETED' && <p>✅ Corrida finalizada.</p>}</div>}
       </div>
     </div>
   );
