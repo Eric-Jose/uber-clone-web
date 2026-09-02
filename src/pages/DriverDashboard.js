@@ -70,15 +70,24 @@ function DriverDashboard() {
       if (ride?.id || ride?.rideId) setActiveRide(prev => ({ ...(prev || {}), ...ride, id: ride.id || ride.rideId, status: 'IN_PROGRESS' }));
     };
     const onEnded = () => setActiveRide(null);
+    const onCancelled = (data) => {
+      const rideId = data?.rideId;
+      if (!rideId || rideId !== activeRideRef.current?.id) return;
+      stopWatchingLocation();
+      setActiveRide(null);
+      setMessage(data?.cancellationReason ? `Corrida cancelada: ${data.cancellationReason}` : 'A corrida foi cancelada.');
+    };
     WebSocketService.onNewRideRequest(onRequest);
     WebSocketService.onRideAccepted(onAccepted);
     WebSocketService.onRideStarted(onStarted);
     WebSocketService.onRideEnded(onEnded);
+    WebSocketService.onRideCancelled(onCancelled);
     return () => {
       WebSocketService.off('new-ride-request', onRequest);
       WebSocketService.off('ride-accepted', onAccepted);
       WebSocketService.off('ride-started', onStarted);
       WebSocketService.off('ride-ended', onEnded);
+      WebSocketService.off('ride-cancelled', onCancelled);
       stopWatchingLocation();
       WebSocketService.disconnect();
     };
@@ -131,9 +140,24 @@ function DriverDashboard() {
       const updated = response.data.ride || response.data;
       setActiveRide(prev => ({ ...(prev || {}), ...updated, status }));
       if (status === 'IN_PROGRESS') WebSocketService.startRide(activeRide.id, uid);
-      if (status === 'COMPLETED') { WebSocketService.endRide(activeRide.id, uid); setActiveRide(null); }
+      if (status === 'COMPLETED') { WebSocketService.endRide(activeRide.id, uid); setActiveRide(null); stopWatchingLocation(); }
     } catch (error) { setMessage(error.response?.data?.error || 'Não foi possível atualizar a corrida.'); }
     finally { setLoading(false); }
+  };
+
+  const cancelActiveRide = async () => {
+    if (!activeRide?.id || loading) return;
+    const reason = window.prompt('Informe o motivo do cancelamento (opcional):', 'Não posso realizar a corrida no momento.') || 'Cancelada pelo motorista';
+    setLoading(true); setMessage('');
+    try {
+      await axios.patch(`${BACKEND_URL}/api/rides/${activeRide.id}/status`, { status: 'CANCELLED', cancellationReason: reason });
+      WebSocketService.cancelRide(activeRide.id);
+      setActiveRide(null);
+      stopWatchingLocation();
+      setMessage('Corrida cancelada.');
+    } catch (error) {
+      setMessage(error.response?.data?.error || 'Não foi possível cancelar a corrida.');
+    } finally { setLoading(false); }
   };
 
   if (!user || user.userType !== 'driver') {
@@ -159,6 +183,7 @@ function DriverDashboard() {
         <p><strong>Status:</strong> {activeRide.status}</p>
         <div style={styles.row}>
           {activeRide.status === 'ACCEPTED' && <button disabled={loading} onClick={() => changeRideStatus('IN_PROGRESS')} style={{ ...styles.button, ...styles.primary }}>▶️ Iniciar corrida</button>}
+          {['ACCEPTED', 'IN_PROGRESS'].includes(activeRide.status) && <button disabled={loading} onClick={cancelActiveRide} style={{ ...styles.button, ...styles.danger }}>✖️ Cancelar corrida</button>}
           {activeRide.status === 'IN_PROGRESS' && <button disabled={loading} onClick={() => changeRideStatus('COMPLETED')} style={{ ...styles.button, ...styles.success }}>✅ Finalizar corrida</button>}
         </div>
       </div>}
