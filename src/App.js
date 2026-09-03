@@ -45,7 +45,7 @@ function AccountPanel({ account, currentPage, onNavigate, children }) {
 }
 
 function DriverPending({ user, onLogout }) {
-  return <div style={{ minHeight: '100vh', background: '#f5f5f5', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, fontFamily: 'Arial' }}><div style={{ maxWidth: 520, width: '100%', background: '#fff', borderRadius: 16, padding: 28, textAlign: 'center' }}><ProfilePhoto account={user} compact /><div style={{ fontSize: 54 }}>⏳</div><h1>Cadastro em análise</h1><p style={{ color: '#666', lineHeight: 1.6 }}>{user?.name ? `${user.name}, ` : ''}seu cadastro de motorista foi enviado e aguarda aprovação.</p><button onClick={onLogout} style={{ border: 0, borderRadius: 10, padding: '12px 20px', background: '#111827', color: '#fff', fontWeight: 700 }}>Sair</button></div></div>;
+  return <div style={{ minHeight: '100vh', background: '#f5f5f5', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, fontFamily: 'Arial' }}><div style={{ maxWidth: 520, width: '100%', background: '#fff', borderRadius: 16, padding: 28, textAlign: 'center' }}><ProfilePhoto account={user} compact /><div style={{ fontSize: 54 }}>⏳</div><h1>Cadastro em análise</h1><p style={{ color: '#666', lineHeight: 1.6 }}>{user?.name ? `${user.name}, ` : ''}seu cadastro de motorista foi enviado e aguarda aprovação.</p><p style={{ color: '#777', fontSize: 13 }}>Esta tela será atualizada automaticamente quando o administrador revisar o cadastro.</p><button onClick={onLogout} style={{ border: 0, borderRadius: 10, padding: '12px 20px', background: '#111827', color: '#fff', fontWeight: 700 }}>Sair</button></div></div>;
 }
 
 function App() {
@@ -53,8 +53,6 @@ function App() {
   const [user, setUser] = useState(() => getStored('user'));
   const [admin, setAdmin] = useState(() => getStored('admin'));
 
-  // Firebase mantém a sessão persistente. Ao reabrir o app, o ID token é
-  // trocado por um novo JWT do backend, sem exigir novo login do usuário.
   useEffect(() => {
     if (!auth) return undefined;
     let cancelled = false;
@@ -90,12 +88,13 @@ function App() {
       } catch (_) {}
     };
     verifySession();
-    const interval = window.setInterval(verifySession, 30000);
+    const intervalMs = currentPage === 'driver-pending' ? 5000 : 30000;
+    const interval = window.setInterval(verifySession, intervalMs);
     const onFocus = () => verifySession();
     const onVisibility = () => { if (document.visibilityState === 'visible') verifySession(); };
     window.addEventListener('focus', onFocus); document.addEventListener('visibilitychange', onVisibility);
-    return () => { cancelled = true; window.clearInterval(interval); window.removeEventListener('focus', onFocus); window.removeEventListener('visibilitychange', onVisibility); };
-  }, [admin]);
+    return () => { cancelled = true; window.clearInterval(interval); window.removeEventListener('focus', onFocus); document.removeEventListener('visibilitychange', onVisibility); };
+  }, [admin, currentPage]);
 
   useEffect(() => {
     const onPhoto = (event) => { const uid = event.detail?.uid; const storedUser = getStored('user'); const storedAdmin = getStored('admin'); if (storedUser && (!uid || storedUser.uid === uid)) setUser({ ...storedUser, profilePhoto: event.detail.photo || null }); if (storedAdmin && (!uid || storedAdmin.uid === uid)) setAdmin({ ...storedAdmin, profilePhoto: event.detail.photo || null }); };
