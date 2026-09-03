@@ -2,8 +2,8 @@ import React, { useState } from 'react';
 import '../styles/Auth.css';
 import Register from './Register';
 import ForgotPassword from './ForgotPassword';
-
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:5000';
+import { syncFirebaseLogin } from '../firebase';
+import { BACKEND_URL } from '../config';
 
 function Login({ onLoginSuccess }) {
   const [email, setEmail] = useState('');
@@ -20,17 +20,24 @@ function Login({ onLoginSuccess }) {
     e.preventDefault();
     setLoading(true); setError('');
     try {
+      const normalizedEmail = email.trim().toLowerCase();
       const response = await fetch(`${BACKEND_URL}/api/auth/login`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password })
+        body: JSON.stringify({ email: normalizedEmail, password })
       });
-      const data = await response.json();
+      const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || 'Erro ao fazer login');
+
       localStorage.setItem('token', data.token);
       localStorage.setItem('user', JSON.stringify(data.user));
+
+      // Firebase passa a guardar a sessão localmente. O backend continua sendo
+      // a fonte dos dados do aplicativo, portanto contas antigas não são perdidas.
+      await syncFirebaseLogin(normalizedEmail, password);
       onLoginSuccess(data.user);
-    } catch (err) { setError(err.message); }
-    finally { setLoading(false); }
+    } catch (err) {
+      setError(err.message || 'Erro ao fazer login');
+    } finally { setLoading(false); }
   };
 
   return (
