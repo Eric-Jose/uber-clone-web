@@ -14,7 +14,7 @@ import RideHistoryPro from './pages/RideHistoryPro';
 import ResetPassword from './pages/ResetPassword';
 import LiveStatsBar from './pages/LiveStatsBar';
 import ProfilePhoto from './pages/ProfilePhoto';
-import { logoutFirebase } from './firebase';
+import { auth, onAuthStateChanged, syncBackendSession, logoutFirebase } from './firebase';
 import { BACKEND_URL } from './config';
 import './App.css';
 
@@ -53,6 +53,24 @@ function App() {
   const [user, setUser] = useState(() => getStored('user'));
   const [admin, setAdmin] = useState(() => getStored('admin'));
 
+  // Firebase mantém a sessão persistente. Ao reabrir o app, o ID token é
+  // trocado por um novo JWT do backend, sem exigir novo login do usuário.
+  useEffect(() => {
+    if (!auth) return undefined;
+    let cancelled = false;
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (!firebaseUser || cancelled || getStored('admin')) return;
+      const data = await syncBackendSession(firebaseUser);
+      if (cancelled || !data?.user) return;
+      setUser(data.user);
+      setAdmin(null);
+      localStorage.removeItem('admin');
+      localStorage.removeItem('adminToken');
+      setCurrentPage(resolveUserPage(data.user));
+    });
+    return () => { cancelled = true; unsubscribe(); };
+  }, []);
+
   useEffect(() => {
     if (admin && localStorage.getItem('adminToken')) return undefined;
     const token = localStorage.getItem('token');
@@ -76,7 +94,7 @@ function App() {
     const onFocus = () => verifySession();
     const onVisibility = () => { if (document.visibilityState === 'visible') verifySession(); };
     window.addEventListener('focus', onFocus); document.addEventListener('visibilitychange', onVisibility);
-    return () => { cancelled = true; window.clearInterval(interval); window.removeEventListener('focus', onFocus); document.removeEventListener('visibilitychange', onVisibility); };
+    return () => { cancelled = true; window.clearInterval(interval); window.removeEventListener('focus', onFocus); window.removeEventListener('visibilitychange', onVisibility); };
   }, [admin]);
 
   useEffect(() => {
