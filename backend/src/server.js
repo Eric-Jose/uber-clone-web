@@ -293,15 +293,27 @@ app.patch('/api/rides/:id/status', auth, async (req, res) => {
 app.use('/api/maps', mapsRouter);
 app.use('/api', adminRouter);
 
-io.on('connection', socket => {
+io.on('connection', async socket => {
   try {
     const token = socket.handshake.auth?.token;
     if (token) {
       const payload = jwt.verify(token, JWT_SECRET);
-      socket.data.userId = String(payload.id);
-      socket.data.userType = payload.userType;
+      const user = await User.findById(payload.id).select('_id userType isActive').lean();
+      if (!user || !user.isActive) {
+        socket.disconnect(true);
+        return;
+      }
+      // Sempre usa o tipo atual do banco, não o userType congelado no JWT.
+      // Isso corrige sessões antigas que eram passageiro e depois viraram motorista.
+      socket.data.userId = String(user._id);
+      socket.data.userType = user.userType;
     }
-  } catch (_) { socket.data.userId = null; }
+  } catch (_) {
+    socket.data.userId = null;
+    socket.data.userType = null;
+    socket.disconnect(true);
+    return;
+  }
 
   socket.on('join-ride-room', id => id && socket.join(`ride:${id}`));
   socket.on('leave-ride-room', id => id && socket.leave(`ride:${id}`));
