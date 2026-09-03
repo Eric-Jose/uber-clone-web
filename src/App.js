@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import AdminLogin from './pages/AdminLogin';
-import AdminDashboardPro from './pages/AdminDashboardPro';
+import AdminDashboardLive from './pages/AdminDashboardLive';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import UserProfile from './pages/UserProfile';
@@ -108,7 +108,7 @@ function App() {
   const handleAdminLogout = async () => { await logoutFirebase(); setAdmin(null); localStorage.removeItem('adminToken'); localStorage.removeItem('admin'); setCurrentPage('home'); };
   const navigate = (page) => setCurrentPage(page);
 
-  if (admin) return <AdminDashboardPro admin={admin} onLogout={handleAdminLogout} />;
+  if (admin) return <AdminDashboardLive admin={admin} onLogout={handleAdminLogout} />;
   if (currentPage === 'admin-login' || currentPage === 'admin-dashboard') return <AdminLogin onAdminLogin={handleAdminLogin} />;
   switch (currentPage) {
     case 'login': return <Login onLoginSuccess={handleUserLogin} />;
