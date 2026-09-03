@@ -75,16 +75,28 @@ class WebSocketService {
       if (!response.ok) return;
       const data = await response.json();
       const rides = Array.isArray(data?.rides) ? data.rides : [];
+      const currentRideIds = new Set();
       const listeners = this.socket?.listeners('new-ride-request') || [];
+      const unavailableListeners = this.socket?.listeners('ride-unavailable') || [];
 
       for (const ride of rides) {
         const rideId = ride?.id || ride?.rideId;
-        if (!rideId || this.seenRideIds.has(rideId)) continue;
+        if (!rideId) continue;
+        currentRideIds.add(rideId);
+        if (this.seenRideIds.has(rideId)) continue;
         this.seenRideIds.add(rideId);
         listeners.forEach(listener => {
           try {
             listener({ ...ride, rideId, id: rideId, source: 'polling' });
           } catch (_) {}
+        });
+      }
+
+      for (const rideId of Array.from(this.seenRideIds)) {
+        if (currentRideIds.has(rideId)) continue;
+        this.seenRideIds.delete(rideId);
+        unavailableListeners.forEach(listener => {
+          try { listener({ rideId, id: rideId, source: 'polling' }); } catch (_) {}
         });
       }
     } catch (_) {
@@ -100,8 +112,6 @@ class WebSocketService {
   joinRideRoom(rideId) { if (rideId) this.ensureSocket()?.emit('join-ride-room', rideId); }
   leaveRideRoom(rideId) { if (rideId) this.ensureSocket()?.emit('leave-ride-room', rideId); }
 
-  // Não entra mais na sala global de motoristas. O backend envia a oferta diretamente
-  // ao motorista elegível, e /api/rides/pending cobre reconexões e dispositivos sem socket.
   joinDriversRoom() { this.ensureSocket(); }
   joinDriverRoom() { this.ensureSocket(); }
 
@@ -128,6 +138,7 @@ class WebSocketService {
 
   onDriverLocationUpdate(callback) { return this.ensureSocket()?.on('update-driver-location', callback); }
   onNewRideRequest(callback) { return this.ensureSocket()?.on('new-ride-request', callback); }
+  onRideUnavailable(callback) { return this.ensureSocket()?.on('ride-unavailable', callback); }
   onRideAccepted(callback) { return this.ensureSocket()?.on('ride-accepted', callback); }
   onRideStarted(callback) {
     const socket = this.ensureSocket();
