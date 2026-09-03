@@ -1,6 +1,5 @@
 import io from 'socket.io-client';
-
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:5000';
+import { BACKEND_URL } from '../config';
 
 class WebSocketService {
   constructor() {
