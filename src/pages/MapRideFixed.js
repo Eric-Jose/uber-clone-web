@@ -106,13 +106,36 @@ export default function MapRideFixed({ onRideCreate, onBack }) {
   }, [driverLocation]);
 
   useEffect(() => {
-    const accepted = data => { if (ride?.id && data?.rideId === ride.id) setRide(r => ({ ...(r || {}), ...data, status: 'ACCEPTED' })); };
-    const location = data => { if (ride?.id && data?.rideId && data.rideId !== ride.id) return; const lat = Number(data?.latitude ?? data?.lat), lng = Number(data?.longitude ?? data?.lng); if (Number.isFinite(lat) && Number.isFinite(lng)) setDriverLocation({ lat, lng }); };
+    const accepted = data => {
+      if (ride?.id && data?.rideId === ride.id) {
+        const acceptedRide = data?.ride || data;
+        setRide(r => ({ ...(r || {}), ...acceptedRide, id: acceptedRide.id || ride.id, status: 'ACCEPTED' }));
+      }
+    };
+    const location = data => {
+      if (ride?.id && data?.rideId && data.rideId !== ride.id) return;
+      const lat = Number(data?.latitude ?? data?.lat), lng = Number(data?.longitude ?? data?.lng);
+      if (Number.isFinite(lat) && Number.isFinite(lng)) setDriverLocation({ lat, lng });
+    };
     const started = data => { if (data?.rideId === ride?.id) setRide(r => ({ ...(r || {}), status: 'IN_PROGRESS' })); };
     const ended = data => { if (data?.rideId === ride?.id) setRide(r => ({ ...(r || {}), status: 'COMPLETED' })); };
     const cancelled = data => { if (data?.rideId === ride?.id) setRide(r => ({ ...(r || {}), status: 'CANCELLED' })); };
-    WebSocketService.onRideAccepted(accepted); WebSocketService.onDriverLocationUpdate(location); WebSocketService.onRideStarted(started); WebSocketService.onRideEnded(ended); WebSocketService.onRideCancelled(cancelled);
-    return () => { WebSocketService.off('ride-accepted', accepted); WebSocketService.off('update-driver-location', location); WebSocketService.off('ride-started', started); WebSocketService.off('ride-ended', ended); WebSocketService.off('ride-cancelled', cancelled); };
+    const onConnect = () => { if (ride?.id) WebSocketService.joinRideRoom(ride.id); };
+    WebSocketService.onRideAccepted(accepted);
+    WebSocketService.onDriverLocationUpdate(location);
+    WebSocketService.onRideStarted(started);
+    WebSocketService.onRideEnded(ended);
+    WebSocketService.onRideCancelled(cancelled);
+    WebSocketService.onConnect(onConnect);
+    if (ride?.id) WebSocketService.joinRideRoom(ride.id);
+    return () => {
+      WebSocketService.off('ride-accepted', accepted);
+      WebSocketService.off('update-driver-location', location);
+      WebSocketService.off('ride-started', started);
+      WebSocketService.off('ride-ended', ended);
+      WebSocketService.off('ride-cancelled', cancelled);
+      WebSocketService.offConnect(onConnect);
+    };
   }, [ride?.id]);
 
   const searchPlaces = value => {
@@ -217,7 +240,7 @@ export default function MapRideFixed({ onRideCreate, onBack }) {
       <button onClick={refreshLocation} style={{ ...box, position: 'absolute', right: 16, bottom: 20, zIndex: 20, padding: '12px 14px', border: 0, fontWeight: 700, cursor: 'pointer' }}>Atualizar localização</button>
       {loadingRoute && <div style={{ ...box, position: 'absolute', left: 16, right: 16, bottom: 24, zIndex: 30, padding: 18, textAlign: 'center' }}>Calculando rota...</div>}
       {route && !ride && !loadingRoute && <div style={{ ...box, position: 'absolute', left: 12, right: 12, bottom: 12, zIndex: 20, padding: 18 }}><div style={{ fontSize: 13, color: '#666' }}>{route.distance} km • {route.duration} min</div><div style={{ fontSize: 28, fontWeight: 700, margin: '4px 0 12px' }}>R$ {route.price}</div><button onClick={requestRide} disabled={requesting} style={{ width: '100%', height: 50, border: 0, borderRadius: 12, background: '#111', color: '#fff', fontSize: 16, fontWeight: 700 }}>{requesting ? 'Solicitando...' : 'Solicitar corrida'}</button></div>}
-      {ride && <div style={{ ...box, position: 'absolute', left: 12, right: 12, bottom: 12, zIndex: 20, padding: 18 }}><div style={{ fontSize: 13, color: '#666' }}>Status da corrida</div><div style={{ fontSize: 20, fontWeight: 700, margin: '4px 0 10px' }}>{ride.status === 'ACCEPTED' ? 'Motorista encontrado 🚗' : ride.status === 'IN_PROGRESS' ? 'Corrida em andamento' : ride.status === 'COMPLETED' ? 'Corrida concluída' : ride.status === 'CANCELLED' ? 'Corrida cancelada' : 'Procurando motorista...'}</div>{ride.status !== 'COMPLETED' && ride.status !== 'CANCELLED' && <button onClick={cancelRide} disabled={cancelling} style={{ width: '100%', height: 46, border: 0, borderRadius: 12, background: '#eee', color: '#111', fontSize: 15, fontWeight: 700 }}>{cancelling ? 'Cancelando...' : 'Cancelar corrida'}</button>}{ride.status === 'COMPLETED' && !rated && <div><div style={{ fontWeight: 700, marginBottom: 8 }}>Avalie o motorista</div><div style={{ fontSize: 28, letterSpacing: 3, marginBottom: 8 }}>{[1,2,3,4,5].map(n => <button key={n} onClick={() => setRating(n)} style={{ border: 0, background: 'transparent', cursor: 'pointer', fontSize: 26, opacity: n <= rating ? 1 : .3 }}>★</button>)}</div><textarea value={comment} onChange={e => setComment(e.target.value)} placeholder="Comentário (opcional)" style={{ width: '100%', minHeight: 60, border: '1px solid #ddd', borderRadius: 10, padding: 10, boxSizing: 'border-box', resize: 'vertical' }} /><button onClick={submitRating} disabled={!rating} style={{ width: '100%', height: 46, marginTop: 8, border: 0, borderRadius: 12, background: '#111', color: '#fff', fontWeight: 700 }}>Enviar avaliação</button></div>}{rated && <div style={{ marginTop: 8, fontWeight: 600 }}>Obrigado pela avaliação! ⭐</div>}{ratingMessage && <div style={{ marginTop: 8, fontSize: 13 }}>{ratingMessage}</div>}</div>}
+      {ride && <div style={{ ...box, position: 'absolute', left: 12, right: 12, bottom: 12, zIndex: 20, padding: 18 }}><div style={{ fontSize: 13, color: '#666' }}>Status da corrida</div><div style={{ fontSize: 20, fontWeight: 700, margin: '4px 0 10px' }}>{ride.status === 'ACCEPTED' ? 'Motorista encontrado 🚗' : ride.status === 'IN_PROGRESS' ? 'Corrida em andamento' : ride.status === 'COMPLETED' ? 'Corrida concluída' : ride.status === 'CANCELLED' ? 'Corrida cancelada' : 'Procurando motorista...'}</div>{ride.status === 'ACCEPTED' && driverLocation && <div style={{ marginBottom: 10, fontSize: 13, color: '#444' }}>📍 Motorista: {driverLocation.lat.toFixed(5)}, {driverLocation.lng.toFixed(5)}</div>}{ride.status !== 'COMPLETED' && ride.status !== 'CANCELLED' && <button onClick={cancelRide} disabled={cancelling} style={{ width: '100%', height: 46, border: 0, borderRadius: 12, background: '#eee', color: '#111', fontSize: 15, fontWeight: 700 }}>{cancelling ? 'Cancelando...' : 'Cancelar corrida'}</button>}{ride.status === 'COMPLETED' && !rated && <div><div style={{ fontWeight: 700, marginBottom: 8 }}>Avalie o motorista</div><div style={{ fontSize: 28, letterSpacing: 3, marginBottom: 8 }}>{[1,2,3,4,5].map(n => <button key={n} onClick={() => setRating(n)} style={{ border: 0, background: 'transparent', cursor: 'pointer', fontSize: 26, opacity: n <= rating ? 1 : .3 }}>★</button>)}</div><textarea value={comment} onChange={e => setComment(e.target.value)} placeholder="Comentário (opcional)" style={{ width: '100%', minHeight: 60, border: '1px solid #ddd', borderRadius: 10, padding: 10, boxSizing: 'border-box', resize: 'vertical' }} /><button onClick={submitRating} disabled={!rating} style={{ width: '100%', height: 46, marginTop: 8, border: 0, borderRadius: 12, background: '#111', color: '#fff', fontWeight: 700 }}>Enviar avaliação</button></div>}{rated && <div style={{ marginTop: 8, fontWeight: 600 }}>Obrigado pela avaliação! ⭐</div>}{ratingMessage && <div style={{ marginTop: 8, fontSize: 13 }}>{ratingMessage}</div>}</div>}
     </div>
   );
 }
