@@ -130,10 +130,27 @@ class WebSocketService {
   onDriverLocationUpdate(callback) { return this.ensureSocket()?.on('update-driver-location', callback); }
   onNewRideRequest(callback) { return this.ensureSocket()?.on('new-ride-request', callback); }
   onRideAccepted(callback) { return this.ensureSocket()?.on('ride-accepted', callback); }
-  onRideStarted(callback) { return this.ensureSocket()?.on('ride-started', callback); }
-  onRideEnded(callback) { return this.ensureSocket()?.on('ride-ended', callback); }
+  onRideStarted(callback) {
+    const socket = this.ensureSocket();
+    if (!socket) return;
+    socket.on('ride-started', callback);
+    socket.on('ride-in_progress', callback);
+    return socket;
+  }
+  onRideEnded(callback) {
+    const socket = this.ensureSocket();
+    if (!socket) return;
+    socket.on('ride-ended', callback);
+    socket.on('ride-completed', callback);
+    return socket;
+  }
   onRideCancelled(callback) { return this.ensureSocket()?.on('ride-cancelled', callback); }
-  off(event, callback) { this.socket?.off(event, callback); }
+  off(event, callback) {
+    if (!this.socket) return;
+    this.socket.off(event, callback);
+    if (event === 'ride-started') this.socket.off('ride-in_progress', callback);
+    if (event === 'ride-ended') this.socket.off('ride-completed', callback);
+  }
 }
 
 export default new WebSocketService();
