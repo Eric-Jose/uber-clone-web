@@ -32,6 +32,12 @@ function serializeRide(r) {
   return { ...x, id: x._id ? x._id.toString() : x.id, passengerId: x.passengerId?.toString?.() || x.passengerId || null,
     driverId: x.driverId?.toString?.() || x.driverId || null };
 }
+function normalizeLocation(value) {
+  const lat = Number(value?.lat ?? value?.latitude);
+  const lng = Number(value?.lng ?? value?.longitude);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
+  return { lat, lng };
+}
 
 async function auth(req, res, next) {
   try {
@@ -58,7 +64,7 @@ app.post('/api/auth/register', async (req, res) => {
     if (await User.findOne({ email: normalizedEmail })) return res.status(409).json({ error: 'Este email já está cadastrado.' });
     const user = await User.create({ name: String(name).trim(), email: normalizedEmail, phone: String(phone).trim(), password, userType });
     res.status(201).json({ token: signUser(user), user: safeUser(user, userType === 'driver' ? 'pending' : undefined) });
-  } catch (e) { res.status(500).json({ error: e.message || 'Erro ao cadastrar usuário.' }); }
+  } catch (e) { console.error('REGISTER_ERROR', e); res.status(500).json({ error: e.message || 'Erro ao cadastrar usuário.' }); }
 });
 
 app.post('/api/auth/login', async (req, res) => {
@@ -69,7 +75,7 @@ app.post('/api/auth/login', async (req, res) => {
     let approval;
     if (user.userType === 'driver') approval = (await Driver.findOne({ userId: user._id }))?.status || 'pending';
     res.json({ token: signUser(user), user: safeUser(user, approval) });
-  } catch (e) { res.status(500).json({ error: e.message || 'Erro ao entrar.' }); }
+  } catch (e) { console.error('LOGIN_ERROR', e); res.status(500).json({ error: e.message || 'Erro ao entrar.' }); }
 });
 
 app.get('/api/auth/verify', auth, async (req, res) => {
@@ -93,7 +99,7 @@ app.post('/api/drivers/register', auth, async (req, res) => {
     if (req.user.userType !== 'driver') { req.user.userType = 'driver'; await req.user.save(); }
     const driver = await Driver.findOne({ userId: req.user._id });
     res.status(existing ? 200 : 201).json({ success: true, application: { status: driver.status }, status: driver.status, driver });
-  } catch (e) { res.status(400).json({ error: e.code === 11000 ? 'CPF já cadastrado.' : (e.message || 'Não foi possível concluir o cadastro de motorista.') }); }
+  } catch (e) { console.error('DRIVER_REGISTER_ERROR', e); res.status(400).json({ error: e.code === 11000 ? 'CPF já cadastrado.' : (e.message || 'Não foi possível concluir o cadastro de motorista.') }); }
 });
 
 app.get('/api/drivers/me', auth, async (req, res) => res.json({ driver: await Driver.findOne({ userId: req.user._id }) }));
@@ -105,11 +111,15 @@ app.post('/api/drivers/:uid/status', auth, async (req, res) => {
     if (!driver) return res.status(404).json({ error: 'Cadastro de motorista não encontrado.' });
     if (driver.status !== 'approved') return res.status(403).json({ error: 'Motorista ainda não aprovado.' });
     driver.isOnline = Boolean(req.body?.isOnline);
-    if (req.body?.currentLocation) driver.currentLocation = { lat: Number(req.body.currentLocation.lat), lng: Number(req.body.currentLocation.lng), updatedAt: new Date() };
+    if (req.body?.currentLocation) {
+      const location = normalizeLocation(req.body.currentLocation);
+      if (!location) return res.status(400).json({ error: 'Localização do motorista inválida.' });
+      driver.currentLocation = { ...location, updatedAt: new Date() };
+    }
     driver.updatedAt = new Date();
     await driver.save();
     res.json({ success: true, driver });
-  } catch (e) { res.status(500).json({ error: e.message || 'Não foi possível atualizar o status.' }); }
+  } catch (e) { console.error('DRIVER_STATUS_ERROR', e); res.status(500).json({ error: e.message || 'Não foi possível atualizar o status.' }); }
 });
 
 app.get('/api/rides/pending', auth, async (req, res) => {
@@ -118,7 +128,7 @@ app.get('/api/rides/pending', auth, async (req, res) => {
     if (!driver || driver.status !== 'approved' || !driver.isOnline) return res.json({ rides: [] });
     const rides = await Ride.find({ status: 'SEARCHING', driverId: null }).sort({ createdAt: 1 }).limit(20).lean();
     res.json({ rides: rides.map(serializeRide) });
-  } catch (e) { res.status(500).json({ error: e.message || 'Erro ao buscar corridas.' }); }
+  } catch (e) { console.error('PENDING_RIDES_ERROR', e); res.status(500).json({ error: e.message || 'Erro ao buscar corridas.' }); }
 });
 
 app.get('/api/rides/history', auth, async (req, res) => {
@@ -126,22 +136,37 @@ app.get('/api/rides/history', auth, async (req, res) => {
     const filter = { $or: [{ passengerId: req.user._id }, { driverId: req.user._id }] };
     const rides = await Ride.find(filter).sort({ createdAt: -1 }).limit(Math.min(Number(req.query.limit) || 20, 100)).lean();
     res.json({ rides: rides.map(serializeRide) });
-  } catch (e) { res.status(500).json({ error: e.message || 'Erro ao carregar histórico.' }); }
+  } catch (e) { console.error('RIDE_HISTORY_ERROR', e); res.status(500).json({ error: e.message || 'Erro ao carregar histórico.' }); }
 });
 
 app.post('/api/rides/request', auth, async (req, res) => {
   try {
     if (req.user.userType !== 'passenger') return res.status(403).json({ error: 'Somente passageiros podem solicitar corridas.' });
     const { origin, destination, distance, price } = req.body || {};
-    if (!origin?.location || !destination?.location) return res.status(400).json({ error: 'Origem e destino são obrigatórios.' });
+    const originLocation = normalizeLocation(origin?.location || origin);
+    const destinationLocation = normalizeLocation(destination?.location || destination);
+    if (!originLocation || !destinationLocation) return res.status(400).json({ error: 'A localização de origem ou destino é inválida.' });
+    const originAddress = String(origin?.address || '').trim();
+    const destinationAddress = String(destination?.address || '').trim();
+    if (!destinationAddress) return res.status(400).json({ error: 'Informe o endereço de destino.' });
+    const numericDistance = Number(distance);
+    const numericPrice = Number(price);
+    if (!Number.isFinite(numericDistance) || numericDistance <= 0) return res.status(400).json({ error: 'A distância da corrida é inválida.' });
+    if (!Number.isFinite(numericPrice) || numericPrice < 0) return res.status(400).json({ error: 'O valor da corrida é inválido.' });
     const active = await Ride.findOne({ passengerId: req.user._id, status: { $in: ['SEARCHING','ACCEPTED','IN_PROGRESS'] } });
     if (active) return res.status(409).json({ error: 'Você já possui uma corrida em andamento.', ride: serializeRide(active) });
     const ride = await Ride.create({ passengerId: req.user._id, passengerName: req.user.name, passengerProfilePhoto: req.user.profileImage || null,
-      origin, destination, distance: Number(distance) || 0, price: Number(price) || 0, status: 'SEARCHING' });
+      origin: { address: originAddress || 'Minha localização atual', location: originLocation },
+      destination: { address: destinationAddress, location: destinationLocation },
+      distance: Number(numericDistance.toFixed(2)), price: Number(numericPrice.toFixed(2)), status: 'SEARCHING' });
     const out = serializeRide(ride);
     io.to('drivers').emit('new-ride-request', out);
+    console.log('RIDE_CREATED', out.id, 'passenger', req.user._id.toString());
     res.status(201).json({ ride: out });
-  } catch (e) { res.status(500).json({ error: e.message || 'Erro interno ao criar corrida.' }); }
+  } catch (e) {
+    console.error('RIDE_REQUEST_ERROR', { message: e.message, name: e.name, code: e.code, stack: e.stack });
+    res.status(500).json({ error: process.env.NODE_ENV === 'production' ? 'Erro interno ao criar corrida. Verifique o backend e tente novamente.' : (e.message || 'Erro interno ao criar corrida.') });
+  }
 });
 
 app.post('/api/rides/accept', auth, async (req, res) => {
@@ -152,7 +177,7 @@ app.post('/api/rides/accept', auth, async (req, res) => {
       { $set: { driverId: req.user._id, driverName: req.user.name, driverProfilePhoto: req.user.profileImage || null, status: 'ACCEPTED', updatedAt: new Date() } }, { new: true });
     if (!ride) return res.status(409).json({ error: 'Esta corrida já foi aceita ou não está disponível.' });
     const out = serializeRide(ride); io.to(`ride:${out.id}`).emit('ride-accepted', out); res.json({ ride: out });
-  } catch (e) { res.status(500).json({ error: e.message || 'Erro ao aceitar corrida.' }); }
+  } catch (e) { console.error('RIDE_ACCEPT_ERROR', e); res.status(500).json({ error: e.message || 'Erro ao aceitar corrida.' }); }
 });
 
 app.patch('/api/rides/:id/status', auth, async (req, res) => {
@@ -173,7 +198,7 @@ app.patch('/api/rides/:id/status', auth, async (req, res) => {
     if (status === 'COMPLETED') ride.completedAt = new Date();
     await ride.save();
     const out = serializeRide(ride); io.to(`ride:${out.id}`).emit(`ride-${status.toLowerCase()}`, { rideId: out.id, ride: out }); res.json({ ride: out });
-  } catch (e) { res.status(500).json({ error: e.message || 'Erro ao atualizar corrida.' }); }
+  } catch (e) { console.error('RIDE_STATUS_ERROR', e); res.status(500).json({ error: e.message || 'Erro ao atualizar corrida.' }); }
 });
 
 app.use('/api/maps', mapsRouter);
@@ -192,7 +217,7 @@ io.on('connection', socket => {
       else socket.broadcast.to('drivers').emit('driver-presence-location', data);
     } catch (_) {}
   });
-  socket.on('driver-location', async data => { if (!data?.rideId) return; const ride = await Ride.findById(data.rideId).catch(() => null); if (!ride) return; ride.driverLocation = { lat: Number(data.latitude), lng: Number(data.longitude) }; ride.updatedAt = new Date(); await ride.save().catch(() => {}); io.to(`ride:${data.rideId}`).emit('update-driver-location', data); });
+  socket.on('driver-location', async data => { if (!data?.rideId) return; const ride = await Ride.findById(data.rideId).catch(() => null); if (!ride) return; const location = normalizeLocation(data); if (!location) return; ride.driverLocation = location; ride.updatedAt = new Date(); await ride.save().catch(() => {}); io.to(`ride:${data.rideId}`).emit('update-driver-location', { ...data, latitude: location.lat, longitude: location.lng }); });
   socket.on('cancel-ride', data => { const id = typeof data === 'string' ? data : data?.rideId; if (id) io.to(`ride:${id}`).emit('ride-cancelled', { rideId: id }); });
 });
 
