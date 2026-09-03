@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "App tipo Uber com mapa e sistema de corridas",
   "private": true,
-  "homepage": "https://uber-clone-eric.vercel.app",
+  "homepage": "https://uber-clone-web.vercel.app",
   "dependencies": {
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
