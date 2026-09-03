@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import '../styles/AdminLogin.css';
+import { BACKEND_URL } from '../config';
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:5000';
 const DEFAULT_ADMIN_EMAIL = 'admin@uberclone.com';
 
 async function readJson(response) {
