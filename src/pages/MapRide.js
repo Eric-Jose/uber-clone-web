@@ -7,6 +7,9 @@ const GOOGLE_MAPS_API_KEY = process.env.REACT_APP_GOOGLE_MAPS_KEY;
 
 function MapRide({ onRideCreate, onBack }) {
   const mapRef = useRef(null);
+  const destinationInputRef = useRef(null);
+  const destinationPlaceRef = useRef(null);
+  const autocompleteListenerRef = useRef(null);
   const driverMarkerRef = useRef(null);
   const userMarkerRef = useRef(null);
   const [map, setMap] = useState(null);
@@ -136,6 +139,10 @@ function MapRide({ onRideCreate, onBack }) {
             strokeWeight: 3
           }
         });
+
+        new window.google.maps.Geocoder().geocode({ location }, (results, status) => {
+          if (status === 'OK' && results?.[0]) setOriginInput(results[0].formatted_address);
+        });
       }, () => {});
     }
   };
@@ -147,12 +154,14 @@ function MapRide({ onRideCreate, onBack }) {
   };
 
   const calculateRoute = async () => {
-    if (!originInput || !destinationInput || !map) return alert('Preencha origem e destino.');
+    const origin = userLocation || originInput;
+    const destination = destinationPlaceRef.current?.geometry?.location || destinationInput;
+    if (!origin || !destination || !map) return alert('Informe o destino para calcular a rota.');
     setLoading(true);
     try {
       const result = await new window.google.maps.DirectionsService().route({
-        origin: originInput,
-        destination: destinationInput,
+        origin,
+        destination,
         travelMode: window.google.maps.TravelMode.DRIVING
       });
       directionsRenderer?.setDirections(result);
@@ -162,15 +171,51 @@ function MapRide({ onRideCreate, onBack }) {
         distance: distanceKm.toFixed(2),
         duration: Math.ceil(leg.duration.value / 60),
         price: (distanceKm * 5 + 10).toFixed(2),
-        origin: originInput,
-        destination: destinationInput
+        origin: leg.start_address || originInput || 'Minha localização',
+        destination: leg.end_address || destinationInput,
+        originLocation: userLocation || null,
+        destinationLocation: leg.end_location ? {
+          lat: leg.end_location.lat(),
+          lng: leg.end_location.lng()
+        } : null
       });
       map.fitBounds(result.routes[0].bounds, { top: 80, right: 40, bottom: 300, left: 40 });
     } catch (error) {
       console.error(error);
-      alert('Não foi possível calcular a rota.');
+      alert('Não foi possível calcular a rota. Verifique o destino e tente novamente.');
     } finally { setLoading(false); }
   };
+
+  useEffect(() => {
+    if (!map || !window.google?.maps?.places || !destinationInputRef.current || autocompleteListenerRef.current) return undefined;
+
+    const autocomplete = new window.google.maps.places.Autocomplete(destinationInputRef.current, {
+      fields: ['formatted_address', 'geometry', 'name', 'place_id'],
+      componentRestrictions: { country: 'br' }
+    });
+
+    autocompleteListenerRef.current = autocomplete.addListener('place_changed', () => {
+      const place = autocomplete.getPlace();
+      if (!place?.geometry?.location) {
+        alert('Selecione um local da lista de sugestões do Google.');
+        return;
+      }
+      destinationPlaceRef.current = place;
+      const address = place.formatted_address || place.name || '';
+      setDestinationInput(address);
+      setRouteInfo(null);
+      if (place.geometry.viewport) map.fitBounds(place.geometry.viewport, { top: 100, right: 40, bottom: 300, left: 40 });
+      else map.panTo(place.geometry.location);
+      window.setTimeout(() => calculateRoute(), 0);
+    });
+
+    return () => {
+      if (autocompleteListenerRef.current) {
+        window.google.maps.event.removeListener(autocompleteListenerRef.current);
+        autocompleteListenerRef.current = null;
+      }
+    };
+  }, [map, userLocation]);
 
   const handleCreateRide = async () => {
     if (!routeInfo || requesting) return;
@@ -182,8 +227,8 @@ function MapRide({ onRideCreate, onBack }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({
-          origin: { address: routeInfo.origin, location: userLocation },
-          destination: { address: routeInfo.destination },
+          origin: { address: routeInfo.origin, location: routeInfo.originLocation || userLocation },
+          destination: { address: routeInfo.destination, location: routeInfo.destinationLocation },
           distance: Number(routeInfo.distance),
           price: Number(routeInfo.price)
         })
@@ -277,7 +322,20 @@ function MapRide({ onRideCreate, onBack }) {
             <div className="location-box">
               <div className="location-line"><span className="dot current" /><input value={originInput} onChange={e => setOriginInput(e.target.value)} placeholder="Localização atual" /></div>
               <div className="location-connector" />
-              <div className="location-line"><span className="dot destination" /><input value={destinationInput} onChange={e => setDestinationInput(e.target.value)} placeholder="Digite seu destino" /></div>
+              <div className="location-line">
+                <span className="dot destination" />
+                <input
+                  ref={destinationInputRef}
+                  value={destinationInput}
+                  onChange={e => {
+                    setDestinationInput(e.target.value);
+                    destinationPlaceRef.current = null;
+                    setRouteInfo(null);
+                  }}
+                  placeholder="Digite seu destino"
+                  autoComplete="off"
+                />
+              </div>
             </div>
 
             {routeInfo && <div className="trip-preview">
