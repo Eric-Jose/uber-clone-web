@@ -9,7 +9,7 @@ import DriverDashboard from './pages/DriverDashboard';
 import AdminPanel from './pages/AdminPanel';
 import Payment from './pages/Payment';
 import NotificationCenter from './pages/NotificationCenter';
-import MapRide from './pages/MapRide';
+import MapRideFixed from './pages/MapRideFixed';
 import RideHistory from './pages/RideHistory';
 import ResetPassword from './pages/ResetPassword';
 import './App.css';
@@ -34,7 +34,7 @@ function App() {
     case 'login': return <Login onLoginSuccess={handleUserLogin} />;
     case 'register': return <Register onRegisterSuccess={handleUserLogin} />;
     case 'reset-password': return <ResetPassword onBackToLogin={() => { window.history.replaceState({}, '', window.location.pathname); setCurrentPage('login'); }} />;
-    case 'ride': return <MapRide onRideCreate={() => {}} onBack={() => setCurrentPage('profile')} />;
+    case 'ride': return <MapRideFixed onRideCreate={() => {}} onBack={() => setCurrentPage('profile')} />;
     case 'ride-history': return user ? <RideHistory user={user} onBack={() => setCurrentPage(user.userType === 'driver' ? 'driver-dashboard' : 'ride')} /> : <Login onLoginSuccess={handleUserLogin} />;
     case 'driver-registration': return <DriverRegistration onRegistrationSubmit={() => setCurrentPage('driver-dashboard')} />;
     case 'driver-dashboard': return <DriverDashboard />;
