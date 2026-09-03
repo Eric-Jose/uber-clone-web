@@ -3,10 +3,12 @@ import {
   browserLocalPersistence,
   createUserWithEmailAndPassword,
   getAuth,
+  onAuthStateChanged,
   setPersistence,
   signInWithEmailAndPassword,
   signOut,
 } from 'firebase/auth';
+import { BACKEND_URL } from './config';
 
 const firebaseConfig = {
   apiKey: process.env.REACT_APP_FIREBASE_API_KEY,
@@ -28,7 +30,7 @@ if (isFirebaseConfigured) {
   persistenceReady = setPersistence(auth, browserLocalPersistence).then(() => true).catch(() => false);
 }
 
-export { auth };
+export { auth, onAuthStateChanged };
 
 export async function syncFirebaseLogin(email, password) {
   if (!auth) return null;
@@ -37,13 +39,11 @@ export async function syncFirebaseLogin(email, password) {
     const result = await signInWithEmailAndPassword(auth, email, password);
     return result.user;
   } catch (error) {
-    if (error?.code === 'auth/user-not-found' || error?.code === 'auth/invalid-credential') {
+    if (error?.code === 'auth/user-not-found') {
       try {
         const result = await createUserWithEmailAndPassword(auth, email, password);
         return result.user;
-      } catch (_) {
-        return null;
-      }
+      } catch (_) { return null; }
     }
     return null;
   }
@@ -60,10 +60,28 @@ export async function syncFirebaseRegistration(email, password) {
       try {
         const result = await signInWithEmailAndPassword(auth, email, password);
         return result.user;
-      } catch (_) {
-        return null;
-      }
+      } catch (_) { return null; }
     }
+    return null;
+  }
+}
+
+export async function syncBackendSession(firebaseUser) {
+  if (!firebaseUser) return null;
+  try {
+    const idToken = await firebaseUser.getIdToken();
+    const response = await fetch(`${BACKEND_URL}/api/admin/auth/firebase-session`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ idToken }),
+      cache: 'no-store',
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || !data.token || !data.user) return null;
+    localStorage.setItem('token', data.token);
+    localStorage.setItem('user', JSON.stringify(data.user));
+    return data;
+  } catch (_) {
     return null;
   }
 }
