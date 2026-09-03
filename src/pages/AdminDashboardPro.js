@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-
-const B = (process.env.REACT_APP_BACKEND_URL || 'http://localhost:5000').replace(/\/+$/, '');
+import { BACKEND_URL as B } from '../config';
 
 const css = `
 .ad{min-height:100vh;background:#f3f4f6;padding:20px;font-family:Arial}
@@ -33,11 +32,7 @@ export default function AdminDashboardPro({ admin, onLogout }) {
 
   const load = useCallback(async (silent = false) => {
     const token = localStorage.getItem('adminToken');
-    if (!token) {
-      onLogout();
-      return;
-    }
-
+    if (!token) { onLogout(); return; }
     if (!silent) setLoading(true);
     try {
       const headers = { Authorization: `Bearer ${token}` };
@@ -45,31 +40,19 @@ export default function AdminDashboardPro({ admin, onLogout }) {
         fetch(`${B}/api/drivers/applications`, { headers, cache: 'no-store' }),
         fetch(`${B}/api/admin-stats/overview`, { headers, cache: 'no-store' })
       ]);
-
       if (applicationsResponse.status === 401 || overviewResponse.status === 401) {
-        setMsg('Sua sessão administrativa expirou. Faça login novamente.');
-        onLogout();
-        return;
+        setMsg('Sua sessão administrativa expirou. Faça login novamente.'); onLogout(); return;
       }
-
       const applicationsData = await readJson(applicationsResponse);
       const overviewData = await readJson(overviewResponse);
-
       if (!applicationsResponse.ok || !overviewResponse.ok) {
-        throw new Error(
-          applicationsData.error || overviewData.error ||
-          `Falha ao carregar dados administrativos (${applicationsResponse.status}/${overviewResponse.status}).`
-        );
+        throw new Error(applicationsData.error || overviewData.error || `Falha ao carregar dados administrativos (${applicationsResponse.status}/${overviewResponse.status}).`);
       }
-
       setApps(Array.isArray(applicationsData.applications) ? applicationsData.applications : []);
-      setData(overviewData);
-      setMsg('');
+      setData(overviewData); setMsg('');
     } catch (e) {
       setMsg(e.message || 'Não foi possível carregar os dados administrativos agora.');
-    } finally {
-      if (!silent) setLoading(false);
-    }
+    } finally { if (!silent) setLoading(false); }
   }, [onLogout]);
 
   useEffect(() => {
@@ -83,8 +66,7 @@ export default function AdminDashboardPro({ admin, onLogout }) {
     if (reviewing) return;
     const token = localStorage.getItem('adminToken');
     if (!token) { onLogout(); return; }
-    setReviewing(`${uid}:${status}`);
-    setMsg('');
+    setReviewing(`${uid}:${status}`); setMsg('');
     try {
       const response = await fetch(`${B}/api/drivers/${uid}/approval`, {
         method: 'PATCH',
@@ -94,95 +76,19 @@ export default function AdminDashboardPro({ admin, onLogout }) {
       const result = await readJson(response);
       if (response.status === 401) { onLogout(); return; }
       if (!response.ok) throw new Error(result.error || 'Erro ao atualizar motorista.');
-      setMsg(status === 'approved'
-        ? 'Motorista aprovado com sucesso.'
-        : status === 'rejected'
-          ? 'Motorista rejeitado.'
-          : 'Cadastro devolvido para análise.');
+      setMsg(status === 'approved' ? 'Motorista aprovado com sucesso.' : status === 'rejected' ? 'Motorista rejeitado.' : 'Cadastro devolvido para análise.');
       await load(true);
-    } catch (e) {
-      setMsg(e.message || 'Não foi possível atualizar o motorista.');
-    } finally {
-      setReviewing(null);
-    }
+    } catch (e) { setMsg(e.message || 'Não foi possível atualizar o motorista.'); }
+    finally { setReviewing(null); }
   };
 
   const t = data?.totals || {};
-
   return (
-    <div className="ad">
-      <style>{css}</style>
-      <div className="ac">
-        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center' }}>
-          <div>
-            <h1 style={{ margin: 0 }}>🔐 Painel administrativo</h1>
-            <div className="muted">
-              <span className="status-dot" />{admin?.name || admin?.email || 'Administrador'} • dados atualizados automaticamente
-            </div>
-          </div>
-          <button className="btn no" onClick={onLogout}>Sair</button>
-        </div>
-        {msg && <p className={msg.toLowerCase().includes('sucesso') ? 'ok' : 'error'}>{msg}</p>}
-      </div>
-
-      <div className="ac">
-        <div className="cards">
-          {[
-            ['Passageiros', t.passengers], ['Motoristas', t.drivers], ['Online', t.onlineDrivers],
-            ['Corridas hoje', t.ridesToday], ['Ativas', t.activeRides], ['Concluídas', t.completedToday],
-            ['Canceladas', t.cancelledToday], ['Receita hoje', `R$ ${Number(t.revenueToday || 0).toFixed(2)}`]
-          ].map(([name, value]) => (
-            <div className="metric" key={name}><b>{name}</b><strong>{value ?? (loading ? '…' : '—')}</strong></div>
-          ))}
-        </div>
-      </div>
-
-      {data?.daily && (
-        <div className="ac">
-          <h2>📈 Últimos 7 dias</h2>
-          <div className="chart">
-            {data.daily.map(day => (
-              <div key={day.date} title={`${day.date}: ${day.rides} corridas`} className="bar" style={{ height: `${Math.max(8, Math.min(150, day.rides * 14))}px` }} />
-            ))}
-          </div>
-          <div className="muted">Cada coluna representa a quantidade de corridas do dia.</div>
-        </div>
-      )}
-
-      <div className="ac">
-        <h2>🚗 Cadastros de motoristas</h2>
-        {!apps.length ? (
-          <p className="muted">{loading ? 'Carregando cadastros…' : 'Nenhum cadastro encontrado.'}</p>
-        ) : (
-          <div className="scroll">
-            <table className="table">
-              <thead><tr><th>Motorista</th><th>Contato</th><th>Veículo</th><th>Status</th><th>Ação</th></tr></thead>
-              <tbody>
-                {apps.map(application => (
-                  <tr key={application.uid}>
-                    <td><b>{application.fullName || 'Sem nome'}</b></td>
-                    <td>{application.email}<br />{application.phone}</td>
-                    <td>{application.vehicleModel || '—'}<br />{application.licensePlate || '—'}</td>
-                    <td>{application.status}</td>
-                    <td>
-                      {application.status === 'pending' ? (
-                        <>
-                          <button className="btn yes" disabled={!!reviewing} onClick={() => review(application.uid, 'approved')}>
-                            {reviewing === `${application.uid}:approved` ? 'Aprovando…' : 'Aprovar'}
-                          </button>{' '}
-                          <button className="btn no" disabled={!!reviewing} onClick={() => review(application.uid, 'rejected')}>
-                            {reviewing === `${application.uid}:rejected` ? 'Rejeitando…' : 'Rejeitar'}
-                          </button>
-                        </>
-                      ) : <span className="muted">Revisado</span>}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+    <div className="ad"><style>{css}</style>
+      <div className="ac"><div style={{display:'flex',justifyContent:'space-between',gap:10,alignItems:'center'}}><div><h1 style={{margin:0}}>🔐 Painel administrativo</h1><div className="muted"><span className="status-dot" />{admin?.name || admin?.email || 'Administrador'} • dados atualizados automaticamente</div></div><button className="btn no" onClick={onLogout}>Sair</button></div>{msg && <p className={msg.toLowerCase().includes('sucesso') ? 'ok' : 'error'}>{msg}</p>}</div>
+      <div className="ac"><div className="cards">{[['Passageiros',t.passengers],['Motoristas',t.drivers],['Online',t.onlineDrivers],['Corridas hoje',t.ridesToday],['Ativas',t.activeRides],['Concluídas',t.completedToday],['Canceladas',t.cancelledToday],['Receita hoje',`R$ ${Number(t.revenueToday||0).toFixed(2)}`]].map(([name,value])=><div className="metric" key={name}><b>{name}</b><strong>{value ?? (loading?'…':'—')}</strong></div>)}</div></div>
+      {data?.daily && <div className="ac"><h2>📈 Últimos 7 dias</h2><div className="chart">{data.daily.map(day=><div key={day.date} title={`${day.date}: ${day.rides} corridas`} className="bar" style={{height:`${Math.max(8,Math.min(150,day.rides*14))}px`}} />)}</div><div className="muted">Cada coluna representa a quantidade de corridas do dia.</div></div>}
+      <div className="ac"><h2>🚗 Cadastros de motoristas</h2>{!apps.length?<p className="muted">{loading?'Carregando cadastros…':'Nenhum cadastro encontrado.'}</p>:<div className="scroll"><table className="table"><thead><tr><th>Motorista</th><th>Contato</th><th>Veículo</th><th>Status</th><th>Ação</th></tr></thead><tbody>{apps.map(application=><tr key={application.uid}><td><b>{application.fullName||'Sem nome'}</b></td><td>{application.email}<br/>{application.phone}</td><td>{application.vehicleModel||'—'}<br/>{application.licensePlate||'—'}</td><td>{application.status}</td><td>{application.status==='pending'?<><button className="btn yes" disabled={!!reviewing} onClick={()=>review(application.uid,'approved')}>{reviewing===`${application.uid}:approved`?'Aprovando…':'Aprovar'}</button>{' '}<button className="btn no" disabled={!!reviewing} onClick={()=>review(application.uid,'rejected')}>{reviewing===`${application.uid}:rejected`?'Rejeitando…':'Rejeitar'}</button></>:<span className="muted">Revisado</span>}</td></tr>)}</tbody></table></div>}</div>
     </div>
   );
 }
