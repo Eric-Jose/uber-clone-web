@@ -5,7 +5,9 @@ import WebSocketService from '../services/WebSocketService';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:5000';
 const box = { background: '#fff', borderRadius: 16, boxShadow: '0 4px 18px rgba(0,0,0,.16)' };
-const DEFAULT_CENTER = [-23.55052, -46.63331];
+// Fallback somente se o navegador não conseguir obter a posição do dispositivo.
+// Maracaju/MS evita que a tela inicial apareça em São Paulo ou em outro país.
+const DEFAULT_CENTER = [-24.5345, -55.7221];
 const NOMINATIM = 'https://nominatim.openstreetmap.org';
 const OSRM = 'https://router.project-osrm.org/route/v1/driving';
 
@@ -17,13 +19,18 @@ export default function MapRideFixed({ onRideCreate, onBack }) {
   const mapInstanceRef = useRef(null);
   const userMarkerRef = useRef(null);
   const driverMarkerRef = useRef(null);
+  const accuracyCircleRef = useRef(null);
   const routeLayerRef = useRef(null);
   const searchTimerRef = useRef(null);
+  const watchIdRef = useRef(null);
+  const locationInitializedRef = useRef(false);
+  const bestAccuracyRef = useRef(Infinity);
   const requestIdRef = useRef(0);
   const [mapReady, setMapReady] = useState(false);
   const [mapError, setMapError] = useState('');
   const [origin, setOrigin] = useState(null);
-  const [originText, setOriginText] = useState('Minha localização');
+  const [originText, setOriginText] = useState('Obtendo localização…');
+  const [locationAccuracy, setLocationAccuracy] = useState(null);
   const [destination, setDestination] = useState('');
   const [suggestions, setSuggestions] = useState([]);
   const [searching, setSearching] = useState(false);
@@ -40,7 +47,7 @@ export default function MapRideFixed({ onRideCreate, onBack }) {
 
   useEffect(() => {
     let alive = true;
-    const map = L.map(mapRef.current, { zoomControl: false, attributionControl: true, preferCanvas: true }).setView(DEFAULT_CENTER, 15);
+    const map = L.map(mapRef.current, { zoomControl: false, attributionControl: true, preferCanvas: true }).setView(DEFAULT_CENTER, 14);
     L.control.zoom({ position: 'bottomright' }).addTo(map);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
@@ -49,25 +56,75 @@ export default function MapRideFixed({ onRideCreate, onBack }) {
     mapInstanceRef.current = map;
     setMapReady(true);
 
-    const setLocation = async (lat, lng) => {
+    const updateLocation = async (position) => {
+      if (!alive) return;
+      const lat = Number(position?.coords?.latitude);
+      const lng = Number(position?.coords?.longitude);
+      const accuracy = Number(position?.coords?.accuracy);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+
+      // Descarta leituras absurdas muito longe de Mato Grosso do Sul quando o navegador
+      // retorna primeiro uma posição aproximada por rede/IP. Uma posição posterior do GPS pode substituir.
+      const distanceToFallback = map.distance([lat, lng], DEFAULT_CENTER);
+      if (!locationInitializedRef.current && distanceToFallback > 700000) return;
+      if (Number.isFinite(accuracy) && locationInitializedRef.current && accuracy > 50000) return;
+      if (Number.isFinite(accuracy) && accuracy > bestAccuracyRef.current + 100 && locationInitializedRef.current) return;
+
       const loc = { lat, lng };
+      locationInitializedRef.current = true;
+      if (Number.isFinite(accuracy)) bestAccuracyRef.current = Math.min(bestAccuracyRef.current, accuracy);
       setOrigin(loc);
-      map.setView([lat, lng], 16);
-      if (userMarkerRef.current) userMarkerRef.current.remove();
-      userMarkerRef.current = L.marker([lat, lng], { icon: userIcon, title: 'Sua localização' }).addTo(map);
+      if (Number.isFinite(accuracy)) setLocationAccuracy(Math.round(accuracy));
+      map.setView([lat, lng], Number.isFinite(accuracy) && accuracy <= 50 ? 17 : 16);
+
+      if (userMarkerRef.current) userMarkerRef.current.setLatLng([lat, lng]);
+      else userMarkerRef.current = L.marker([lat, lng], { icon: userIcon, title: 'Sua localização atual' }).addTo(map);
+      if (accuracyCircleRef.current) accuracyCircleRef.current.setLatLng([lat, lng]).setRadius(Number.isFinite(accuracy) ? accuracy : 30);
+      else accuracyCircleRef.current = L.circle([lat, lng], { radius: Number.isFinite(accuracy) ? accuracy : 30, color: '#1a73e8', weight: 1, opacity: 0.25, fillOpacity: 0.08 }).addTo(map);
+
       try {
         const res = await fetch(`${NOMINATIM}/reverse?format=jsonv2&lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lng)}&zoom=18&addressdetails=1`, { headers: { Accept: 'application/json' } });
         const data = await res.json();
-        if (alive && data?.display_name) setOriginText(data.display_name);
-      } catch (_) {}
+        if (!alive) return;
+        const address = data?.address || {};
+        const city = address.city || address.town || address.village || address.municipality || '';
+        const state = address.state || '';
+        const country = address.country || '';
+        setOriginText(city ? `${city}${state ? ' - ' + state : ''}` : (data?.display_name || 'Minha localização atual'));
+        if (country && !/brasil|brazil/i.test(country)) {
+          setMapError('A localização retornada pelo dispositivo não parece estar no Brasil. Ative o GPS/Localização precisa do aparelho e tente novamente.');
+        } else if (alive) {
+          setMapError('');
+        }
+      } catch (_) {
+        if (alive) setOriginText('Minha localização atual');
+      }
+    };
+
+    const locationError = err => {
+      console.warn('Geolocation:', err);
+      if (!alive) return;
+      if (!locationInitializedRef.current) {
+        setMapError(err?.code === 1
+          ? 'Permita a localização precisa do dispositivo no navegador para usar sua posição atual.'
+          : 'Não foi possível obter a localização precisa do dispositivo. Ative o GPS/Localização e tente novamente.');
+      }
     };
 
     if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        p => setLocation(p.coords.latitude, p.coords.longitude),
-        () => setMapError('Não foi possível obter sua localização. Você ainda pode escolher o destino manualmente.'),
-        { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }
-      );
+      // Primeiro obtém a melhor posição disponível imediatamente e depois acompanha o dispositivo.
+      navigator.geolocation.getCurrentPosition(updateLocation, locationError, {
+        enableHighAccuracy: true,
+        timeout: 20000,
+        maximumAge: 0
+      });
+      watchIdRef.current = navigator.geolocation.watchPosition(updateLocation, locationError, {
+        enableHighAccuracy: true,
+        timeout: 30000,
+        maximumAge: 0
+      });
+    } else {
+      setMapError('Este navegador não oferece geolocalização.');
     }
 
     const resize = () => map.invalidateSize();
@@ -77,6 +134,7 @@ export default function MapRideFixed({ onRideCreate, onBack }) {
       alive = false;
       window.removeEventListener('resize', resize);
       clearTimeout(searchTimerRef.current);
+      if (watchIdRef.current !== null && navigator.geolocation) navigator.geolocation.clearWatch(watchIdRef.current);
       WebSocketService.disconnect();
       map.remove();
       mapInstanceRef.current = null;
@@ -139,7 +197,7 @@ export default function MapRideFixed({ onRideCreate, onBack }) {
 
   const calculateRoute = async selected => {
     if (!origin) {
-      setMapError('Aguardando sua localização. Permita o acesso à localização do navegador e tente novamente.');
+      setMapError('Aguardando sua localização atual. Ative a localização precisa do dispositivo e tente novamente.');
       return;
     }
     const lat = Number(selected?.lat), lon = Number(selected?.lon);
@@ -227,7 +285,7 @@ export default function MapRideFixed({ onRideCreate, onBack }) {
       <div style={{ position: 'absolute', top: 16, left: 16, right: 16, zIndex: 20, display: 'flex', gap: 10, alignItems: 'flex-start' }}>
         {onBack && <button onClick={onBack} style={{ ...box, width: 48, height: 48, border: 0, fontSize: 24, cursor: 'pointer' }}>←</button>}
         <div style={{ ...box, flex: 1, padding: '8px 14px', position: 'relative' }}>
-          <div style={{ fontSize: 11, color: '#777', marginBottom: 3 }}>LOCAL DE PARTIDA</div>
+          <div style={{ fontSize: 11, color: '#777', marginBottom: 3 }}>LOCAL DE PARTIDA {locationAccuracy !== null ? `• precisão ±${locationAccuracy} m` : ''}</div>
           <div style={{ fontSize: 14, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>● {originText}</div>
           <div style={{ borderTop: '1px solid #eee', margin: '8px 0' }} />
           <div style={{ fontSize: 11, color: '#777', marginBottom: 3 }}>PARA ONDE?</div>
@@ -241,7 +299,7 @@ export default function MapRideFixed({ onRideCreate, onBack }) {
         </div>
       </div>
 
-      <button onClick={() => origin && mapInstanceRef.current?.setView([origin.lat, origin.lng], 16)} style={{ ...box, position: 'absolute', right: 16, bottom: route ? 230 : 28, zIndex: 20, width: 48, height: 48, border: 0, fontSize: 22, cursor: 'pointer' }}>⌖</button>
+      <button onClick={() => origin && mapInstanceRef.current?.setView([origin.lat, origin.lng], 17)} style={{ ...box, position: 'absolute', right: 16, bottom: route ? 230 : 28, zIndex: 20, width: 48, height: 48, border: 0, fontSize: 22, cursor: 'pointer' }}>⌖</button>
       {loadingRoute && <div style={{ ...box, position: 'absolute', left: 16, right: 16, bottom: 24, zIndex: 30, padding: 18, textAlign: 'center' }}>Calculando rota...</div>}
       {route && !ride && !loadingRoute && <div style={{ ...box, position: 'absolute', left: 12, right: 12, bottom: 12, zIndex: 20, padding: 18 }}><div style={{ fontSize: 13, color: '#666' }}>{route.distance} km • {route.duration} min</div><div style={{ fontSize: 28, fontWeight: 700, margin: '4px 0 12px' }}>R$ {route.price}</div><button onClick={requestRide} disabled={requesting} style={{ width: '100%', height: 50, border: 0, borderRadius: 12, background: '#111', color: '#fff', fontSize: 16, fontWeight: 700 }}>{requesting ? 'Solicitando...' : 'Solicitar corrida'}</button></div>}
       {ride && <div style={{ ...box, position: 'absolute', left: 12, right: 12, bottom: 12, zIndex: 20, padding: 18 }}>
