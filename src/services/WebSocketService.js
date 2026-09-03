@@ -14,7 +14,7 @@ class WebSocketService {
       reconnection: true,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
-      reconnectionAttempts: 5
+      reconnectionAttempts: 10
     });
     return this.socket;
   }
@@ -28,6 +28,7 @@ class WebSocketService {
   joinRideRoom(rideId) { if (rideId) this.ensureSocket().emit('join-ride-room', rideId); }
   leaveRideRoom(rideId) { if (rideId) this.ensureSocket().emit('leave-ride-room', rideId); }
   joinDriversRoom() { this.ensureSocket().emit('join-drivers-room'); }
+  joinDriverRoom() { this.ensureSocket().emit('join-drivers-room'); }
 
   sendLocation(rideId, driverId, latitude, longitude) {
     this.ensureSocket().emit('driver-location', { rideId, driverId, latitude, longitude, timestamp: new Date().toISOString() });
