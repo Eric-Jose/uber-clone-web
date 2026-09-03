@@ -39,13 +39,41 @@ const getInitialPage = () => {
   return 'home';
 };
 
-function AccountPanel({ account, children }) {
+function AccountPanel({ account, currentPage, onNavigate, children }) {
+  const isDriver = account?.userType === 'driver' && account?.driverApprovalStatus === 'approved';
+  const items = isDriver
+    ? [
+        { page: 'driver-dashboard', icon: '⌂', label: 'Início' },
+        { page: 'ride-history', icon: '▤', label: 'Histórico' },
+        { page: 'profile', icon: '◯', label: 'Perfil' },
+      ]
+    : [
+        { page: 'ride', icon: '⌖', label: 'Procurar corrida' },
+        { page: 'ride-history', icon: '▤', label: 'Histórico' },
+        { page: 'profile', icon: '◯', label: 'Perfil' },
+      ];
+
   return (
-    <div style={{ minHeight: '100vh' }}>
-      <div style={{ position: 'fixed', top: 16, right: 16, zIndex: 3000, background: '#fff', borderRadius: 14, padding: 10, boxShadow: '0 4px 18px rgba(0,0,0,.18)' }}>
-        <ProfilePhoto account={account} compact />
+    <div className="account-shell">
+      <div className="account-topbar">
+        <div className="account-brand">UberClone</div>
+        <button className="account-profile-trigger" onClick={() => onNavigate('profile')} aria-label="Abrir perfil">
+          <ProfilePhoto account={account} compact />
+        </button>
       </div>
-      {children}
+      <main className="account-content">{children}</main>
+      <nav className="app-bottom-nav" aria-label="Navegação principal">
+        {items.map((item) => (
+          <button
+            key={item.page}
+            className={`app-nav-item ${currentPage === item.page ? 'active' : ''}`}
+            onClick={() => onNavigate(item.page)}
+          >
+            <span className="app-nav-icon">{item.icon}</span>
+            <span>{item.label}</span>
+          </button>
+        ))}
+      </nav>
     </div>
   );
 }
@@ -148,23 +176,25 @@ function App() {
     setCurrentPage('home');
   };
 
-  if (admin) return <AccountPanel account={admin}><AdminDashboardPro admin={admin} onLogout={handleAdminLogout} /></AccountPanel>;
+  const navigate = (page) => setCurrentPage(page);
+
+  if (admin) return <AccountPanel account={admin} currentPage="admin-dashboard" onNavigate={navigate}><AdminDashboardPro admin={admin} onLogout={handleAdminLogout} /></AccountPanel>;
   if (currentPage === 'admin-login' || currentPage === 'admin-dashboard') return <AdminLogin onAdminLogin={handleAdminLogin} />;
 
   switch (currentPage) {
     case 'login': return <Login onLoginSuccess={handleUserLogin} />;
     case 'register': return <Register onRegisterSuccess={handleUserLogin} />;
     case 'reset-password': return <ResetPassword onBackToLogin={() => { window.history.replaceState({}, '', window.location.pathname); setCurrentPage('login'); }} />;
-    case 'ride': return user ? <AccountPanel account={user}><LiveStatsBar userType="passenger" /><MapRidePro onRideCreate={() => {}} onBack={() => setCurrentPage('profile')} /></AccountPanel> : <Login onLoginSuccess={handleUserLogin} />;
-    case 'ride-history': return user ? <RideHistoryPro user={user} onBack={() => setCurrentPage(user.userType === 'driver' ? 'driver-dashboard' : 'ride')} /> : <Login onLoginSuccess={handleUserLogin} />;
+    case 'ride': return user ? <AccountPanel account={user} currentPage="ride" onNavigate={navigate}><LiveStatsBar userType="passenger" /><MapRidePro onRideCreate={() => {}} onBack={() => setCurrentPage('profile')} /></AccountPanel> : <Login onLoginSuccess={handleUserLogin} />;
+    case 'ride-history': return user ? <AccountPanel account={user} currentPage="ride-history" onNavigate={navigate}><RideHistoryPro user={user} onBack={() => setCurrentPage(user.userType === 'driver' ? 'driver-dashboard' : 'ride')} /></AccountPanel> : <Login onLoginSuccess={handleUserLogin} />;
     case 'driver-registration': return <DriverRegistration onRegistrationSubmit={handleDriverRegistration} />;
     case 'driver-pending': return <DriverPending user={user} onLogout={handleLogout} />;
-    case 'driver-dashboard': return user ? <AccountPanel account={user}><LiveStatsBar userType="driver" /><DriverDashboardPro /></AccountPanel> : <Login onLoginSuccess={handleUserLogin} />;
-    case 'profile': return user ? <UserProfile user={user} onLogout={handleLogout} onRequestRide={() => setCurrentPage('ride')} onHistory={() => setCurrentPage('ride-history')} /> : <Login onLoginSuccess={handleUserLogin} />;
+    case 'driver-dashboard': return user ? <AccountPanel account={user} currentPage="driver-dashboard" onNavigate={navigate}><LiveStatsBar userType="driver" /><DriverDashboardPro /></AccountPanel> : <Login onLoginSuccess={handleUserLogin} />;
+    case 'profile': return user ? <AccountPanel account={user} currentPage="profile" onNavigate={navigate}><UserProfile user={user} onLogout={handleLogout} onRequestRide={() => setCurrentPage('ride')} onHistory={() => setCurrentPage('ride-history')} /></AccountPanel> : <Login onLoginSuccess={handleUserLogin} />;
     case 'admin-panel': return <AdminPanel />;
     case 'payment': return <Payment rideId="RIDE001" amount={32.5} onPaymentSuccess={() => alert('Pagamento realizado!')} />;
     case 'notifications': return <NotificationCenter />;
-    default: return <div className="home-page"><div className="home-container"><h1>🚗 UberClone</h1><p>Escolha uma opção para continuar:</p><div className="home-buttons"><button onClick={() => setCurrentPage('login')} className="btn-home">👤 Usuário</button><button onClick={() => setCurrentPage('admin-login')} className="btn-home admin">🔐 Administrador</button></div></div></div>;
+    default: return <div className="home-page"><div className="home-container"><div className="home-badge">🚗 Transporte inteligente</div><h1>UberClone</h1><p>Entre na sua conta para solicitar corridas, acompanhar seu motorista e acessar seu histórico.</p><div className="home-buttons"><button onClick={() => setCurrentPage('login')} className="btn-home">👤 Entrar como usuário</button><button onClick={() => setCurrentPage('register')} className="btn-home secondary">✨ Criar conta</button><button onClick={() => setCurrentPage('admin-login')} className="btn-home admin">🔐 Administrador</button></div></div></div>;
   }
 }
 
