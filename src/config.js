@@ -1,6 +1,6 @@
 // URL central da API. Em produção, o fallback aponta diretamente para o Railway.
 // Mantém todos os endpoints do frontend no mesmo backend para evitar caminhos divergentes.
-// Deploy: perfil do passageiro restaurado e navegação separada da corrida.
+// Deploy: perfil, recuperação de senha e redefinição usam a mesma API.
 export const BACKEND_URL = (
   process.env.REACT_APP_BACKEND_URL ||
   'https://uber-clone-backend-production.up.railway.app'
