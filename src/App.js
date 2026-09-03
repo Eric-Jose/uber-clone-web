@@ -26,6 +26,14 @@ const resolveUserPage = (user) => {
   if (user.driverApprovalStatus === 'pending') return 'driver-pending';
   return 'driver-registration';
 };
+const isUserPage = (page, user) => {
+  if (!user) return false;
+  if (page === 'ride' || page === 'ride-history' || page === 'profile') return true;
+  if (user.userType === 'driver' && user.driverApprovalStatus === 'approved' && page === 'driver-dashboard') return true;
+  if (user.userType === 'driver' && user.driverApprovalStatus === 'pending' && page === 'driver-pending') return true;
+  if (user.userType === 'driver' && user.driverApprovalStatus !== 'approved' && user.driverApprovalStatus !== 'pending' && page === 'driver-registration') return true;
+  return false;
+};
 const getInitialPage = () => {
   const params = new URLSearchParams(window.location.search);
   if (params.get('mode') === 'resetPassword' && params.get('oobCode')) return 'reset-password';
@@ -64,7 +72,7 @@ function App() {
       setAdmin(null);
       localStorage.removeItem('admin');
       localStorage.removeItem('adminToken');
-      setCurrentPage(resolveUserPage(data.user));
+      setCurrentPage((page) => isUserPage(page, data.user) ? page : resolveUserPage(data.user));
     });
     return () => { cancelled = true; unsubscribe(); };
   }, []);
@@ -81,7 +89,9 @@ function App() {
         const data = await response.json().catch(() => ({}));
         if (cancelled) return;
         if (response.ok && data.valid && data.user) {
-          localStorage.setItem('user', JSON.stringify(data.user)); setUser(data.user); setCurrentPage(resolveUserPage(data.user));
+          localStorage.setItem('user', JSON.stringify(data.user));
+          setUser(data.user);
+          setCurrentPage((page) => isUserPage(page, data.user) ? page : resolveUserPage(data.user));
         } else if (response.status === 401) {
           localStorage.removeItem('token'); localStorage.removeItem('user'); setUser(null); setCurrentPage('login');
         }
