@@ -98,6 +98,7 @@ function App() {
   const [admin, setAdmin] = useState(() => getStored('admin'));
 
   useEffect(() => {
+    if (admin && localStorage.getItem('adminToken')) return undefined;
     const token = localStorage.getItem('token');
     const storedUser = getStored('user');
     if (!token || !storedUser) return undefined;
@@ -131,7 +132,7 @@ function App() {
       window.removeEventListener('focus', onFocus);
       document.removeEventListener('visibilitychange', onVisibility);
     };
-  }, []);
+  }, [admin]);
 
   useEffect(() => {
     const onPhoto = (event) => {
@@ -147,7 +148,10 @@ function App() {
 
   const handleUserLogin = (userData) => {
     setUser(userData);
+    setAdmin(null);
     localStorage.setItem('user', JSON.stringify(userData));
+    localStorage.removeItem('admin');
+    localStorage.removeItem('adminToken');
     setCurrentPage(resolveUserPage(userData));
   };
   const handleLogout = () => {
@@ -164,21 +168,23 @@ function App() {
     setCurrentPage(resolveUserPage(updatedUser));
   };
   const handleAdminLogin = (adminData) => {
+    setUser(null);
     setAdmin(adminData);
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
     localStorage.setItem('admin', JSON.stringify(adminData));
     setCurrentPage('admin-dashboard');
   };
   const handleAdminLogout = () => {
     setAdmin(null);
     localStorage.removeItem('adminToken');
-    localStorage.removeItem('token');
     localStorage.removeItem('admin');
     setCurrentPage('home');
   };
 
   const navigate = (page) => setCurrentPage(page);
 
-  if (admin) return <AccountPanel account={admin} currentPage="admin-dashboard" onNavigate={navigate}><AdminDashboardPro admin={admin} onLogout={handleAdminLogout} /></AccountPanel>;
+  if (admin) return <AdminDashboardPro admin={admin} onLogout={handleAdminLogout} />;
   if (currentPage === 'admin-login' || currentPage === 'admin-dashboard') return <AdminLogin onAdminLogin={handleAdminLogin} />;
 
   switch (currentPage) {
