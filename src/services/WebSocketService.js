@@ -100,8 +100,11 @@ class WebSocketService {
 
   joinRideRoom(rideId) { if (rideId) this.ensureSocket()?.emit('join-ride-room', rideId); }
   leaveRideRoom(rideId) { if (rideId) this.ensureSocket()?.emit('leave-ride-room', rideId); }
-  joinDriversRoom() { this.ensureSocket()?.emit('join-drivers-room'); }
-  joinDriverRoom() { this.ensureSocket()?.emit('join-drivers-room'); }
+
+  // Não entra mais na sala global de motoristas. O backend envia a oferta diretamente
+  // ao motorista elegível, e /api/rides/pending cobre reconexões e dispositivos sem socket.
+  joinDriversRoom() { this.ensureSocket(); }
+  joinDriverRoom() { this.ensureSocket(); }
 
   sendPresenceLocation(latitude, longitude) {
     this.ensureSocket()?.emit('driver-presence-location', { latitude, longitude, timestamp: new Date().toISOString() });
