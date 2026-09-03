@@ -44,20 +44,11 @@ function getInitialPage() {
   return 'home';
 }
 
-function AccountHeader({ account, admin = false }) {
-  if (!account) return null;
-  return (
-    <div style={{ position: 'fixed', top: 12, right: 12, zIndex: 9999, background: '#fff', borderRadius: 16, padding: '8px 12px', boxShadow: '0 4px 16px rgba(0,0,0,.14)', border: '1px solid #eee' }}>
-      <ProfilePhoto account={account} compact />
-    </div>
-  );
-}
-
 function DriverPending({ user, onLogout }) {
   return (
     <div style={{ minHeight: '100vh', background: '#f5f5f5', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, fontFamily: 'Arial, sans-serif' }}>
       <div style={{ maxWidth: 520, width: '100%', background: '#fff', borderRadius: 16, padding: 28, textAlign: 'center', boxShadow: '0 2px 14px rgba(0,0,0,.08)' }}>
-        <ProfilePhoto account={user} />
+        <ProfilePhoto account={user} compact />
         <div style={{ fontSize: 54 }}>⏳</div>
         <h1>Cadastro em análise</h1>
         <p style={{ color: '#666', lineHeight: 1.6 }}>
@@ -68,6 +59,17 @@ function DriverPending({ user, onLogout }) {
           Sair
         </button>
       </div>
+    </div>
+  );
+}
+
+function AccountPanel({ account, type, children }) {
+  return (
+    <div style={{ minHeight: '100vh' }}>
+      <div style={{ position: 'fixed', top: 16, right: 16, zIndex: 3000, background: '#fff', borderRadius: 14, padding: 10, boxShadow: '0 4px 18px rgba(0,0,0,.18)' }}>
+        <ProfilePhoto account={account} compact />
+      </div>
+      {children}
     </div>
   );
 }
@@ -103,9 +105,7 @@ function App() {
         localStorage.setItem('user', JSON.stringify(data.user));
         setUser(data.user);
         setCurrentPage(resolveUserPage(data.user));
-      } catch (_) {
-        // Mantém a sessão local durante falhas momentâneas de rede.
-      }
+      } catch (_) {}
     };
 
     verifySession();
@@ -114,7 +114,6 @@ function App() {
     const handleVisibility = () => { if (document.visibilityState === 'visible') verifySession(); };
     window.addEventListener('focus', handleFocus);
     document.addEventListener('visibilitychange', handleVisibility);
-
     return () => {
       cancelled = true;
       window.clearInterval(interval);
@@ -124,15 +123,16 @@ function App() {
   }, []);
 
   useEffect(() => {
-    const adminToken = localStorage.getItem('adminToken');
-    if (!adminToken || !admin) return undefined;
-    const syncAdmin = () => {
-      const stored = getStoredJson('admin');
-      if (stored) setAdmin(stored);
+    const handlePhoto = (event) => {
+      const uid = event.detail?.uid;
+      const storedUser = getStoredJson('user');
+      const storedAdmin = getStoredJson('admin');
+      if (storedUser && (!uid || storedUser.uid === uid)) setUser({ ...storedUser, profilePhoto: event.detail.photo || null });
+      if (storedAdmin && (!uid || storedAdmin.uid === uid)) setAdmin({ ...storedAdmin, profilePhoto: event.detail.photo || null });
     };
-    window.addEventListener('focus', syncAdmin);
-    return () => window.removeEventListener('focus', syncAdmin);
-  }, [admin]);
+    window.addEventListener('profile-photo-updated', handlePhoto);
+    return () => window.removeEventListener('profile-photo-updated', handlePhoto);
+  }, []);
 
   const handleUserLogin = (userData) => {
     setUser(userData);
@@ -171,19 +171,19 @@ function App() {
     setCurrentPage('home');
   };
 
-  if (admin) return <><AccountHeader account={admin} admin /><AdminDashboard admin={admin} onLogout={handleAdminLogout} /></>;
+  if (admin) return <AccountPanel account={admin} type="admin"><AdminDashboard admin={admin} onLogout={handleAdminLogout} /></AccountPanel>;
   if (currentPage === 'admin-login' || currentPage === 'admin-dashboard') return <AdminLogin onAdminLogin={handleAdminLogin} />;
 
   switch (currentPage) {
     case 'login': return <Login onLoginSuccess={handleUserLogin} />;
     case 'register': return <Register onRegisterSuccess={handleUserLogin} />;
     case 'reset-password': return <ResetPassword onBackToLogin={() => { window.history.replaceState({}, '', window.location.pathname); setCurrentPage('login'); }} />;
-    case 'ride': return user ? <><AccountHeader account={user} /><LiveStatsBar userType="passenger" /><MapRideFixed onRideCreate={() => {}} onBack={() => setCurrentPage('profile')} /></> : <Login onLoginSuccess={handleUserLogin} />;
-    case 'ride-history': return user ? <><AccountHeader account={user} /><RideHistory user={user} onBack={() => setCurrentPage(user.userType === 'driver' ? 'driver-dashboard' : 'ride')} /></> : <Login onLoginSuccess={handleUserLogin} />;
-    case 'driver-registration': return <><AccountHeader account={user} /><DriverRegistration onRegistrationSubmit={handleDriverRegistrationSubmit} /></>;
+    case 'ride': return user ? <AccountPanel account={user} type="passenger"><LiveStatsBar userType="passenger" /><MapRideFixed onRideCreate={() => {}} onBack={() => setCurrentPage('profile')} /></AccountPanel> : <Login onLoginSuccess={handleUserLogin} />;
+    case 'ride-history': return user ? <RideHistory user={user} onBack={() => setCurrentPage(user.userType === 'driver' ? 'driver-dashboard' : 'ride')} /> : <Login onLoginSuccess={handleUserLogin} />;
+    case 'driver-registration': return <DriverRegistration onRegistrationSubmit={handleDriverRegistrationSubmit} />;
     case 'driver-pending': return <DriverPending user={user} onLogout={handleUserLogout} />;
-    case 'driver-dashboard': return user ? <><AccountHeader account={user} /><LiveStatsBar userType="driver" /><DriverDashboard /></> : <Login onLoginSuccess={handleUserLogin} />;
-    case 'profile': return user ? <><AccountHeader account={user} /><UserProfile user={user} onLogout={handleUserLogout} onRequestRide={() => setCurrentPage('ride')} onHistory={() => setCurrentPage('ride-history')} /></> : <Login onLoginSuccess={handleUserLogin} />;
+    case 'driver-dashboard': return user ? <AccountPanel account={user} type="driver"><LiveStatsBar userType="driver" /><DriverDashboard /></AccountPanel> : <Login onLoginSuccess={handleUserLogin} />;
+    case 'profile': return user ? <UserProfile user={user} onLogout={handleUserLogout} onRequestRide={() => setCurrentPage('ride')} onHistory={() => setCurrentPage('ride-history')} /> : <Login onLoginSuccess={handleUserLogin} />;
     case 'admin-panel': return <AdminPanel />;
     case 'payment': return <Payment rideId="RIDE001" amount={32.50} onPaymentSuccess={() => alert('Pagamento realizado!')} />;
     case 'notifications': return <NotificationCenter />;
