@@ -26,15 +26,18 @@ function AdminDashboard({ admin, onLogout }) {
 
   const getToken = () => localStorage.getItem('adminToken') || localStorage.getItem('token');
 
-  const loadApplications = async () => {
+  const loadApplications = async (showLoading = true) => {
     const token = getToken();
     if (!token) { setError('Sessão administrativa não encontrada. Faça login novamente.'); return; }
-    setLoading(true); setError('');
+    if (showLoading) setLoading(true);
     try {
-      const response = await axios.get(`${BACKEND_URL}/api/drivers/applications`, { headers: { Authorization: `Bearer ${token}` } });
+      const response = await axios.get(`${BACKEND_URL}/api/drivers/applications`, { headers: { Authorization: `Bearer ${token}` }, timeout: 10000 });
       setApplications(Array.isArray(response.data?.applications) ? response.data.applications : []);
-    } catch (err) { setError(err.response?.data?.error || 'Não foi possível carregar os cadastros de motoristas.'); }
-    finally { setLoading(false); }
+    } catch (err) {
+      if (showLoading) setError(err.response?.data?.error || 'Não foi possível carregar os cadastros de motoristas.');
+    } finally {
+      if (showLoading) setLoading(false);
+    }
   };
 
   const loadDashboardStats = async () => {
@@ -70,8 +73,14 @@ function AdminDashboard({ admin, onLogout }) {
   useEffect(() => {
     loadApplications();
     loadDashboardStats();
-    const interval = setInterval(loadDashboardStats, 5000);
-    return () => clearInterval(interval);
+
+    const applicationsInterval = setInterval(() => loadApplications(false), 5000);
+    const statsInterval = setInterval(loadDashboardStats, 5000);
+
+    return () => {
+      clearInterval(applicationsInterval);
+      clearInterval(statsInterval);
+    };
   }, []);
 
   const statsFromApplications = useMemo(() => ({
