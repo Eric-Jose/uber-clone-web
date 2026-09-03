@@ -57,12 +57,22 @@ export default function DriverDashboardPro() {
 
     const onRequest = (data) => {
       const item = { ...data, id: data?.id || data?.rideId };
-      if (!item.id) return;
+      if (!item.id || rideRef.current) return;
       setRequests((current) => current.some((r) => r.id === item.id) ? current : [item, ...current]);
+    };
+    const onUnavailable = (data) => {
+      const rideId = data?.id || data?.rideId;
+      if (!rideId) return;
+      setRequests((current) => current.filter((item) => item.id !== rideId));
     };
     const onAccepted = (data) => {
       const item = data?.ride || data;
-      if (item?.id) setRide(item);
+      if (item?.id && String(item.driverId) === String(uid)) {
+        setRide(item);
+        setRequests((current) => current.filter((request) => request.id !== item.id));
+      } else if (item?.id && item.driverId) {
+        setRequests((current) => current.filter((request) => request.id !== item.id));
+      }
     };
     const onStarted = (data) => {
       const item = data?.ride || data;
@@ -81,9 +91,11 @@ export default function DriverDashboardPro() {
         stopLocation();
         setMessage('Corrida cancelada.');
       }
+      if (data?.rideId) setRequests((current) => current.filter((request) => request.id !== data.rideId));
     };
 
     WebSocketService.onNewRideRequest(onRequest);
+    WebSocketService.onRideUnavailable(onUnavailable);
     WebSocketService.onRideAccepted(onAccepted);
     WebSocketService.onRideStarted(onStarted);
     WebSocketService.onRideEnded(onEnded);
@@ -91,6 +103,7 @@ export default function DriverDashboardPro() {
 
     return () => {
       WebSocketService.off('new-ride-request', onRequest);
+      WebSocketService.off('ride-unavailable', onUnavailable);
       WebSocketService.off('ride-accepted', onAccepted);
       WebSocketService.off('ride-started', onStarted);
       WebSocketService.off('ride-ended', onEnded);
@@ -175,6 +188,7 @@ export default function DriverDashboardPro() {
       startLocation();
       setMessage('Corrida aceita. Vá até o passageiro.');
     } catch (error) {
+      setRequests((current) => current.filter((item) => item.id !== request.id));
       setMessage(error.response?.data?.error || 'Esta corrida já foi aceita ou não está disponível.');
     } finally {
       setBusy(false);
@@ -208,6 +222,7 @@ export default function DriverDashboardPro() {
     try {
       await axios.patch(`${BACKEND_URL}/api/rides/${ride.id}/status`, { status: 'CANCELLED', cancellationReason: 'Cancelada pelo motorista' }, { headers });
       WebSocketService.cancelRide(ride.id);
+      setRequests((current) => current.filter((item) => item.id !== ride.id));
       setRide(null);
       stopLocation();
       setMessage('Corrida cancelada.');
