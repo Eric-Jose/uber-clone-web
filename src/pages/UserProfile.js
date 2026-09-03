@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import ProfilePhoto from './ProfilePhoto';
+import { BACKEND_URL } from '../config';
 import '../styles/UserProfile.css';
-
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:5000';
 
 function UserProfile({ user, onLogout, onRequestRide, onHistory }) {
   const [editMode, setEditMode] = useState(false);
@@ -11,6 +10,8 @@ function UserProfile({ user, onLogout, onRequestRide, onHistory }) {
   const [statsLoading, setStatsLoading] = useState(false);
 
   const handleLogout = () => { localStorage.removeItem('token'); localStorage.removeItem('user'); onLogout(); };
+  const handleRequestRide = () => { if (typeof onRequestRide === 'function') onRequestRide(); };
+  const handleHistory = () => { if (typeof onHistory === 'function') onHistory(); };
   const handleSave = () => {
     localStorage.setItem('user', JSON.stringify(userData));
     setEditMode(false);
@@ -74,13 +75,13 @@ function UserProfile({ user, onLogout, onRequestRide, onHistory }) {
         </div>
       </div>
 
-      {userData.userType !== 'driver' && <div className="profile-card"><h2>🚗 Nova corrida</h2><p>Informe seu destino e solicite um motorista.</p><button className="btn-edit" onClick={onRequestRide}>📍 Solicitar Corrida</button></div>}
-      {onHistory && <div className="profile-card"><h2>📋 Histórico</h2><p>Veja suas corridas concluídas, canceladas e em andamento.</p><button className="btn-edit" onClick={onHistory}>📋 Ver histórico de corridas</button></div>}
+      {userData.userType !== 'driver' && <div className="profile-card"><h2>🚗 Nova corrida</h2><p>Informe seu destino e solicite um motorista.</p><button type="button" className="btn-edit" onClick={handleRequestRide}>📍 Procurar corrida</button></div>}
+      {typeof onHistory === 'function' && <div className="profile-card"><h2>📋 Histórico</h2><p>Veja suas corridas concluídas, canceladas e em andamento.</p><button type="button" className="btn-edit" onClick={handleHistory}>📋 Ver histórico de corridas</button></div>}
 
       <div className="profile-card">
         <h2>Informações Pessoais</h2>
         {!editMode ? <div className="info-display"><div className="info-item"><span className="label">📧 Email:</span><span className="value">{userData.email}</span></div><div className="info-item"><span className="label">📱 Telefone:</span><span className="value">{userData.phone || 'Não informado'}</span></div><div className="info-item"><span className="label">👤 Tipo de Conta:</span><span className="value">{userData.userType === 'driver' ? '🚗 Motorista' : '🚖 Passageiro'}</span></div><div className="info-item"><span className="label">📅 Membro desde:</span><span className="value">{userData.createdAt ? new Date(userData.createdAt).toLocaleDateString('pt-BR') : 'N/A'}</span></div></div> : <div className="info-edit"><div className="form-group"><label>Nome</label><input value={userData.name || ''} onChange={e => setUserData({...userData, name: e.target.value})} /></div><div className="form-group"><label>Telefone</label><input value={userData.phone || ''} onChange={e => setUserData({...userData, phone: e.target.value})} /></div></div>}
-        <div className="profile-actions">{!editMode ? <button className="btn-edit" onClick={() => setEditMode(true)}>✏️ Editar</button> : <><button className="btn-save" onClick={handleSave}>💾 Salvar</button><button className="btn-cancel" onClick={() => { setUserData(user || {}); setEditMode(false); }}>❌ Cancelar</button></>}</div>
+        <div className="profile-actions">{!editMode ? <button type="button" className="btn-edit" onClick={() => setEditMode(true)}>✏️ Editar</button> : <><button type="button" className="btn-save" onClick={handleSave}>💾 Salvar</button><button type="button" className="btn-cancel" onClick={() => { setUserData(user || {}); setEditMode(false); }}>❌ Cancelar</button></>}</div>
       </div>
 
       <div className="profile-card">
@@ -95,8 +96,8 @@ function UserProfile({ user, onLogout, onRequestRide, onHistory }) {
         </div>
       </div>
 
-      <div className="profile-card"><h2>Segurança</h2><div className="security-options"><button className="btn-option">🔐 Alterar Senha</button><button className="btn-option">🔑 Autenticação 2FA</button></div></div>
-      <div className="profile-actions-bottom"><button className="btn-logout" onClick={handleLogout}>🚪 Sair da Conta</button></div>
+      <div className="profile-card"><h2>Segurança</h2><div className="security-options"><button type="button" className="btn-option">🔐 Alterar Senha</button><button type="button" className="btn-option">🔑 Autenticação 2FA</button></div></div>
+      <div className="profile-actions-bottom"><button type="button" className="btn-logout" onClick={handleLogout}>🚪 Sair da Conta</button></div>
     </div>
   );
 }
