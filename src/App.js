@@ -13,6 +13,7 @@ import MapRideFixed from './pages/MapRideFixed';
 import RideHistory from './pages/RideHistory';
 import ResetPassword from './pages/ResetPassword';
 import LiveStatsBar from './pages/LiveStatsBar';
+import ProfilePhoto from './pages/ProfilePhoto';
 import './App.css';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:5000';
@@ -43,10 +44,20 @@ function getInitialPage() {
   return 'home';
 }
 
+function AccountHeader({ account, admin = false }) {
+  if (!account) return null;
+  return (
+    <div style={{ position: 'fixed', top: 12, right: 12, zIndex: 9999, background: '#fff', borderRadius: 16, padding: '8px 12px', boxShadow: '0 4px 16px rgba(0,0,0,.14)', border: '1px solid #eee' }}>
+      <ProfilePhoto account={account} compact />
+    </div>
+  );
+}
+
 function DriverPending({ user, onLogout }) {
   return (
     <div style={{ minHeight: '100vh', background: '#f5f5f5', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, fontFamily: 'Arial, sans-serif' }}>
       <div style={{ maxWidth: 520, width: '100%', background: '#fff', borderRadius: 16, padding: 28, textAlign: 'center', boxShadow: '0 2px 14px rgba(0,0,0,.08)' }}>
+        <ProfilePhoto account={user} />
         <div style={{ fontSize: 54 }}>⏳</div>
         <h1>Cadastro em análise</h1>
         <p style={{ color: '#666', lineHeight: 1.6 }}>
@@ -160,19 +171,19 @@ function App() {
     setCurrentPage('home');
   };
 
-  if (admin) return <AdminDashboard admin={admin} onLogout={handleAdminLogout} />;
+  if (admin) return <><AccountHeader account={admin} admin /><AdminDashboard admin={admin} onLogout={handleAdminLogout} /></>;
   if (currentPage === 'admin-login' || currentPage === 'admin-dashboard') return <AdminLogin onAdminLogin={handleAdminLogin} />;
 
   switch (currentPage) {
     case 'login': return <Login onLoginSuccess={handleUserLogin} />;
     case 'register': return <Register onRegisterSuccess={handleUserLogin} />;
     case 'reset-password': return <ResetPassword onBackToLogin={() => { window.history.replaceState({}, '', window.location.pathname); setCurrentPage('login'); }} />;
-    case 'ride': return user ? <><LiveStatsBar userType="passenger" /><MapRideFixed onRideCreate={() => {}} onBack={() => setCurrentPage('profile')} /></> : <Login onLoginSuccess={handleUserLogin} />;
-    case 'ride-history': return user ? <RideHistory user={user} onBack={() => setCurrentPage(user.userType === 'driver' ? 'driver-dashboard' : 'ride')} /> : <Login onLoginSuccess={handleUserLogin} />;
-    case 'driver-registration': return <DriverRegistration onRegistrationSubmit={handleDriverRegistrationSubmit} />;
+    case 'ride': return user ? <><AccountHeader account={user} /><LiveStatsBar userType="passenger" /><MapRideFixed onRideCreate={() => {}} onBack={() => setCurrentPage('profile')} /></> : <Login onLoginSuccess={handleUserLogin} />;
+    case 'ride-history': return user ? <><AccountHeader account={user} /><RideHistory user={user} onBack={() => setCurrentPage(user.userType === 'driver' ? 'driver-dashboard' : 'ride')} /></> : <Login onLoginSuccess={handleUserLogin} />;
+    case 'driver-registration': return <><AccountHeader account={user} /><DriverRegistration onRegistrationSubmit={handleDriverRegistrationSubmit} /></>;
     case 'driver-pending': return <DriverPending user={user} onLogout={handleUserLogout} />;
-    case 'driver-dashboard': return user ? <><LiveStatsBar userType="driver" /><DriverDashboard /></> : <Login onLoginSuccess={handleUserLogin} />;
-    case 'profile': return user ? <UserProfile user={user} onLogout={handleUserLogout} onRequestRide={() => setCurrentPage('ride')} onHistory={() => setCurrentPage('ride-history')} /> : <Login onLoginSuccess={handleUserLogin} />;
+    case 'driver-dashboard': return user ? <><AccountHeader account={user} /><LiveStatsBar userType="driver" /><DriverDashboard /></> : <Login onLoginSuccess={handleUserLogin} />;
+    case 'profile': return user ? <><AccountHeader account={user} /><UserProfile user={user} onLogout={handleUserLogout} onRequestRide={() => setCurrentPage('ride')} onHistory={() => setCurrentPage('ride-history')} /></> : <Login onLoginSuccess={handleUserLogin} />;
     case 'admin-panel': return <AdminPanel />;
     case 'payment': return <Payment rideId="RIDE001" amount={32.50} onPaymentSuccess={() => alert('Pagamento realizado!')} />;
     case 'notifications': return <NotificationCenter />;
