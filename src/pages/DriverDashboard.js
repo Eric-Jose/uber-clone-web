@@ -13,7 +13,8 @@ const styles = {
   danger: { background: '#dc2626', color: '#fff' },
   primary: { background: '#111827', color: '#fff' },
   muted: { color: '#666', fontSize: 14 },
-  request: { border: '1px solid #ddd', borderRadius: 12, padding: 15, marginTop: 12 }
+  request: { border: '1px solid #ddd', borderRadius: 12, padding: 15, marginTop: 12 },
+  star: { border: 0, background: 'transparent', fontSize: 32, padding: '4px 7px', cursor: 'pointer' }
 };
 
 function DriverDashboard() {
@@ -21,6 +22,12 @@ function DriverDashboard() {
   const [online, setOnline] = useState(false);
   const [requests, setRequests] = useState([]);
   const [activeRide, setActiveRide] = useState(null);
+  const [completedRide, setCompletedRide] = useState(null);
+  const [rating, setRating] = useState(0);
+  const [comment, setComment] = useState('');
+  const [ratingLoading, setRatingLoading] = useState(false);
+  const [rated, setRated] = useState(false);
+  const [ratingMessage, setRatingMessage] = useState('');
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const watchId = useRef(null);
@@ -69,7 +76,12 @@ function DriverDashboard() {
     const onStarted = (ride) => {
       if (ride?.id || ride?.rideId) setActiveRide(prev => ({ ...(prev || {}), ...ride, id: ride.id || ride.rideId, status: 'IN_PROGRESS' }));
     };
-    const onEnded = () => setActiveRide(null);
+    const onEnded = (ride) => {
+      const finished = ride?.id || ride?.rideId ? { ...ride, id: ride.id || ride.rideId, status: 'COMPLETED' } : activeRideRef.current;
+      if (finished?.id) setCompletedRide(finished);
+      setActiveRide(null);
+      stopWatchingLocation();
+    };
     const onCancelled = (data) => {
       const rideId = data?.rideId;
       if (!rideId || rideId !== activeRideRef.current?.id) return;
@@ -138,9 +150,16 @@ function DriverDashboard() {
     try {
       const response = await axios.patch(`${BACKEND_URL}/api/rides/${activeRide.id}/status`, { status }, authConfig);
       const updated = response.data.ride || response.data;
-      setActiveRide(prev => ({ ...(prev || {}), ...updated, status }));
+      const nextRide = { ...(activeRide || {}), ...updated, status };
+      setActiveRide(nextRide);
       if (status === 'IN_PROGRESS') WebSocketService.startRide(activeRide.id, uid);
-      if (status === 'COMPLETED') { WebSocketService.endRide(activeRide.id, uid); setActiveRide(null); stopWatchingLocation(); }
+      if (status === 'COMPLETED') {
+        WebSocketService.endRide(activeRide.id, uid);
+        setCompletedRide(nextRide);
+        setActiveRide(null);
+        stopWatchingLocation();
+        setRating(0); setComment(''); setRated(false); setRatingMessage('');
+      }
     } catch (error) { setMessage(error.response?.data?.error || 'Não foi possível atualizar a corrida.'); }
     finally { setLoading(false); }
   };
@@ -160,6 +179,18 @@ function DriverDashboard() {
     } finally { setLoading(false); }
   };
 
+  const submitRating = async () => {
+    if (!completedRide?.id || !rating || ratingLoading || rated) return;
+    setRatingLoading(true); setRatingMessage('');
+    try {
+      await axios.post(`${BACKEND_URL}/api/ratings`, { rideId: completedRide.id, rating, comment }, authConfig);
+      setRated(true);
+      setRatingMessage('Avaliação registrada com sucesso. Obrigado! ⭐');
+    } catch (error) {
+      setRatingMessage(error.response?.data?.error || 'Não foi possível registrar a avaliação.');
+    } finally { setRatingLoading(false); }
+  };
+
   if (!user || user.userType !== 'driver') {
     return <div style={styles.page}><div style={styles.card}><h2>Acesso restrito</h2><p>Entre com uma conta de motorista para acessar o painel.</p></div></div>;
   }
@@ -174,6 +205,22 @@ function DriverDashboard() {
         <p><strong>Status:</strong> {online ? '🟢 Online' : '⚪ Offline'}</p>
         {message && <p style={{ padding: 10, background: '#f0f0f0', borderRadius: 8 }}>{message}</p>}
       </div>
+
+      {completedRide && <div style={styles.card}>
+        <h2>⭐ Avalie o passageiro</h2>
+        <p style={styles.muted}>A corrida foi concluída. Sua avaliação ajuda a manter a comunidade segura e confiável.</p>
+        {!rated && <>
+          <div aria-label="Escolha uma nota" style={{ margin: '12px 0' }}>
+            {[1, 2, 3, 4, 5].map(value => <button key={value} type="button" aria-label={`${value} estrela${value > 1 ? 's' : ''}`} onClick={() => setRating(value)} style={{ ...styles.star, opacity: value <= rating ? 1 : 0.3 }}>★</button>)}
+          </div>
+          <textarea value={comment} onChange={e => setComment(e.target.value.slice(0, 500))} placeholder="Comentário opcional" maxLength={500} rows={3} style={{ width: '100%', padding: 12, borderRadius: 10, border: '1px solid #ccc', resize: 'vertical' }} />
+          <div style={{ ...styles.row, marginTop: 12 }}>
+            <span style={styles.muted}>{comment.length}/500</span>
+            <button disabled={!rating || ratingLoading} onClick={submitRating} style={{ ...styles.button, ...styles.primary }}>{ratingLoading ? 'Enviando...' : 'Enviar avaliação'}</button>
+          </div>
+        </>}
+        {ratingMessage && <p role="status" style={{ padding: 10, background: '#f0f0f0', borderRadius: 8 }}>{ratingMessage}</p>}
+      </div>}
 
       {activeRide && <div style={styles.card}>
         <h2>📍 Corrida atual</h2>
