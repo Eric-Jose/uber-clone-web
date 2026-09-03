@@ -7,6 +7,7 @@ const userSchema = new mongoose.Schema({
   email: { type: String, required: true, unique: true },
   phone: { type: String, required: true },
   password: { type: String, required: true },
+  firebaseUid: { type: String, unique: true, sparse: true, index: true },
   userType: { type: String, enum: ['passenger', 'driver'], required: true },
   profileImage: String,
   rating: { type: Number, default: 5.0 },
@@ -16,7 +17,6 @@ const userSchema = new mongoose.Schema({
   updatedAt: { type: Date, default: Date.now }
 });
 
-// Hash password antes de salvar
 userSchema.pre('save', async function(next) {
   if (!this.isModified('password')) return next();
   const salt = await bcrypt.genSalt(10);
@@ -24,7 +24,6 @@ userSchema.pre('save', async function(next) {
   next();
 });
 
-// Método para comparar senhas
 userSchema.methods.comparePassword = async function(enteredPassword) {
   return await bcrypt.compare(enteredPassword, this.password);
 };
