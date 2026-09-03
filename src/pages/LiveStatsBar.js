@@ -12,8 +12,7 @@ function LiveStatsBar({ userType = 'passenger' }) {
       if (!token) return;
       try {
         const response = await fetch(`${BACKEND_URL}/api/rides/history?limit=100`, {
-          headers: { Authorization: `Bearer ${token}` },
-          cache: 'no-store'
+          headers: { Authorization: `Bearer ${token}` }, cache: 'no-store'
         });
         if (!response.ok) return;
         const data = await response.json().catch(() => ({}));
@@ -29,7 +28,6 @@ function LiveStatsBar({ userType = 'passenger' }) {
         });
       } catch (_) {}
     };
-
     loadStats();
     const interval = window.setInterval(loadStats, 5000);
     const handleFocus = () => loadStats();
@@ -45,7 +43,13 @@ function LiveStatsBar({ userType = 'passenger' }) {
   }, []);
 
   return (
-    <div style={{ position: 'fixed', top: 10, left: '50%', transform: 'translateX(-50%)', zIndex: 5000, width: 'min(760px, calc(100% - 20px))', background: 'rgba(255,255,255,.96)', border: '1px solid #ddd', borderRadius: 14, boxShadow: '0 4px 18px rgba(0,0,0,.12)', padding: '10px 12px', backdropFilter: 'blur(8px)' }}>
+    <div aria-hidden="true" style={{
+      position: 'fixed', top: 10, left: '50%', transform: 'translateX(-50%)', zIndex: 5000,
+      width: 'min(760px, calc(100% - 20px))', background: 'rgba(255,255,255,.96)',
+      border: '1px solid #ddd', borderRadius: 14, boxShadow: '0 4px 18px rgba(0,0,0,.12)',
+      padding: '10px 12px', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
+      pointerEvents: 'none'
+    }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
         <strong>{userType === 'driver' ? '🚗 Minhas estatísticas' : '🚖 Minhas estatísticas'}</strong>
         <span style={{ fontSize: 11, color: '#666' }}>● Atualização automática</span>
