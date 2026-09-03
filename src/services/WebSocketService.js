@@ -117,7 +117,7 @@ class WebSocketService {
     const socket = this.ensureSocket();
     if (!socket) return;
     const user = (() => { try { return JSON.parse(localStorage.getItem('user') || 'null'); } catch (_) { return null; } })();
-    if (user?.userType === 'driver' && user?.driverApprovalStatus === 'approved' && user?.isOnline === true) {
+    if (user?.userType === 'driver' && user?.driverApprovalStatus === 'approved') {
       socket.emit('join-drivers-room');
     }
   }
