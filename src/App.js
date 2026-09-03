@@ -1,4 +1,5 @@
 /* Navegação autenticada: perfil e corrida usam rotas independentes. */
+// Fluxo do passageiro: Procurar corrida, Histórico e Perfil permanecem independentes.
 import React, { useEffect, useState } from 'react';
 import AdminLogin from './pages/AdminLogin';
 import AdminDashboardLive from './pages/AdminDashboardLive';
@@ -52,11 +53,10 @@ function AccountPanel({ account, currentPage, onNavigate, children }) {
   const items = isDriver
     ? [{ page: 'driver-dashboard', icon: '⌂', label: 'Início' }, { page: 'ride-history', icon: '▤', label: 'Histórico' }, { page: 'profile', icon: '◯', label: 'Perfil' }]
     : [{ page: 'ride', icon: '⌖', label: 'Procurar corrida' }, { page: 'ride-history', icon: '▤', label: 'Histórico' }, { page: 'profile', icon: '◯', label: 'Perfil' }];
-
   return <div className="account-shell">
     <div className="account-topbar">
       <div className="account-brand">UberClone</div>
-      <button className="account-profile-trigger" onClick={() => onNavigate('profile')} aria-label="Abrir perfil">
+      <button type="button" className="account-profile-trigger" onClick={() => onNavigate('profile')} aria-label="Abrir perfil">
         <ProfilePhoto account={account} compact />
       </button>
     </div>
@@ -75,7 +75,6 @@ function App() {
   const [currentPage, setCurrentPage] = useState(getInitialPage);
   const [user, setUser] = useState(() => getStored('user'));
   const [admin, setAdmin] = useState(() => getStored('admin'));
-
   useEffect(() => {
     if (!auth) return undefined;
     let cancelled = false;
@@ -83,15 +82,11 @@ function App() {
       if (!firebaseUser || cancelled || getStored('admin')) return;
       const data = await syncBackendSession(firebaseUser);
       if (cancelled || !data?.user) return;
-      setUser(data.user);
-      setAdmin(null);
-      localStorage.removeItem('admin');
-      localStorage.removeItem('adminToken');
+      setUser(data.user); setAdmin(null); localStorage.removeItem('admin'); localStorage.removeItem('adminToken');
       setCurrentPage((page) => isUserPage(page, data.user) ? page : resolveUserPage(data.user));
     });
     return () => { cancelled = true; unsubscribe(); };
   }, []);
-
   useEffect(() => {
     if (admin && localStorage.getItem('adminToken')) return undefined;
     const token = localStorage.getItem('token');
@@ -104,37 +99,23 @@ function App() {
         const data = await response.json().catch(() => ({}));
         if (cancelled) return;
         if (response.ok && data.valid && data.user) {
-          localStorage.setItem('user', JSON.stringify(data.user));
-          setUser(data.user);
+          localStorage.setItem('user', JSON.stringify(data.user)); setUser(data.user);
           setCurrentPage((page) => isUserPage(page, data.user) ? page : resolveUserPage(data.user));
         } else if (response.status === 401) {
-          localStorage.removeItem('token');
-          localStorage.removeItem('user');
-          setUser(null);
-          setCurrentPage('login');
+          localStorage.removeItem('token'); localStorage.removeItem('user'); setUser(null); setCurrentPage('login');
         }
       } catch (_) {}
     };
     verifySession();
-    const intervalMs = currentPage === 'driver-pending' ? 5000 : 30000;
-    const interval = window.setInterval(verifySession, intervalMs);
+    const interval = window.setInterval(verifySession, currentPage === 'driver-pending' ? 5000 : 30000);
     const onFocus = () => verifySession();
     const onVisibility = () => { if (document.visibilityState === 'visible') verifySession(); };
-    window.addEventListener('focus', onFocus);
-    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('focus', onFocus); document.addEventListener('visibilitychange', onVisibility);
     return () => { cancelled = true; window.clearInterval(interval); window.removeEventListener('focus', onFocus); document.removeEventListener('visibilitychange', onVisibility); };
   }, [admin, currentPage]);
-
   useEffect(() => {
-    const onPhoto = (event) => {
-      const uid = event.detail?.uid;
-      const storedUser = getStored('user');
-      const storedAdmin = getStored('admin');
-      if (storedUser && (!uid || storedUser.uid === uid)) setUser({ ...storedUser, profilePhoto: event.detail.photo || null });
-      if (storedAdmin && (!uid || storedAdmin.uid === uid)) setAdmin({ ...storedAdmin, profilePhoto: event.detail.photo || null });
-    };
-    window.addEventListener('profile-photo-updated', onPhoto);
-    return () => window.removeEventListener('profile-photo-updated', onPhoto);
+    const onPhoto = (event) => { const uid = event.detail?.uid; const storedUser = getStored('user'); const storedAdmin = getStored('admin'); if (storedUser && (!uid || storedUser.uid === uid)) setUser({ ...storedUser, profilePhoto: event.detail.photo || null }); if (storedAdmin && (!uid || storedAdmin.uid === uid)) setAdmin({ ...storedAdmin, profilePhoto: event.detail.photo || null }); };
+    window.addEventListener('profile-photo-updated', onPhoto); return () => window.removeEventListener('profile-photo-updated', onPhoto);
   }, []);
 
   const handleUserLogin = (userData) => { setUser(userData); setAdmin(null); localStorage.setItem('user', JSON.stringify(userData)); localStorage.removeItem('admin'); localStorage.removeItem('adminToken'); setCurrentPage(resolveUserPage(userData)); };
@@ -143,7 +124,6 @@ function App() {
   const handleAdminLogin = (adminData) => { setUser(null); setAdmin(adminData); localStorage.removeItem('token'); localStorage.removeItem('user'); localStorage.setItem('admin', JSON.stringify(adminData)); setCurrentPage('admin-dashboard'); };
   const handleAdminLogout = async () => { await logoutFirebase(); setAdmin(null); localStorage.removeItem('adminToken'); localStorage.removeItem('admin'); setCurrentPage('home'); };
   const navigate = (page) => setCurrentPage(page);
-
   if (admin) return <AdminDashboardLive admin={admin} onLogout={handleAdminLogout} />;
   if (currentPage === 'admin-login' || currentPage === 'admin-dashboard') return <AdminLogin onAdminLogin={handleAdminLogin} />;
   switch (currentPage) {
@@ -162,5 +142,4 @@ function App() {
     default: return <div className="home-page"><div className="home-container"><div className="home-badge">🚗 Transporte inteligente</div><h1>UberClone</h1><p>Entre na sua conta para solicitar corridas, acompanhar seu motorista e acessar seu histórico.</p><div className="home-buttons"><button type="button" onClick={() => setCurrentPage('login')} className="btn-home">👤 Entrar como usuário</button><button type="button" onClick={() => setCurrentPage('register')} className="btn-home secondary">✨ Criar conta</button><button type="button" onClick={() => setCurrentPage('admin-login')} className="btn-home admin">🔐 Administrador</button></div></div></div>;
   }
 }
-
 export default App;
