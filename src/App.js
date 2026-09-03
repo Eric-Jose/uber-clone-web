@@ -124,13 +124,27 @@ function App() {
   const handleAdminLogin = (adminData) => { setUser(null); setAdmin(adminData); localStorage.removeItem('token'); localStorage.removeItem('user'); localStorage.setItem('admin', JSON.stringify(adminData)); setCurrentPage('admin-dashboard'); };
   const handleAdminLogout = async () => { await logoutFirebase(); setAdmin(null); localStorage.removeItem('adminToken'); localStorage.removeItem('admin'); setCurrentPage('home'); };
   const navigate = (page) => setCurrentPage(page);
+  const handleRideCreate = (ride) => {
+    const rideId = ride?.id;
+    const token = localStorage.getItem('token');
+    if (!rideId || !token) return;
+    window.setTimeout(async () => {
+      try {
+        await fetch(`${BACKEND_URL}/api/rides/${rideId}/search`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+          cache: 'no-store'
+        });
+      } catch (_) {}
+    }, 5000);
+  };
   if (admin) return <AdminDashboardLive admin={admin} onLogout={handleAdminLogout} />;
   if (currentPage === 'admin-login' || currentPage === 'admin-dashboard') return <AdminLogin onAdminLogin={handleAdminLogin} />;
   switch (currentPage) {
     case 'login': return <Login onLoginSuccess={handleUserLogin} />;
     case 'register': return <Register onRegisterSuccess={handleUserLogin} />;
     case 'reset-password': return <ResetPassword onBackToLogin={() => { window.history.replaceState({}, '', window.location.pathname); setCurrentPage('login'); }} />;
-    case 'ride': return user ? <AccountPanel account={user} currentPage="ride" onNavigate={navigate}><LiveStatsBar userType="passenger" /><MapRidePro onRideCreate={() => {}} onBack={() => setCurrentPage('ride')} /></AccountPanel> : <Login onLoginSuccess={handleUserLogin} />;
+    case 'ride': return user ? <AccountPanel account={user} currentPage="ride" onNavigate={navigate}><LiveStatsBar userType="passenger" /><MapRidePro onRideCreate={handleRideCreate} onBack={() => setCurrentPage('ride')} /></AccountPanel> : <Login onLoginSuccess={handleUserLogin} />;
     case 'ride-history': return user ? <AccountPanel account={user} currentPage="ride-history" onNavigate={navigate}><RideHistoryPro user={user} onBack={() => setCurrentPage(user.userType === 'driver' ? 'driver-dashboard' : 'ride')} /></AccountPanel> : <Login onLoginSuccess={handleUserLogin} />;
     case 'driver-registration': return <DriverRegistration onRegistrationSubmit={handleDriverRegistration} />;
     case 'driver-pending': return <DriverPending user={user} onLogout={handleLogout} />;
