@@ -42,7 +42,14 @@ class WebSocketService {
     this.ensureSocket()?.emit('driver-location', { rideId, driverId, latitude, longitude, timestamp: new Date().toISOString() });
   }
 
-  requestRide(rideData) { this.ensureSocket()?.emit('request-ride', rideData); }
+  requestRide(rideData) {
+    const socket = this.ensureSocket();
+    if (!socket) return;
+    const emitRequest = () => socket.emit('request-ride', rideData);
+    if (socket.connected) emitRequest();
+    else socket.once('connect', emitRequest);
+  }
+
   acceptRide(rideId, driverId) { this.ensureSocket()?.emit('accept-ride', { rideId, driverId }); }
   startRide(rideId, driverId) { this.ensureSocket()?.emit('start-ride', { rideId, driverId }); }
   endRide(rideId, driverId) { this.ensureSocket()?.emit('end-ride', { rideId, driverId }); }
