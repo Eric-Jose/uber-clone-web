@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 import '../styles/DriverRegistration.css';
-
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:5000';
+import { BACKEND_URL } from '../config';
 
 function DriverRegistration({ onRegistrationSubmit }) {
   const [formData, setFormData] = useState({
