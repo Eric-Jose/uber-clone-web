@@ -9,13 +9,15 @@ function MapRide({ onRideCreate, onBack }) {
   const mapRef = useRef(null);
   const destinationInputRef = useRef(null);
   const destinationPlaceRef = useRef(null);
-  const autocompleteListenerRef = useRef(null);
+  const placesLibraryRef = useRef(null);
+  const sessionTokenRef = useRef(null);
   const driverMarkerRef = useRef(null);
   const userMarkerRef = useRef(null);
   const directionsRendererRef = useRef(null);
   const [map, setMap] = useState(null);
   const [originInput, setOriginInput] = useState('');
   const [destinationInput, setDestinationInput] = useState('');
+  const [destinationSuggestions, setDestinationSuggestions] = useState([]);
   const [routeInfo, setRouteInfo] = useState(null);
   const [loading, setLoading] = useState(false);
   const [requesting, setRequesting] = useState(false);
@@ -31,15 +33,38 @@ function MapRide({ onRideCreate, onBack }) {
   const [ratingMessage, setRatingMessage] = useState('');
 
   useEffect(() => {
-    if (!GOOGLE_MAPS_API_KEY) return undefined;
-    if (!window.google) {
-      const script = document.createElement('script');
-      script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=places`;
-      script.async = true;
-      script.onload = initMap;
-      document.head.appendChild(script);
-    } else initMap();
-    return () => WebSocketService.disconnect();
+    let cancelled = false;
+    const loadGoogleMaps = async () => {
+      if (!GOOGLE_MAPS_API_KEY) return;
+      try {
+        if (!window.google?.maps) {
+          await new Promise((resolve, reject) => {
+            const existing = document.querySelector('script[data-mapride-google-maps]');
+            if (existing) {
+              existing.addEventListener('load', resolve, { once: true });
+              existing.addEventListener('error', reject, { once: true });
+              return;
+            }
+            const script = document.createElement('script');
+            script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&v=weekly&loading=async`;
+            script.async = true;
+            script.defer = true;
+            script.dataset.maprideGoogleMaps = 'true';
+            script.onload = resolve;
+            script.onerror = reject;
+            document.head.appendChild(script);
+          });
+        }
+        if (!cancelled && window.google?.maps) initMap();
+      } catch (error) {
+        console.error('Erro ao carregar Google Maps:', error);
+      }
+    };
+    loadGoogleMaps();
+    return () => {
+      cancelled = true;
+      WebSocketService.disconnect();
+    };
   }, []);
 
   useEffect(() => {
@@ -83,21 +108,15 @@ function MapRide({ onRideCreate, onBack }) {
         map,
         title: 'Motorista',
         zIndex: 20,
-        icon: {
-          path: window.google.maps.SymbolPath.CIRCLE,
-          scale: 11,
-          fillColor: '#111111',
-          fillOpacity: 1,
-          strokeColor: '#ffffff',
-          strokeWeight: 3
-        }
+        icon: { path: window.google.maps.SymbolPath.CIRCLE, scale: 11, fillColor: '#111111', fillOpacity: 1, strokeColor: '#ffffff', strokeWeight: 3 }
       });
     }
     driverMarkerRef.current.setPosition(driverLocation);
   }, [map, driverLocation]);
 
   const initMap = () => {
-    if (!mapRef.current || !window.google) return;
+    if (!mapRef.current || !window.google?.maps || mapRef.current.dataset.initialized === 'true') return;
+    mapRef.current.dataset.initialized = 'true';
     const defaultLocation = { lat: -23.5505, lng: -46.6333 };
     const mapInstance = new window.google.maps.Map(mapRef.current, {
       zoom: 16,
@@ -114,7 +133,6 @@ function MapRide({ onRideCreate, onBack }) {
       ]
     });
     setMap(mapInstance);
-
     const renderer = new window.google.maps.DirectionsRenderer({
       map: mapInstance,
       suppressMarkers: true,
@@ -135,24 +153,29 @@ function MapRide({ onRideCreate, onBack }) {
           map: mapInstance,
           title: 'Sua localização',
           zIndex: 10,
-          icon: {
-            path: window.google.maps.SymbolPath.CIRCLE,
-            scale: 8,
-            fillColor: '#1a73e8',
-            fillOpacity: 1,
-            strokeColor: '#ffffff',
-            strokeWeight: 3
-          }
+          icon: { path: window.google.maps.SymbolPath.CIRCLE, scale: 8, fillColor: '#1a73e8', fillOpacity: 1, strokeColor: '#ffffff', strokeWeight: 3 }
         });
-
         new window.google.maps.Geocoder().geocode({ location }, (results, status) => {
           if (status === 'OK' && results?.[0]) setOriginInput(results[0].formatted_address);
         });
-      }, (error) => {
-        console.warn('Não foi possível obter a localização atual:', error);
-      }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 });
+      }, (error) => console.warn('Não foi possível obter a localização atual:', error), { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 });
     }
   };
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadPlaces = async () => {
+      if (!map || !window.google?.maps?.importLibrary) return;
+      try {
+        const places = await window.google.maps.importLibrary('places');
+        if (!cancelled) placesLibraryRef.current = places;
+      } catch (error) {
+        console.error('Erro ao carregar Places:', error);
+      }
+    };
+    loadPlaces();
+    return () => { cancelled = true; };
+  }, [map]);
 
   const centerOnUser = () => {
     if (!map || !userLocation) return;
@@ -160,46 +183,26 @@ function MapRide({ onRideCreate, onBack }) {
     map.setZoom(17);
   };
 
-  const calculateRoute = async () => {
+  const calculateRoute = async (placeOverride = null) => {
     if (!window.google?.maps || !map) return alert('O mapa ainda está carregando. Aguarde um instante.');
-
-    const destinationPlace = destinationPlaceRef.current;
-    const destination = destinationPlace?.geometry?.location || destinationInput.trim();
+    const destinationPlace = placeOverride || destinationPlaceRef.current;
+    const destination = destinationPlace?.geometry?.location || destinationPlace?.location || destinationInput.trim();
     const origin = userLocation || originInput.trim();
-
     if (!origin) return alert('Não foi possível localizar sua posição. Ative a localização do celular e tente novamente.');
     if (!destination) return alert('Informe o destino para calcular a rota.');
-
     setLoading(true);
     try {
       const service = new window.google.maps.DirectionsService();
-      const result = await service.route({
-        origin,
-        destination,
-        travelMode: window.google.maps.TravelMode.DRIVING,
-        provideRouteAlternatives: false
-      });
-
-      if (!result?.routes?.length || !result.routes[0]?.legs?.length) {
-        throw new Error('ROUTE_NOT_FOUND');
-      }
-
+      const result = await service.route({ origin, destination, travelMode: window.google.maps.TravelMode.DRIVING, provideRouteAlternatives: false });
+      if (!result?.routes?.length || !result.routes[0]?.legs?.length) throw new Error('ROUTE_NOT_FOUND');
       const renderer = directionsRendererRef.current || directionsRenderer;
       if (!renderer) throw new Error('MAP_RENDERER_NOT_READY');
       renderer.setMap(map);
       renderer.setDirections(result);
-
       const leg = result.routes[0].legs[0];
       const distanceKm = Number(leg.distance?.value || 0) / 1000;
       const durationMin = Math.ceil(Number(leg.duration?.value || 0) / 60);
-      const destinationLocation = leg.end_location ? {
-        lat: leg.end_location.lat(),
-        lng: leg.end_location.lng()
-      } : destinationPlace?.geometry?.location ? {
-        lat: destinationPlace.geometry.location.lat(),
-        lng: destinationPlace.geometry.location.lng()
-      } : null;
-
+      const destinationLocation = leg.end_location ? { lat: leg.end_location.lat(), lng: leg.end_location.lng() } : null;
       setRouteInfo({
         distance: distanceKm.toFixed(2),
         duration: durationMin,
@@ -209,50 +212,68 @@ function MapRide({ onRideCreate, onBack }) {
         originLocation: userLocation || null,
         destinationLocation
       });
-
+      setDestinationSuggestions([]);
       map.fitBounds(result.routes[0].bounds, { top: 80, right: 40, bottom: 300, left: 40 });
     } catch (error) {
       console.error('Erro ao calcular rota:', error);
-      const message = error?.message === 'ROUTE_NOT_FOUND'
-        ? 'Não encontramos uma rota de carro para esse destino. Escolha um endereço sugerido pelo Google.'
-        : 'Não foi possível localizar a rota. Confira o destino e tente novamente.';
-      alert(message);
+      alert(error?.message === 'ROUTE_NOT_FOUND' ? 'Não encontramos uma rota de carro para esse destino. Escolha um endereço sugerido.' : 'Não foi possível localizar a rota. Confira o destino e tente novamente.');
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    if (!map || !window.google?.maps?.places || !destinationInputRef.current || autocompleteListenerRef.current) return undefined;
+  const searchDestinations = async (value) => {
+    setDestinationInput(value);
+    destinationPlaceRef.current = null;
+    setRouteInfo(null);
+    if (!value.trim() || value.trim().length < 2) {
+      setDestinationSuggestions([]);
+      return;
+    }
+    try {
+      const places = placesLibraryRef.current || await window.google.maps.importLibrary('places');
+      placesLibraryRef.current = places;
+      const { AutocompleteSuggestion, AutocompleteSessionToken } = places;
+      if (!sessionTokenRef.current) sessionTokenRef.current = new AutocompleteSessionToken();
+      const request = {
+        input: value.trim(),
+        includedRegionCodes: ['br'],
+        language: 'pt-BR',
+        sessionToken: sessionTokenRef.current
+      };
+      const response = await AutocompleteSuggestion.fetchAutocompleteSuggestions(request);
+      setDestinationSuggestions(response?.suggestions || []);
+    } catch (error) {
+      console.error('Erro nas sugestões de destino:', error);
+      setDestinationSuggestions([]);
+    }
+  };
 
-    const autocomplete = new window.google.maps.places.Autocomplete(destinationInputRef.current, {
-      fields: ['formatted_address', 'geometry', 'name', 'place_id'],
-      componentRestrictions: { country: 'br' }
-    });
-
-    autocompleteListenerRef.current = autocomplete.addListener('place_changed', () => {
-      const place = autocomplete.getPlace();
-      if (!place?.geometry?.location) {
-        alert('Selecione um endereço da lista de sugestões do Google.');
-        return;
-      }
-      destinationPlaceRef.current = place;
-      const address = place.formatted_address || place.name || '';
-      setDestinationInput(address);
-      setRouteInfo(null);
-      if (place.geometry.viewport) map.fitBounds(place.geometry.viewport, { top: 100, right: 40, bottom: 300, left: 40 });
-      else map.panTo(place.geometry.location);
-
-      window.setTimeout(() => calculateRoute(), 50);
-    });
-
-    return () => {
-      if (autocompleteListenerRef.current) {
-        window.google.maps.event.removeListener(autocompleteListenerRef.current);
-        autocompleteListenerRef.current = null;
-      }
-    };
-  }, [map, userLocation, directionsRenderer]);
+  const selectDestination = async (suggestion) => {
+    try {
+      const prediction = suggestion?.placePrediction;
+      if (!prediction) return;
+      const place = prediction.toPlace();
+      await place.fetchFields({ fields: ['displayName', 'formattedAddress', 'location', 'viewport'] });
+      const normalizedPlace = {
+        name: place.displayName || '',
+        formatted_address: place.formattedAddress || place.displayName || '',
+        place_id: place.id,
+        location: place.location,
+        geometry: { location: place.location, viewport: place.viewport }
+      };
+      destinationPlaceRef.current = normalizedPlace;
+      setDestinationInput(normalizedPlace.formatted_address);
+      setDestinationSuggestions([]);
+      sessionTokenRef.current = null;
+      if (normalizedPlace.geometry.viewport) map.fitBounds(normalizedPlace.geometry.viewport, { top: 100, right: 40, bottom: 300, left: 40 });
+      else if (normalizedPlace.location) map.panTo(normalizedPlace.location);
+      await calculateRoute(normalizedPlace);
+    } catch (error) {
+      console.error('Erro ao selecionar destino:', error);
+      alert('Não foi possível selecionar esse endereço. Tente outra sugestão.');
+    }
+  };
 
   const handleCreateRide = async () => {
     if (!routeInfo || requesting) return;
@@ -322,14 +343,7 @@ function MapRide({ onRideCreate, onBack }) {
     finally { setRatingLoading(false); }
   };
 
-  const statusLabel = {
-    SEARCHING: 'Procurando motorista',
-    ACCEPTED: 'Motorista a caminho',
-    IN_PROGRESS: 'Corrida em andamento',
-    COMPLETED: 'Corrida finalizada',
-    CANCELLED: 'Corrida cancelada'
-  };
-
+  const statusLabel = { SEARCHING: 'Procurando motorista', ACCEPTED: 'Motorista a caminho', IN_PROGRESS: 'Corrida em andamento', COMPLETED: 'Corrida finalizada', CANCELLED: 'Corrida cancelada' };
   const isActiveRide = ride && !['COMPLETED', 'CANCELLED'].includes(ride.status);
 
   return (
@@ -349,79 +363,60 @@ function MapRide({ onRideCreate, onBack }) {
           <>
             <div className="sheet-handle" />
             <div className="sheet-header">
-              <div>
-                <span className="eyebrow">MapRide</span>
-                <h2>Para onde vamos?</h2>
-              </div>
+              <div><span className="eyebrow">MapRide</span><h2>Para onde vamos?</h2></div>
               <button className="profile-mini" onClick={onBack} aria-label="Perfil">●</button>
             </div>
-
             <div className="location-box">
               <div className="location-line"><span className="dot current" /><input value={originInput} onChange={e => setOriginInput(e.target.value)} placeholder="Localização atual" /></div>
               <div className="location-connector" />
-              <div className="location-line">
-                <span className="dot destination" />
-                <input
-                  ref={destinationInputRef}
-                  value={destinationInput}
-                  onChange={e => {
-                    setDestinationInput(e.target.value);
-                    destinationPlaceRef.current = null;
-                    setRouteInfo(null);
-                  }}
-                  placeholder="Digite seu destino"
-                  autoComplete="off"
-                />
+              <div className="destination-search-wrap">
+                <div className="location-line">
+                  <span className="dot destination" />
+                  <input
+                    ref={destinationInputRef}
+                    value={destinationInput}
+                    onChange={e => searchDestinations(e.target.value)}
+                    onFocus={() => { if (destinationInput.trim().length >= 2) searchDestinations(destinationInput); }}
+                    placeholder="Digite seu destino"
+                    autoComplete="off"
+                    aria-label="Digite seu destino"
+                  />
+                </div>
+                {destinationSuggestions.length > 0 && (
+                  <div className="destination-suggestions" role="listbox">
+                    {destinationSuggestions.map((suggestion, index) => {
+                      const prediction = suggestion.placePrediction;
+                      const title = prediction?.mainText?.toString?.() || prediction?.text?.toString?.() || 'Destino';
+                      const description = prediction?.secondaryText?.toString?.() || '';
+                      return (
+                        <button key={`${prediction?.placeId || index}`} type="button" className="destination-suggestion" onMouseDown={e => e.preventDefault()} onClick={() => selectDestination(suggestion)}>
+                          <span className="suggestion-icon">⌖</span>
+                          <span className="suggestion-text"><strong>{title}</strong>{description && <small>{description}</small>}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             </div>
 
-            {routeInfo && <div className="trip-preview">
-              <div><strong>R$ {routeInfo.price}</strong><span>estimado</span></div>
-              <div><strong>{routeInfo.duration} min</strong><span>{routeInfo.distance} km</span></div>
-            </div>}
-
+            {routeInfo && <div className="trip-preview"><div><strong>R$ {routeInfo.price}</strong><span>estimado</span></div><div><strong>{routeInfo.duration} min</strong><span>{routeInfo.distance} km</span></div></div>}
             {!routeInfo ? (
-              <button className="btn-request primary-action" onClick={calculateRoute} disabled={loading || !map || !destinationInput}>
-                {loading ? 'Calculando rota...' : 'Ver preço e rota'}
-              </button>
+              <button className="btn-request primary-action" onClick={() => calculateRoute()} disabled={loading || !map || !destinationInput}>{loading ? 'Calculando rota...' : 'Ver preço e rota'}</button>
             ) : (
-              <button className="btn-request primary-action" onClick={handleCreateRide} disabled={requesting}>
-                {requesting ? 'Solicitando motorista...' : `Solicitar corrida • R$ ${routeInfo.price}`}
-              </button>
+              <button className="btn-request primary-action" onClick={handleCreateRide} disabled={requesting}>{requesting ? 'Solicitando motorista...' : `Solicitar corrida • R$ ${routeInfo.price}`}</button>
             )}
             <p className="safe-note">🔒 Sua localização é usada somente para encontrar e acompanhar sua corrida.</p>
           </>
         ) : (
           <>
             <div className="sheet-handle" />
-            <div className="ride-status-head">
-              <div className="status-pulse"><span /></div>
-              <div><span className="eyebrow">Sua corrida</span><h2>{statusLabel[ride.status] || ride.status}</h2></div>
-            </div>
-
-            {ride.driverId && <div className="driver-card">
-              <div className="driver-avatar">🚗</div>
-              <div className="driver-details"><strong>Motorista encontrado</strong><span>O motorista está a caminho</span></div>
-              <div className="driver-live">AO VIVO</div>
-            </div>}
-
-            <div className="ride-route-card">
-              <div><span className="route-dot blue" /><span>{routeInfo?.origin || originInput || 'Sua localização'}</span></div>
-              <div className="route-line" />
-              <div><span className="route-dot black" /><span>{routeInfo?.destination || destinationInput}</span></div>
-            </div>
-
+            <div className="ride-status-head"><div className="status-pulse"><span /></div><div><span className="eyebrow">Sua corrida</span><h2>{statusLabel[ride.status] || ride.status}</h2></div></div>
+            {ride.driverId && <div className="driver-card"><div className="driver-avatar">🚗</div><div className="driver-details"><strong>Motorista encontrado</strong><span>O motorista está a caminho</span></div><div className="driver-live">AO VIVO</div></div>}
+            <div className="ride-route-card"><div><span className="route-dot blue" /><span>{routeInfo?.origin || originInput || 'Sua localização'}</span></div><div className="route-line" /><div><span className="route-dot black" /><span>{routeInfo?.destination || destinationInput}</span></div></div>
             {driverLocation && <div className="driver-distance">📍 Motorista atualizado no mapa em tempo real</div>}
-
             {isActiveRide && <button className="cancel-link" onClick={handleCancelRide} disabled={cancelling}>{cancelling ? 'Cancelando...' : 'Cancelar corrida'}</button>}
-
-            {ride.status === 'COMPLETED' && !rated && <div className="rating-card">
-              <h3>Avalie seu motorista</h3>
-              <div className="stars">{[1, 2, 3, 4, 5].map(star => <button key={star} type="button" onClick={() => setRating(star)} className={star <= rating ? 'selected' : ''}>★</button>)}</div>
-              <textarea value={comment} onChange={e => setComment(e.target.value)} maxLength={500} rows={2} placeholder="Comentário opcional" />
-              <button className="btn-request primary-action" onClick={submitRating} disabled={ratingLoading}>{ratingLoading ? 'Enviando...' : 'Enviar avaliação'}</button>
-              {ratingMessage && <p>{ratingMessage}</p>}
-            </div>}
+            {ride.status === 'COMPLETED' && !rated && <div className="rating-card"><h3>Avalie seu motorista</h3><div className="stars">{[1, 2, 3, 4, 5].map(star => <button key={star} type="button" onClick={() => setRating(star)} className={star <= rating ? 'selected' : ''}>★</button>)}</div><textarea value={comment} onChange={e => setComment(e.target.value)} maxLength={500} rows={2} placeholder="Comentário opcional" /><button className="btn-request primary-action" onClick={submitRating} disabled={ratingLoading}>{ratingLoading ? 'Enviando...' : 'Enviar avaliação'}</button>{ratingMessage && <p>{ratingMessage}</p>}</div>}
             {ride.status === 'COMPLETED' && rated && <div className="success-message">✓ Avaliação enviada. Obrigado!</div>}
             {ride.status === 'CANCELLED' && <div className="success-message">Corrida cancelada.</div>}
           </>
