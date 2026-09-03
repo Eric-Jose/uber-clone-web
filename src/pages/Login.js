@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import '../styles/Auth.css';
+import Register from './Register';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:5000';
 
@@ -8,6 +9,11 @@ function Login({ onLoginSuccess }) {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [showRegister, setShowRegister] = useState(false);
+
+  if (showRegister) {
+    return <Register onRegisterSuccess={onLoginSuccess} onBackToLogin={() => setShowRegister(false)} />;
+  }
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -78,7 +84,7 @@ function Login({ onLoginSuccess }) {
         </form>
 
         <div className="auth-footer">
-          <p>Não tem conta? <a href="#signup">Cadastre-se aqui</a></p>
+          <p>Não tem conta? <button type="button" className="auth-link-button" onClick={() => setShowRegister(true)}>Cadastre-se aqui</button></p>
         </div>
       </div>
     </div>
