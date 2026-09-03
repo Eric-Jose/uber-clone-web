@@ -5,14 +5,16 @@ import WebSocketService from '../services/WebSocketService';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:5000';
 const box = { background: '#fff', borderRadius: 16, boxShadow: '0 4px 18px rgba(0,0,0,.16)' };
-// Fallback somente se o navegador não conseguir obter a posição do dispositivo.
-// Maracaju/MS evita que a tela inicial apareça em São Paulo ou em outro país.
-const DEFAULT_CENTER = [-24.5345, -55.7221];
+// Fallback visual somente quando o dispositivo ainda não entregou uma posição válida.
+const DEFAULT_CENTER = [-24.5345, -55.7221]; // Maracaju/MS
 const NOMINATIM = 'https://nominatim.openstreetmap.org';
 const OSRM = 'https://router.project-osrm.org/route/v1/driving';
 
 const userIcon = L.divIcon({ className: '', html: '<div style="width:16px;height:16px;border-radius:50%;background:#1a73e8;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.35)"></div>', iconSize: [22,22], iconAnchor: [11,11] });
 const driverIcon = L.divIcon({ className: '', html: '<div style="width:20px;height:20px;border-radius:50%;background:#111;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.35)"></div>', iconSize: [26,26], iconAnchor: [13,13] });
+
+// Limites amplos do território brasileiro. Coordenadas fora daqui não podem substituir a localização real.
+const isBrazilCoordinate = (lat, lng) => lat >= -34.0 && lat <= 6.0 && lng >= -74.5 && lng <= -34.0;
 
 export default function MapRideFixed({ onRideCreate, onBack }) {
   const mapRef = useRef(null);
@@ -26,6 +28,7 @@ export default function MapRideFixed({ onRideCreate, onBack }) {
   const locationInitializedRef = useRef(false);
   const bestAccuracyRef = useRef(Infinity);
   const requestIdRef = useRef(0);
+  const reverseGeocodeTimerRef = useRef(null);
   const [mapReady, setMapReady] = useState(false);
   const [mapError, setMapError] = useState('');
   const [origin, setOrigin] = useState(null);
@@ -56,49 +59,63 @@ export default function MapRideFixed({ onRideCreate, onBack }) {
     mapInstanceRef.current = map;
     setMapReady(true);
 
-    const updateLocation = async (position) => {
+    const reverseGeocode = async (lat, lng) => {
+      clearTimeout(reverseGeocodeTimerRef.current);
+      reverseGeocodeTimerRef.current = setTimeout(async () => {
+        try {
+          const res = await fetch(`${NOMINATIM}/reverse?format=jsonv2&lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lng)}&zoom=18&addressdetails=1`, { headers: { Accept: 'application/json' } });
+          const data = await res.json();
+          if (!alive) return;
+          const address = data?.address || {};
+          const city = address.city || address.town || address.village || address.municipality || '';
+          const state = address.state || '';
+          const countryCode = String(address.country_code || '').toLowerCase();
+          if (countryCode && countryCode !== 'br') {
+            setMapError('O dispositivo informou uma localização fora do Brasil. Ative o GPS/localização precisa do celular e toque em "Atualizar localização".');
+            return;
+          }
+          setOriginText(city ? `${city}${state ? ' - ' + state : ''}` : (data?.display_name || 'Minha localização atual'));
+          setMapError('');
+        } catch (_) {
+          if (alive) setOriginText('Minha localização atual');
+        }
+      }, 250);
+    };
+
+    const updateLocation = position => {
       if (!alive) return;
       const lat = Number(position?.coords?.latitude);
       const lng = Number(position?.coords?.longitude);
       const accuracy = Number(position?.coords?.accuracy);
-      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+      if (!Number.isFinite(lat) || !Number.isFinite(lng) || !isBrazilCoordinate(lat, lng)) {
+        console.warn('Geolocation rejeitada:', { lat, lng, accuracy });
+        if (!locationInitializedRef.current) setMapError('A localização recebida do celular não é válida para o Brasil. Ative o GPS/localização precisa e toque em "Atualizar localização".');
+        return;
+      }
 
-      // Descarta leituras absurdas muito longe de Mato Grosso do Sul quando o navegador
-      // retorna primeiro uma posição aproximada por rede/IP. Uma posição posterior do GPS pode substituir.
-      const distanceToFallback = map.distance([lat, lng], DEFAULT_CENTER);
-      if (!locationInitializedRef.current && distanceToFallback > 700000) return;
-      if (Number.isFinite(accuracy) && locationInitializedRef.current && accuracy > 50000) return;
-      if (Number.isFinite(accuracy) && accuracy > bestAccuracyRef.current + 100 && locationInitializedRef.current) return;
+      // Evita que uma posição absurdamente imprecisa de rede/IP substitua o GPS real.
+      if (Number.isFinite(accuracy) && accuracy > 15000) {
+        console.warn('Geolocation com baixa precisão ignorada:', accuracy);
+        if (!locationInitializedRef.current) setMapError('Aguardando uma localização GPS mais precisa do celular…');
+        return;
+      }
 
       const loc = { lat, lng };
       locationInitializedRef.current = true;
       if (Number.isFinite(accuracy)) bestAccuracyRef.current = Math.min(bestAccuracyRef.current, accuracy);
       setOrigin(loc);
-      if (Number.isFinite(accuracy)) setLocationAccuracy(Math.round(accuracy));
-      map.setView([lat, lng], Number.isFinite(accuracy) && accuracy <= 50 ? 17 : 16);
+      setLocationAccuracy(Number.isFinite(accuracy) ? Math.round(accuracy) : null);
+
+      // Centraliza apenas quando ainda não há origem ou quando a nova posição é muito mais precisa.
+      const shouldCenter = !userMarkerRef.current || !map.getBounds().pad(-0.7).contains([lat, lng]);
+      if (shouldCenter) map.setView([lat, lng], Number.isFinite(accuracy) && accuracy <= 30 ? 18 : 17);
 
       if (userMarkerRef.current) userMarkerRef.current.setLatLng([lat, lng]);
       else userMarkerRef.current = L.marker([lat, lng], { icon: userIcon, title: 'Sua localização atual' }).addTo(map);
-      if (accuracyCircleRef.current) accuracyCircleRef.current.setLatLng([lat, lng]).setRadius(Number.isFinite(accuracy) ? accuracy : 30);
-      else accuracyCircleRef.current = L.circle([lat, lng], { radius: Number.isFinite(accuracy) ? accuracy : 30, color: '#1a73e8', weight: 1, opacity: 0.25, fillOpacity: 0.08 }).addTo(map);
+      if (accuracyCircleRef.current) accuracyCircleRef.current.setLatLng([lat, lng]).setRadius(Number.isFinite(accuracy) ? Math.min(accuracy, 500) : 50);
+      else accuracyCircleRef.current = L.circle([lat, lng], { radius: Number.isFinite(accuracy) ? Math.min(accuracy, 500) : 50, color: '#1a73e8', weight: 1, opacity: 0.25, fillOpacity: 0.08 }).addTo(map);
 
-      try {
-        const res = await fetch(`${NOMINATIM}/reverse?format=jsonv2&lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lng)}&zoom=18&addressdetails=1`, { headers: { Accept: 'application/json' } });
-        const data = await res.json();
-        if (!alive) return;
-        const address = data?.address || {};
-        const city = address.city || address.town || address.village || address.municipality || '';
-        const state = address.state || '';
-        const country = address.country || '';
-        setOriginText(city ? `${city}${state ? ' - ' + state : ''}` : (data?.display_name || 'Minha localização atual'));
-        if (country && !/brasil|brazil/i.test(country)) {
-          setMapError('A localização retornada pelo dispositivo não parece estar no Brasil. Ative o GPS/Localização precisa do aparelho e tente novamente.');
-        } else if (alive) {
-          setMapError('');
-        }
-      } catch (_) {
-        if (alive) setOriginText('Minha localização atual');
-      }
+      reverseGeocode(lat, lng);
     };
 
     const locationError = err => {
@@ -106,18 +123,27 @@ export default function MapRideFixed({ onRideCreate, onBack }) {
       if (!alive) return;
       if (!locationInitializedRef.current) {
         setMapError(err?.code === 1
-          ? 'Permita a localização precisa do dispositivo no navegador para usar sua posição atual.'
-          : 'Não foi possível obter a localização precisa do dispositivo. Ative o GPS/Localização e tente novamente.');
+          ? 'Permita a localização precisa deste site no celular para usar sua posição atual.'
+          : 'Não foi possível obter o GPS do celular. Ative a Localização/GPS e toque em "Atualizar localização".');
       }
     };
 
-    if (navigator.geolocation) {
-      // Primeiro obtém a melhor posição disponível imediatamente e depois acompanha o dispositivo.
+    const requestDeviceLocation = () => {
+      if (!navigator.geolocation) {
+        setMapError('Este navegador não oferece geolocalização.');
+        return;
+      }
+      setMapError('Obtendo localização precisa do dispositivo…');
       navigator.geolocation.getCurrentPosition(updateLocation, locationError, {
         enableHighAccuracy: true,
-        timeout: 20000,
+        timeout: 30000,
         maximumAge: 0
       });
+    };
+
+    if (navigator.geolocation) {
+      // No celular usamos somente posição fresca do dispositivo: sem cache e sem fallback por IP.
+      requestDeviceLocation();
       watchIdRef.current = navigator.geolocation.watchPosition(updateLocation, locationError, {
         enableHighAccuracy: true,
         timeout: 30000,
@@ -134,6 +160,7 @@ export default function MapRideFixed({ onRideCreate, onBack }) {
       alive = false;
       window.removeEventListener('resize', resize);
       clearTimeout(searchTimerRef.current);
+      clearTimeout(reverseGeocodeTimerRef.current);
       if (watchIdRef.current !== null && navigator.geolocation) navigator.geolocation.clearWatch(watchIdRef.current);
       WebSocketService.disconnect();
       map.remove();
@@ -276,17 +303,47 @@ export default function MapRideFixed({ onRideCreate, onBack }) {
     } catch (e) { setRatingMessage(e.message); }
   };
 
+  const refreshLocation = () => {
+    if (!navigator.geolocation) return setMapError('Este navegador não oferece geolocalização.');
+    setMapError('Obtendo localização precisa do dispositivo…');
+    navigator.geolocation.getCurrentPosition(position => {
+      const lat = Number(position?.coords?.latitude);
+      const lng = Number(position?.coords?.longitude);
+      const accuracy = Number(position?.coords?.accuracy);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng) || !isBrazilCoordinate(lat, lng)) {
+        setMapError('O celular retornou uma localização fora do Brasil. Verifique se o GPS/localização precisa está ativado.');
+        return;
+      }
+      if (Number.isFinite(accuracy) && accuracy > 15000) {
+        setMapError('A localização ainda está pouco precisa. Vá para uma área aberta, ative o GPS e tente novamente.');
+        return;
+      }
+      setOrigin({ lat, lng });
+      setLocationAccuracy(Number.isFinite(accuracy) ? Math.round(accuracy) : null);
+      const map = mapInstanceRef.current;
+      if (map) {
+        map.setView([lat, lng], Number.isFinite(accuracy) && accuracy <= 30 ? 18 : 17);
+        if (userMarkerRef.current) userMarkerRef.current.setLatLng([lat, lng]);
+        else userMarkerRef.current = L.marker([lat, lng], { icon: userIcon, title: 'Sua localização atual' }).addTo(map);
+        if (accuracyCircleRef.current) accuracyCircleRef.current.setLatLng([lat, lng]).setRadius(Number.isFinite(accuracy) ? Math.min(accuracy, 500) : 50);
+        else accuracyCircleRef.current = L.circle([lat, lng], { radius: Number.isFinite(accuracy) ? Math.min(accuracy, 500) : 50, color: '#1a73e8', weight: 1, opacity: 0.25, fillOpacity: 0.08 }).addTo(map);
+      }
+      setMapError('');
+    }, error => {
+      setMapError(error?.code === 1 ? 'Permita a localização precisa deste site no celular.' : 'Não foi possível atualizar a localização do celular.');
+    }, { enableHighAccuracy: true, timeout: 30000, maximumAge: 0 });
+  };
+
   return (
     <div style={{ position: 'fixed', inset: 0, background: '#eee', overflow: 'hidden', fontFamily: 'Arial, sans-serif' }}>
       <div ref={mapRef} style={{ position: 'absolute', inset: 0, zIndex: 0 }} />
       {!mapReady && <div style={{ ...box, position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', padding: 20, zIndex: 30 }}>Carregando mapa...</div>}
-      {mapError && <div style={{ ...box, position: 'absolute', top: 70, left: 16, right: 16, padding: 14, zIndex: 40, color: '#b00020', fontSize: 14 }}><b>Mapa:</b> {mapError}</div>}
-
+      {mapError && <div style={{ ...box, position: 'absolute', top: 70, left: 16, right: 16, padding: 14, zIndex: 40, color: '#b00020', fontSize: 14 }}><b>Localização:</b> {mapError}</div>}
       <div style={{ position: 'absolute', top: 16, left: 16, right: 16, zIndex: 20, display: 'flex', gap: 10, alignItems: 'flex-start' }}>
         {onBack && <button onClick={onBack} style={{ ...box, width: 48, height: 48, border: 0, fontSize: 24, cursor: 'pointer' }}>←</button>}
         <div style={{ ...box, flex: 1, padding: '8px 14px', position: 'relative' }}>
-          <div style={{ fontSize: 11, color: '#777', marginBottom: 3 }}>LOCAL DE PARTIDA {locationAccuracy !== null ? `• precisão ±${locationAccuracy} m` : ''}</div>
-          <div style={{ fontSize: 14, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>● {originText}</div>
+          <div style={{ fontSize: 11, color: '#777', marginBottom: 3 }}>LOCAL DE PARTIDA</div>
+          <div style={{ fontSize: 14, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>● {originText}{locationAccuracy ? ` • ±${locationAccuracy} m` : ''}</div>
           <div style={{ borderTop: '1px solid #eee', margin: '8px 0' }} />
           <div style={{ fontSize: 11, color: '#777', marginBottom: 3 }}>PARA ONDE?</div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -299,7 +356,8 @@ export default function MapRideFixed({ onRideCreate, onBack }) {
         </div>
       </div>
 
-      <button onClick={() => origin && mapInstanceRef.current?.setView([origin.lat, origin.lng], 17)} style={{ ...box, position: 'absolute', right: 16, bottom: route ? 230 : 28, zIndex: 20, width: 48, height: 48, border: 0, fontSize: 22, cursor: 'pointer' }}>⌖</button>
+      <button onClick={() => origin && mapInstanceRef.current?.setView([origin.lat, origin.lng], 17)} style={{ ...box, position: 'absolute', right: 16, bottom: route ? 290 : 78, zIndex: 20, width: 48, height: 48, border: 0, fontSize: 22, cursor: 'pointer' }}>⌖</button>
+      <button onClick={refreshLocation} style={{ ...box, position: 'absolute', right: 16, bottom: 20, zIndex: 20, padding: '12px 14px', border: 0, fontWeight: 700, cursor: 'pointer' }}>Atualizar localização</button>
       {loadingRoute && <div style={{ ...box, position: 'absolute', left: 16, right: 16, bottom: 24, zIndex: 30, padding: 18, textAlign: 'center' }}>Calculando rota...</div>}
       {route && !ride && !loadingRoute && <div style={{ ...box, position: 'absolute', left: 12, right: 12, bottom: 12, zIndex: 20, padding: 18 }}><div style={{ fontSize: 13, color: '#666' }}>{route.distance} km • {route.duration} min</div><div style={{ fontSize: 28, fontWeight: 700, margin: '4px 0 12px' }}>R$ {route.price}</div><button onClick={requestRide} disabled={requesting} style={{ width: '100%', height: 50, border: 0, borderRadius: 12, background: '#111', color: '#fff', fontSize: 16, fontWeight: 700 }}>{requesting ? 'Solicitando...' : 'Solicitar corrida'}</button></div>}
       {ride && <div style={{ ...box, position: 'absolute', left: 12, right: 12, bottom: 12, zIndex: 20, padding: 18 }}>
