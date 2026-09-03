@@ -24,6 +24,7 @@ export default function DriverDashboardPro() {
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
   const rideRef = useRef(null);
+  const onlineRef = useRef(false);
   const watchRef = useRef(null);
 
   const token = localStorage.getItem('token');
@@ -31,6 +32,7 @@ export default function DriverDashboardPro() {
   const headers = { Authorization: `Bearer ${token}` };
 
   useEffect(() => { rideRef.current = ride; }, [ride]);
+  useEffect(() => { onlineRef.current = online; }, [online]);
 
   const stopLocation = () => {
     if (watchRef.current !== null && navigator.geolocation) navigator.geolocation.clearWatch(watchRef.current);
@@ -41,7 +43,7 @@ export default function DriverDashboardPro() {
     const lat = Number(position.coords.latitude);
     const lng = Number(position.coords.longitude);
     if (rideRef.current?.id) WebSocketService.sendLocation(rideRef.current.id, uid, lat, lng);
-    else if (online) WebSocketService.sendPresenceLocation(lat, lng);
+    else if (onlineRef.current) WebSocketService.sendPresenceLocation(lat, lng);
   };
 
   const startLocation = () => {
@@ -96,7 +98,7 @@ export default function DriverDashboardPro() {
       stopLocation();
       WebSocketService.disconnect();
     };
-  }, [token, uid, online]);
+  }, [token, uid]);
 
   useEffect(() => {
     if (!token || !uid) return undefined;
@@ -116,21 +118,23 @@ export default function DriverDashboardPro() {
     setBusy(true);
     setMessage('');
     try {
-      if (!online) {
+      if (!onlineRef.current) {
         if (!navigator.geolocation) throw new Error('Localização não disponível.');
         const position = await new Promise((resolve, reject) => navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 12000 }));
         await axios.post(`${BACKEND_URL}/api/drivers/${uid}/status`, { isOnline: true, currentLocation: { lat: position.coords.latitude, lng: position.coords.longitude } }, { headers });
         WebSocketService.connect();
         WebSocketService.joinDriversRoom();
         WebSocketService.sendPresenceLocation(position.coords.latitude, position.coords.longitude);
+        onlineRef.current = true;
         setOnline(true);
         startLocation();
         setMessage('Você está online e receberá corridas próximas.');
       } else {
         stopLocation();
         await axios.post(`${BACKEND_URL}/api/drivers/${uid}/status`, { isOnline: false }, { headers });
-        WebSocketService.disconnect();
+        onlineRef.current = false;
         setOnline(false);
+        WebSocketService.disconnect();
         setRequests([]);
         setMessage('Você ficou offline.');
       }
