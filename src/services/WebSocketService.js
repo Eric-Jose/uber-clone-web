@@ -23,6 +23,7 @@ class WebSocketService {
         reconnectionDelayMax: 5000,
         reconnectionAttempts: 10
       });
+      this.socket.on('connect', () => this.joinDriversRoom());
     }
 
     this.startDriverPolling();
@@ -112,8 +113,16 @@ class WebSocketService {
   joinRideRoom(rideId) { if (rideId) this.ensureSocket()?.emit('join-ride-room', rideId); }
   leaveRideRoom(rideId) { if (rideId) this.ensureSocket()?.emit('leave-ride-room', rideId); }
 
-  joinDriversRoom() { this.ensureSocket(); }
-  joinDriverRoom() { this.ensureSocket(); }
+  joinDriversRoom() {
+    const socket = this.ensureSocket();
+    if (!socket) return;
+    const user = (() => { try { return JSON.parse(localStorage.getItem('user') || 'null'); } catch (_) { return null; } })();
+    if (user?.userType === 'driver' && user?.driverApprovalStatus === 'approved' && user?.isOnline === true) {
+      socket.emit('join-drivers-room');
+    }
+  }
+
+  joinDriverRoom() { this.joinDriversRoom(); }
 
   sendPresenceLocation(latitude, longitude) {
     this.ensureSocket()?.emit('driver-presence-location', { latitude, longitude, timestamp: new Date().toISOString() });
