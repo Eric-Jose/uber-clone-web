@@ -1,3 +1,4 @@
+/* Navegação autenticada: validação de sessão não deve sobrescrever a tela atual. */
 import React, { useEffect, useState } from 'react';
 import AdminLogin from './pages/AdminLogin';
 import AdminDashboardLive from './pages/AdminDashboardLive';
