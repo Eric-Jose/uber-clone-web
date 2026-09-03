@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:5000';
+import { BACKEND_URL } from '../config';
 
 function resizeImage(file, maxSize = 512, quality = 0.78) {
   return new Promise((resolve, reject) => {
