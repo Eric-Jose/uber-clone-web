@@ -34,14 +34,16 @@ function DriverRegistration({ onRegistrationSubmit }) {
       if (!token) throw new Error('Faça login antes de enviar o cadastro.');
       const payload = {
         ...formData,
-        // Nunca enviamos arquivos ou dados bancários completos para esta API.
         bankName: undefined, bankAccount: undefined, bankRoutingNumber: undefined,
         documents: formData.documents.map(doc => ({ name: doc.name, type: doc.type, size: doc.size }))
       };
       const response = await axios.post(`${BACKEND_URL}/api/drivers/register`, payload, { headers: { Authorization: `Bearer ${token}` } });
       const registration = response.data.application || { status: 'pending' };
+      const currentUser = (() => { try { return JSON.parse(localStorage.getItem('user')) || {}; } catch { return {}; } })();
+      const updatedUser = { ...currentUser, userType: 'driver', driverApprovalStatus: registration.status || 'pending' };
+      localStorage.setItem('user', JSON.stringify(updatedUser));
       setSuccess('✅ Cadastro enviado com sucesso! Aguarde a aprovação.');
-      if (onRegistrationSubmit) setTimeout(() => onRegistrationSubmit(registration), 1200);
+      if (onRegistrationSubmit) setTimeout(() => onRegistrationSubmit(registration), 900);
     } catch (err) {
       setError(err.response?.data?.error || err.message || 'Erro ao enviar cadastro.');
     } finally { setLoading(false); }
