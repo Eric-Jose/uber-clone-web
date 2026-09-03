@@ -1,0 +1,10 @@
+{
+  "rules": {
+    "rides": {
+      ".indexOn": ["driverId", "userId"]
+    },
+    "users": {
+      ".indexOn": ["userType"]
+    }
+  }
+}
