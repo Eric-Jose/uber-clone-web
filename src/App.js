@@ -40,7 +40,9 @@ function App() {
   switch (currentPage) {
     case 'login': return <Login onLoginSuccess={handleUserLogin} />;
     case 'register': return <Register onRegisterSuccess={handleUserLogin} />;
-    case 'ride': return <MapRide onRideCreate={() => setCurrentPage('profile')} onBack={() => setCurrentPage('profile')} />;
+    // Mantém o passageiro na tela da corrida depois de solicitar. Antes a navegação
+    // imediata para o perfil desmontava o MapRide e encerrava o Socket.IO.
+    case 'ride': return <MapRide onRideCreate={() => {}} onBack={() => setCurrentPage('profile')} />;
     case 'ride-history': return user ? <RideHistory user={user} onBack={() => setCurrentPage(user.userType === 'driver' ? 'driver-dashboard' : 'profile')} /> : <Login onLoginSuccess={handleUserLogin} />;
     case 'driver-registration': return <DriverRegistration onRegistrationSubmit={() => setCurrentPage('driver-dashboard')} />;
     case 'driver-dashboard': return <DriverDashboard />;
