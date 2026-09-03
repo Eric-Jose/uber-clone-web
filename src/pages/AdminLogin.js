@@ -25,7 +25,8 @@ function AdminLogin({ onAdminLogin }) {
       if (!response.ok) throw new Error(data.error || 'Credenciais administrativas inválidas');
       if (!data.token || !data.admin) throw new Error('Resposta de login incompleta do servidor.');
       localStorage.setItem('adminToken', data.token);
-      localStorage.setItem('token', data.token);
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
       localStorage.setItem('admin', JSON.stringify(data.admin));
       onAdminLogin(data.admin);
     } catch (err) { setError(err.message || 'Não foi possível entrar como administrador.'); }
