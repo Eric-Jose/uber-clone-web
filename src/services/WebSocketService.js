@@ -24,6 +24,9 @@ class WebSocketService {
         reconnectionAttempts: 10
       });
       this.socket.on('connect', () => this.joinDriversRoom());
+      this.socket.on('connect_error', (error) => {
+        console.warn('Socket.IO:', error?.message || 'falha de conexão');
+      });
     }
 
     this.startDriverPolling();
@@ -110,26 +113,39 @@ class WebSocketService {
   onConnect(callback) { return this.ensureSocket()?.on('connect', callback); }
   offConnect(callback) { this.socket?.off('connect', callback); }
 
-  joinRideRoom(rideId) { if (rideId) this.ensureSocket()?.emit('join-ride-room', rideId); }
-  leaveRideRoom(rideId) { if (rideId) this.ensureSocket()?.emit('leave-ride-room', rideId); }
+  joinRideRoom(rideId) {
+    if (rideId) this.ensureSocket()?.emit('join-ride-room', rideId);
+  }
+
+  leaveRideRoom(rideId) {
+    if (rideId) this.ensureSocket()?.emit('leave-ride-room', rideId);
+  }
 
   joinDriversRoom() {
     const socket = this.ensureSocket();
     if (!socket) return;
-    const user = (() => { try { return JSON.parse(localStorage.getItem('user') || 'null'); } catch (_) { return null; } })();
-    if (user?.userType === 'driver' && user?.driverApprovalStatus === 'approved') {
-      socket.emit('join-drivers-room');
-    }
+    // A validação real é feita no backend/Firebase. Não bloqueamos por dados antigos do localStorage.
+    socket.emit('join-drivers-room');
   }
 
   joinDriverRoom() { this.joinDriversRoom(); }
 
   sendPresenceLocation(latitude, longitude) {
-    this.ensureSocket()?.emit('driver-presence-location', { latitude, longitude, timestamp: new Date().toISOString() });
+    this.ensureSocket()?.emit('driver-presence-location', {
+      latitude,
+      longitude,
+      timestamp: new Date().toISOString()
+    });
   }
 
   sendLocation(rideId, driverId, latitude, longitude) {
-    this.ensureSocket()?.emit('driver-location', { rideId, driverId, latitude, longitude, timestamp: new Date().toISOString() });
+    this.ensureSocket()?.emit('driver-location', {
+      rideId,
+      driverId,
+      latitude,
+      longitude,
+      timestamp: new Date().toISOString()
+    });
   }
 
   requestRide(rideData) {
@@ -172,4 +188,5 @@ class WebSocketService {
   }
 }
 
-export default new WebSocketService();
+const webSocketService = new WebSocketService();
+export default webSocketService;
