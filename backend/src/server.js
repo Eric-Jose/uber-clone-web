@@ -18,6 +18,8 @@ const io = new Server(server, { cors: { origin: true, credentials: true } });
 const PORT = process.env.PORT || 5000;
 const JWT_SECRET = process.env.JWT_SECRET || 'change-me-in-production';
 const DISPATCH_RADIUS_KM = Math.max(1, Number(process.env.DISPATCH_RADIUS_KM) || 25);
+const DISPATCH_RADIUS_EXTENDED_KM = Math.max(DISPATCH_RADIUS_KM, Number(process.env.DISPATCH_RADIUS_EXTENDED_KM) || 50);
+const DISPATCH_RADIUS_LONG_KM = Math.max(DISPATCH_RADIUS_EXTENDED_KM, Number(process.env.DISPATCH_RADIUS_LONG_KM) || 100);
 const FRESH_LOCATION_MS = Math.max(30000, Number(process.env.DRIVER_LOCATION_FRESH_MS) || 120000);
 
 app.use(cors({ origin: true, credentials: true }));
@@ -68,16 +70,23 @@ function dispatchRank(ageMs) {
   if (ageMs < 15000) return 1;
   if (ageMs < 30000) return 2;
   if (ageMs < 60000) return 4;
+  if (ageMs < 300000) return 8;
   return Number.MAX_SAFE_INTEGER;
 }
 
-async function nearestDrivers(originLocation) {
+function dispatchRadiusKm(ageMs) {
+  if (ageMs < 60000) return DISPATCH_RADIUS_KM;
+  if (ageMs < 300000) return DISPATCH_RADIUS_EXTENDED_KM;
+  return DISPATCH_RADIUS_LONG_KM;
+}
+
+async function nearestDrivers(originLocation, radiusKm = DISPATCH_RADIUS_KM) {
   const drivers = await Driver.find({ status: 'approved', isOnline: true }).lean();
   return drivers.map(driver => {
     const location = freshDriverLocation(driver);
     if (!location) return null;
     const d = distanceKm(originLocation, location);
-    if (!Number.isFinite(d) || d > DISPATCH_RADIUS_KM) return null;
+    if (!Number.isFinite(d) || d > radiusKm) return null;
     return { ...driver, distanceKm: Number(d.toFixed(2)) };
   }).filter(Boolean).sort((a, b) => a.distanceKm - b.distanceKm);
 }
@@ -177,14 +186,16 @@ app.get('/api/rides/pending', auth, async (req, res) => {
     for (const ride of rides) {
       const originLocation = normalizeLocation(ride.origin?.location || ride.origin);
       if (!originLocation) continue;
+      const ageMs = Date.now() - new Date(ride.createdAt).getTime();
+      const radiusKm = dispatchRadiusKm(ageMs);
       const d = distanceKm(driverLocation, originLocation);
-      if (!Number.isFinite(d) || d > DISPATCH_RADIUS_KM) continue;
-      const candidates = await nearestDrivers(originLocation);
+      if (!Number.isFinite(d) || d > radiusKm) continue;
+      const candidates = await nearestDrivers(originLocation, radiusKm);
       const rankIndex = candidates.findIndex(candidate => String(candidate.userId) === String(driver.userId));
       if (rankIndex < 0) continue;
-      const allowedRank = dispatchRank(Date.now() - new Date(ride.createdAt).getTime());
+      const allowedRank = dispatchRank(ageMs);
       if (rankIndex + 1 > allowedRank) continue;
-      ranked.push({ ...serializeRide(ride), estimatedDistanceKm: Number(d.toFixed(2)), dispatchRank: rankIndex + 1 });
+      ranked.push({ ...serializeRide(ride), estimatedDistanceKm: Number(d.toFixed(2)), dispatchRank: rankIndex + 1, dispatchRadiusKm: radiusKm });
     }
     ranked.sort((a, b) => (a.dispatchRank - b.dispatchRank) || (a.estimatedDistanceKm - b.estimatedDistanceKm) || (new Date(a.createdAt) - new Date(b.createdAt)));
     res.json({ rides: ranked.slice(0, 20) });
@@ -219,13 +230,12 @@ app.post('/api/rides/request', auth, async (req, res) => {
       origin: { address: originAddress || 'Minha localização atual', location: originLocation }, destination: { address: destinationAddress, location: destinationLocation },
       distance: Number(numericDistance.toFixed(2)), price: Number(numericPrice.toFixed(2)), status: 'SEARCHING' });
     const out = serializeRide(ride);
-    const nearest = await nearestDrivers(originLocation);
+    const nearest = await nearestDrivers(originLocation, DISPATCH_RADIUS_KM);
     if (nearest.length) {
-      emitToDriver(nearest[0].userId, 'new-ride-request', { ...out, estimatedDistanceKm: nearest[0].distanceKm, dispatchRank: 1 });
+      emitToDriver(nearest[0].userId, 'new-ride-request', { ...out, estimatedDistanceKm: nearest[0].distanceKm, dispatchRank: 1, dispatchRadiusKm: DISPATCH_RADIUS_KM });
       console.log('RIDE_DISPATCHED', out.id, 'driver', String(nearest[0].userId), 'distanceKm', nearest[0].distanceKm);
     } else {
-      io.to('drivers').emit('new-ride-request', out);
-      console.log('RIDE_BROADCAST_NO_NEAREST_DRIVER', out.id);
+      console.log('RIDE_WAITING_FOR_DRIVER', out.id);
     }
     console.log('RIDE_CREATED', out.id, 'passenger', req.user._id.toString());
     res.status(201).json({ ride: out });
@@ -245,10 +255,12 @@ app.post('/api/rides/accept', auth, async (req, res) => {
     const originLocation = normalizeLocation(currentRide.origin?.location || currentRide.origin);
     const driverLocation = freshDriverLocation(driver);
     if (!originLocation || !driverLocation) return res.status(409).json({ error: 'Localização do motorista desatualizada. Atualize sua localização e tente novamente.' });
-    const candidates = await nearestDrivers(originLocation);
+    const ageMs = Date.now() - new Date(currentRide.createdAt).getTime();
+    const radiusKm = dispatchRadiusKm(ageMs);
+    const candidates = await nearestDrivers(originLocation, radiusKm);
     const rankIndex = candidates.findIndex(candidate => String(candidate.userId) === String(req.user._id));
     if (rankIndex < 0) return res.status(409).json({ error: 'Você está fora da área de atendimento desta corrida.' });
-    const allowedRank = dispatchRank(Date.now() - new Date(currentRide.createdAt).getTime());
+    const allowedRank = dispatchRank(ageMs);
     if (rankIndex + 1 > allowedRank) return res.status(409).json({ error: 'A corrida ainda está sendo oferecida a um motorista mais próximo.' });
     const ride = await Ride.findOneAndUpdate({ _id: rideId, status: 'SEARCHING', driverId: null },
       { $set: { driverId: req.user._id, driverName: req.user.name, driverProfilePhoto: req.user.profileImage || null, status: 'ACCEPTED', updatedAt: new Date() } }, { new: true });
@@ -302,8 +314,10 @@ io.on('connection', socket => {
     if (!ride || ride.status !== 'SEARCHING' || ride.driverId) return;
     const originLocation = normalizeLocation(ride.origin?.location || ride.origin);
     if (!originLocation) return;
-    const nearest = await nearestDrivers(originLocation);
-    if (nearest.length) emitToDriver(nearest[0].userId, 'new-ride-request', { ...serializeRide(ride), estimatedDistanceKm: nearest[0].distanceKm, dispatchRank: 1 });
+    const ageMs = Date.now() - new Date(ride.createdAt).getTime();
+    const radiusKm = dispatchRadiusKm(ageMs);
+    const nearest = await nearestDrivers(originLocation, radiusKm);
+    if (nearest.length) emitToDriver(nearest[0].userId, 'new-ride-request', { ...serializeRide(ride), estimatedDistanceKm: nearest[0].distanceKm, dispatchRank: 1, dispatchRadiusKm: radiusKm });
   });
   socket.on('driver-presence-location', async data => {
     try {
