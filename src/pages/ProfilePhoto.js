@@ -1,5 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:5000';
+
 function resizeImage(file, maxSize = 512, quality = 0.78) {
   return new Promise((resolve, reject) => {
     if (!file || !file.type.startsWith('image/')) {
@@ -28,19 +30,46 @@ function resizeImage(file, maxSize = 512, quality = 0.78) {
   });
 }
 
+function getAuthToken(account) {
+  if (account?.userType === 'admin' || account?.role === 'admin') {
+    return localStorage.getItem('adminToken') || localStorage.getItem('token');
+  }
+  return localStorage.getItem('token');
+}
+
+function saveAccountPhoto(account, photo) {
+  const key = account?.userType === 'admin' || account?.role === 'admin' ? 'admin' : 'user';
+  try {
+    const stored = JSON.parse(localStorage.getItem(key) || 'null');
+    if (stored) localStorage.setItem(key, JSON.stringify({ ...stored, profilePhoto: photo || null }));
+  } catch (_) {}
+}
+
 function ProfilePhoto({ account, compact = false }) {
   const inputRef = useRef(null);
   const uid = account?.uid || account?.email || 'default';
   const storageKey = `profilePhoto:${uid}`;
-  const [photo, setPhoto] = useState(() => localStorage.getItem(storageKey) || account?.profilePhoto || '');
+  const [photo, setPhoto] = useState(account?.profilePhoto || localStorage.getItem(storageKey) || '');
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    const stored = localStorage.getItem(storageKey);
-    if (stored) setPhoto(stored);
-    else if (account?.profilePhoto) setPhoto(account.profilePhoto);
+    setPhoto(account?.profilePhoto || localStorage.getItem(storageKey) || '');
   }, [storageKey, account?.profilePhoto]);
+
+  const persistPhoto = async (dataUrl) => {
+    const token = getAuthToken(account);
+    if (!token) throw new Error('Sessão não encontrada. Entre novamente na conta.');
+    const response = await fetch(`${BACKEND_URL}/api/auth/profile-photo`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ profilePhoto: dataUrl || '' }),
+      cache: 'no-store'
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || 'Não foi possível salvar a foto no servidor.');
+    return data.profilePhoto || '';
+  };
 
   const handleChange = async (event) => {
     const file = event.target.files?.[0];
@@ -54,10 +83,12 @@ function ProfilePhoto({ account, compact = false }) {
     setMessage('');
     try {
       const dataUrl = await resizeImage(file);
-      localStorage.setItem(storageKey, dataUrl);
-      setPhoto(dataUrl);
-      setMessage('Foto de perfil atualizada.');
-      window.dispatchEvent(new CustomEvent('profile-photo-updated', { detail: { storageKey, photo: dataUrl } }));
+      const savedPhoto = await persistPhoto(dataUrl);
+      localStorage.setItem(storageKey, savedPhoto);
+      saveAccountPhoto(account, savedPhoto);
+      setPhoto(savedPhoto);
+      setMessage('Foto de perfil atualizada e sincronizada.');
+      window.dispatchEvent(new CustomEvent('profile-photo-updated', { detail: { uid, photo: savedPhoto } }));
     } catch (error) {
       setMessage(error.message || 'Não foi possível atualizar a foto.');
     } finally {
@@ -65,11 +96,21 @@ function ProfilePhoto({ account, compact = false }) {
     }
   };
 
-  const removePhoto = () => {
-    localStorage.removeItem(storageKey);
-    setPhoto('');
-    setMessage('Foto removida.');
-    window.dispatchEvent(new CustomEvent('profile-photo-updated', { detail: { storageKey, photo: '' } }));
+  const removePhoto = async () => {
+    setBusy(true);
+    setMessage('');
+    try {
+      await persistPhoto('');
+      localStorage.removeItem(storageKey);
+      saveAccountPhoto(account, '');
+      setPhoto('');
+      setMessage('Foto removida e sincronizada.');
+      window.dispatchEvent(new CustomEvent('profile-photo-updated', { detail: { uid, photo: '' } }));
+    } catch (error) {
+      setMessage(error.message || 'Não foi possível remover a foto.');
+    } finally {
+      setBusy(false);
+    }
   };
 
   const avatarSize = compact ? 64 : 104;
@@ -77,21 +118,7 @@ function ProfilePhoto({ account, compact = false }) {
 
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
-      <div
-        style={{
-          width: avatarSize,
-          height: avatarSize,
-          borderRadius: '50%',
-          overflow: 'hidden',
-          background: '#e5e7eb',
-          border: '3px solid #fff',
-          boxShadow: '0 2px 10px rgba(0,0,0,.15)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          flex: '0 0 auto'
-        }}
-      >
+      <div style={{ width: avatarSize, height: avatarSize, borderRadius: '50%', overflow: 'hidden', background: '#e5e7eb', border: '3px solid #fff', boxShadow: '0 2px 10px rgba(0,0,0,.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: '0 0 auto' }}>
         {photo ? <img src={photo} alt="Foto de perfil" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ fontSize: compact ? 26 : 42, fontWeight: 800, color: '#6b7280' }}>{initials}</span>}
       </div>
 
@@ -99,12 +126,12 @@ function ProfilePhoto({ account, compact = false }) {
         <div style={{ fontWeight: 800, marginBottom: 6 }}>Foto de perfil</div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <button type="button" onClick={() => inputRef.current?.click()} disabled={busy} style={{ border: 0, borderRadius: 9, padding: '9px 13px', background: '#111827', color: '#fff', cursor: 'pointer', fontWeight: 700 }}>
-            {busy ? 'Processando…' : photo ? '📷 Alterar foto' : '📷 Adicionar foto'}
+            {busy ? 'Sincronizando…' : photo ? '📷 Alterar foto' : '📷 Adicionar foto'}
           </button>
           {photo && <button type="button" onClick={removePhoto} disabled={busy} style={{ border: '1px solid #d1d5db', borderRadius: 9, padding: '9px 13px', background: '#fff', color: '#374151', cursor: 'pointer', fontWeight: 700 }}>🗑️ Remover</button>}
         </div>
         <input ref={inputRef} type="file" accept="image/jpeg,image/png,image/webp" onChange={handleChange} style={{ display: 'none' }} />
-        <div style={{ color: '#6b7280', fontSize: 12, marginTop: 6 }}>JPG, PNG ou WebP · imagem redimensionada automaticamente</div>
+        <div style={{ color: '#6b7280', fontSize: 12, marginTop: 6 }}>JPG, PNG ou WebP · salva no servidor para aparecer em outros dispositivos</div>
         {message && <div role="status" style={{ marginTop: 6, fontSize: 12, color: '#166534' }}>{message}</div>}
       </div>
     </div>
