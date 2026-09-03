@@ -103,13 +103,29 @@ export default function DriverDashboardPro() {
   useEffect(() => {
     if (!token || !uid) return undefined;
     let cancelled = false;
-    axios.get(`${BACKEND_URL}/api/rides/history?limit=20`, { headers })
-      .then(({ data }) => {
-        if (cancelled) return;
-        const current = (data.rides || []).find((item) => ACTIVE.includes(item.status) && item.driverId === uid);
-        if (current) setRide(current);
-      })
-      .catch(() => {});
+
+    Promise.all([
+      axios.get(`${BACKEND_URL}/api/drivers/me`, { headers }),
+      axios.get(`${BACKEND_URL}/api/rides/history?limit=20`, { headers })
+    ]).then(([driverResponse, ridesResponse]) => {
+      if (cancelled) return;
+
+      const driver = driverResponse.data?.driver;
+      const dbOnline = driver?.status === 'approved' && driver?.isOnline === true;
+      onlineRef.current = dbOnline;
+      setOnline(dbOnline);
+
+      const current = (ridesResponse.data?.rides || []).find(
+        (item) => ACTIVE.includes(item.status) && String(item.driverId) === String(uid)
+      );
+      if (current) setRide(current);
+
+      if (dbOnline) {
+        WebSocketService.connect();
+        startLocation();
+      }
+    }).catch(() => {});
+
     return () => { cancelled = true; };
   }, [token, uid]);
 
