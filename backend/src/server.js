@@ -120,7 +120,9 @@ app.post('/api/auth/register', async (req, res) => {
     const normalizedEmail = String(email).trim().toLowerCase();
     if (await User.findOne({ email: normalizedEmail })) return res.status(409).json({ error: 'Este email já está cadastrado.' });
     const user = await User.create({ name: String(name).trim(), email: normalizedEmail, phone: String(phone).trim(), password, userType });
-    res.status(201).json({ token: signUser(user), user: safeUser(user, userType === 'driver' ? 'pending' : undefined) });
+    let driverApprovalStatus;
+    if (userType === 'driver') driverApprovalStatus = 'registration_required';
+    res.status(201).json({ token: signUser(user), user: safeUser(user, driverApprovalStatus) });
   } catch (e) { console.error('REGISTER_ERROR', e); res.status(500).json({ error: e.message || 'Erro ao cadastrar usuário.' }); }
 });
 
@@ -130,13 +132,20 @@ app.post('/api/auth/login', async (req, res) => {
     const user = await User.findOne({ email: normalizedEmail });
     if (!user || !(await user.comparePassword(String(req.body?.password || '')))) return res.status(401).json({ error: 'Email ou senha inválidos.' });
     let approval;
-    if (user.userType === 'driver') approval = (await Driver.findOne({ userId: user._id }))?.status || 'pending';
+    if (user.userType === 'driver') {
+      const driver = await Driver.findOne({ userId: user._id });
+      approval = driver?.status || 'registration_required';
+    }
     res.json({ token: signUser(user), user: safeUser(user, approval) });
   } catch (e) { console.error('LOGIN_ERROR', e); res.status(500).json({ error: e.message || 'Erro ao entrar.' }); }
 });
 
 app.get('/api/auth/verify', auth, async (req, res) => {
-  const approval = req.user.userType === 'driver' ? (await Driver.findOne({ userId: req.user._id }))?.status || 'pending' : undefined;
+  let approval;
+  if (req.user.userType === 'driver') {
+    const driver = await Driver.findOne({ userId: req.user._id });
+    approval = driver?.status || 'registration_required';
+  }
   res.json({ valid: true, user: safeUser(req.user, approval) });
 });
 
@@ -303,8 +312,6 @@ io.on('connection', async socket => {
         socket.disconnect(true);
         return;
       }
-      // Sempre usa o tipo atual do banco, não o userType congelado no JWT.
-      // Isso corrige sessões antigas que eram passageiro e depois viraram motorista.
       socket.data.userId = String(user._id);
       socket.data.userType = user.userType;
     }
