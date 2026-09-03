@@ -2,6 +2,7 @@
 // Mantém todos os endpoints do frontend no mesmo backend para evitar caminhos divergentes.
 // Deploy: perfil, recuperação de senha e redefinição usam a mesma API.
 // Deploy trigger: frontend conectado ao backend de produção.
+// Ride search fix: driver room e polling preparados para novas solicitações.
 export const BACKEND_URL = (
   process.env.REACT_APP_BACKEND_URL ||
   'https://uber-clone-backend-production.up.railway.app'
