@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import ProfilePhoto from './ProfilePhoto';
 import '../styles/UserProfile.css';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:5000';
@@ -65,7 +66,7 @@ function UserProfile({ user, onLogout, onRequestRide, onHistory }) {
   return (
     <div className="user-profile-container">
       <div className="profile-header">
-        <div className="profile-avatar"><span>{userData.name ? userData.name[0].toUpperCase() : '👤'}</span></div>
+        <ProfilePhoto account={userData} compact />
         <div className="profile-info">
           <h1>{userData.name || 'Usuário'}</h1>
           <p className="user-type">{userData.userType === 'driver' ? '🚗 Motorista' : '🚖 Passageiro'}</p>
