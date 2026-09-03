@@ -8,6 +8,7 @@ const GOOGLE_MAPS_API_KEY = process.env.REACT_APP_GOOGLE_MAPS_KEY;
 function MapRide({ onRideCreate, onBack }) {
   const mapRef = useRef(null);
   const driverMarkerRef = useRef(null);
+  const userMarkerRef = useRef(null);
   const [map, setMap] = useState(null);
   const [originInput, setOriginInput] = useState('');
   const [destinationInput, setDestinationInput] = useState('');
@@ -72,38 +73,103 @@ function MapRide({ onRideCreate, onBack }) {
   }, [ride?.id]);
 
   useEffect(() => {
-    if (!map || !driverLocation) return;
-    if (!driverMarkerRef.current) driverMarkerRef.current = new window.google.maps.Marker({ map, title: 'Motorista' });
+    if (!map || !driverLocation || !window.google) return;
+    if (!driverMarkerRef.current) {
+      driverMarkerRef.current = new window.google.maps.Marker({
+        map,
+        title: 'Motorista',
+        zIndex: 20,
+        icon: {
+          path: window.google.maps.SymbolPath.CIRCLE,
+          scale: 11,
+          fillColor: '#111111',
+          fillOpacity: 1,
+          strokeColor: '#ffffff',
+          strokeWeight: 3
+        }
+      });
+    }
     driverMarkerRef.current.setPosition(driverLocation);
   }, [map, driverLocation]);
 
   const initMap = () => {
     if (!mapRef.current || !window.google) return;
     const defaultLocation = { lat: -23.5505, lng: -46.6333 };
-    const mapInstance = new window.google.maps.Map(mapRef.current, { zoom: 15, center: defaultLocation });
+    const mapInstance = new window.google.maps.Map(mapRef.current, {
+      zoom: 16,
+      center: defaultLocation,
+      disableDefaultUI: true,
+      clickableIcons: false,
+      gestureHandling: 'greedy',
+      mapTypeControl: false,
+      streetViewControl: false,
+      fullscreenControl: false,
+      styles: [
+        { featureType: 'poi', elementType: 'labels.icon', stylers: [{ visibility: 'off' }] },
+        { featureType: 'transit', elementType: 'labels.icon', stylers: [{ visibility: 'off' }] }
+      ]
+    });
     setMap(mapInstance);
-    setDirectionsRenderer(new window.google.maps.DirectionsRenderer({ map: mapInstance }));
+    setDirectionsRenderer(new window.google.maps.DirectionsRenderer({
+      map: mapInstance,
+      suppressMarkers: true,
+      polylineOptions: { strokeColor: '#111111', strokeOpacity: 0.9, strokeWeight: 6 }
+    }));
+
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition((position) => {
         const location = { lat: position.coords.latitude, lng: position.coords.longitude };
         setUserLocation(location);
         mapInstance.setCenter(location);
-        new window.google.maps.Marker({ position: location, map: mapInstance, title: 'Sua localização' });
+        if (userMarkerRef.current) userMarkerRef.current.setMap(null);
+        userMarkerRef.current = new window.google.maps.Marker({
+          position: location,
+          map: mapInstance,
+          title: 'Sua localização',
+          zIndex: 10,
+          icon: {
+            path: window.google.maps.SymbolPath.CIRCLE,
+            scale: 8,
+            fillColor: '#1a73e8',
+            fillOpacity: 1,
+            strokeColor: '#ffffff',
+            strokeWeight: 3
+          }
+        });
       }, () => {});
     }
+  };
+
+  const centerOnUser = () => {
+    if (!map || !userLocation) return;
+    map.panTo(userLocation);
+    map.setZoom(17);
   };
 
   const calculateRoute = async () => {
     if (!originInput || !destinationInput || !map) return alert('Preencha origem e destino.');
     setLoading(true);
     try {
-      const result = await new window.google.maps.DirectionsService().route({ origin: originInput, destination: destinationInput, travelMode: window.google.maps.TravelMode.DRIVING });
+      const result = await new window.google.maps.DirectionsService().route({
+        origin: originInput,
+        destination: destinationInput,
+        travelMode: window.google.maps.TravelMode.DRIVING
+      });
       directionsRenderer?.setDirections(result);
       const leg = result.routes[0].legs[0];
       const distanceKm = leg.distance.value / 1000;
-      setRouteInfo({ distance: distanceKm.toFixed(2), duration: Math.ceil(leg.duration.value / 60), price: (distanceKm * 5 + 10).toFixed(2), origin: originInput, destination: destinationInput });
-    } catch (error) { console.error(error); alert('Não foi possível calcular a rota.'); }
-    finally { setLoading(false); }
+      setRouteInfo({
+        distance: distanceKm.toFixed(2),
+        duration: Math.ceil(leg.duration.value / 60),
+        price: (distanceKm * 5 + 10).toFixed(2),
+        origin: originInput,
+        destination: destinationInput
+      });
+      map.fitBounds(result.routes[0].bounds, { top: 80, right: 40, bottom: 300, left: 40 });
+    } catch (error) {
+      console.error(error);
+      alert('Não foi possível calcular a rota.');
+    } finally { setLoading(false); }
   };
 
   const handleCreateRide = async () => {
@@ -112,7 +178,16 @@ function MapRide({ onRideCreate, onBack }) {
     if (!token) return alert('Faça login novamente.');
     setRequesting(true);
     try {
-      const response = await fetch(`${BACKEND_URL}/api/rides/request`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ origin: { address: routeInfo.origin, location: userLocation }, destination: { address: routeInfo.destination }, distance: Number(routeInfo.distance), price: Number(routeInfo.price) }) });
+      const response = await fetch(`${BACKEND_URL}/api/rides/request`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          origin: { address: routeInfo.origin, location: userLocation },
+          destination: { address: routeInfo.destination },
+          distance: Number(routeInfo.distance),
+          price: Number(routeInfo.price)
+        })
+      });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Erro ao solicitar corrida.');
       setRide(data.ride);
@@ -131,7 +206,11 @@ function MapRide({ onRideCreate, onBack }) {
     if (!token) return alert('Faça login novamente.');
     setCancelling(true);
     try {
-      const response = await fetch(`${BACKEND_URL}/api/rides/${ride.id}/status`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ status: 'CANCELLED', cancellationReason: 'Cancelada pelo passageiro' }) });
+      const response = await fetch(`${BACKEND_URL}/api/rides/${ride.id}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ status: 'CANCELLED', cancellationReason: 'Cancelada pelo passageiro' })
+      });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Não foi possível cancelar a corrida.');
       setRide(data.ride);
@@ -161,38 +240,97 @@ function MapRide({ onRideCreate, onBack }) {
     finally { setRatingLoading(false); }
   };
 
-  const statusLabel = { SEARCHING: 'Procurando motorista', ACCEPTED: 'Motorista a caminho', IN_PROGRESS: 'Corrida em andamento', COMPLETED: 'Corrida finalizada', CANCELLED: 'Corrida cancelada' };
+  const statusLabel = {
+    SEARCHING: 'Procurando motorista',
+    ACCEPTED: 'Motorista a caminho',
+    IN_PROGRESS: 'Corrida em andamento',
+    COMPLETED: 'Corrida finalizada',
+    CANCELLED: 'Corrida cancelada'
+  };
+
+  const isActiveRide = ride && !['COMPLETED', 'CANCELLED'].includes(ride.status);
 
   return (
     <div className="map-ride-container">
-      <div className="map-wrapper"><div ref={mapRef} className="map-canvas"></div></div>
-      <div className="ride-panel">
-        {onBack && <button onClick={onBack} className="btn-calculate">← Voltar</button>}
-        <h2>🚗 Solicitar Corrida</h2>
-        {!GOOGLE_MAPS_API_KEY && <div className="error-message">Configure REACT_APP_GOOGLE_MAPS_KEY na Vercel.</div>}
-        <div className="input-group"><label>📍 Origem</label><input value={originInput} onChange={e => setOriginInput(e.target.value)} placeholder="Onde você está?" disabled={!!ride} /></div>
-        <div className="input-group"><label>🎯 Destino</label><input value={destinationInput} onChange={e => setDestinationInput(e.target.value)} placeholder="Para onde você vai?" disabled={!!ride} /></div>
-        {!ride && <button className="btn-calculate" onClick={calculateRoute} disabled={loading || !map}>{loading ? '🔄 Calculando...' : '🔍 Calcular Rota'}</button>}
-        {routeInfo && !ride && <div className="route-info"><h3>📊 Detalhes</h3><p>📏 {routeInfo.distance} km</p><p>⏱️ {routeInfo.duration} min</p><p>💰 R$ {routeInfo.price}</p><button className="btn-request" onClick={handleCreateRide} disabled={requesting}>{requesting ? '⏳ Solicitando...' : '🚀 Solicitar Corrida'}</button></div>}
-        {ride && <div className="route-info">
-          <h3>🚕 Corrida</h3>
-          <p>ID: {ride.id}</p>
-          <p><strong>Status:</strong> {statusLabel[ride.status] || ride.status}</p>
-          {ride.driverId ? <p>👨‍✈️ Motorista encontrado! A localização será atualizada em tempo real.</p> : <p>🔎 Procurando motorista...</p>}
-          {driverLocation && <p>📍 Motorista: {driverLocation.lat.toFixed(5)}, {driverLocation.lng.toFixed(5)}</p>}
-          {!['COMPLETED', 'CANCELLED'].includes(ride.status) && <button className="btn-calculate" onClick={handleCancelRide} disabled={cancelling}>{cancelling ? '⏳ Cancelando...' : '✕ Cancelar corrida'}</button>}
-          {ride.status === 'COMPLETED' && !rated && <div style={{ marginTop: 18, paddingTop: 16, borderTop: '1px solid #ddd' }}>
-            <h3>⭐ Avalie o motorista</h3>
-            <div style={{ display: 'flex', gap: 4, margin: '10px 0' }}>
-              {[1, 2, 3, 4, 5].map(star => <button key={star} type="button" onClick={() => setRating(star)} style={{ border: 0, background: 'transparent', fontSize: 28, cursor: 'pointer', opacity: star <= rating ? 1 : 0.35 }}>⭐</button>)}
+      <div className="map-wrapper">
+        <div ref={mapRef} className="map-canvas" />
+        <div className="map-topbar">
+          {onBack && <button className="map-icon-button" onClick={onBack} aria-label="Voltar">←</button>}
+          <div className="map-security-badge"><span>●</span> MapRide</div>
+          <button className="map-icon-button" onClick={centerOnUser} disabled={!userLocation} aria-label="Minha localização">⌖</button>
+        </div>
+        {!GOOGLE_MAPS_API_KEY && <div className="map-error">Configure REACT_APP_GOOGLE_MAPS_KEY na Vercel.</div>}
+      </div>
+
+      <div className={`ride-panel ${ride ? 'has-ride' : ''}`}>
+        {!ride ? (
+          <>
+            <div className="sheet-handle" />
+            <div className="sheet-header">
+              <div>
+                <span className="eyebrow">MapRide</span>
+                <h2>Para onde vamos?</h2>
+              </div>
+              <button className="profile-mini" onClick={onBack} aria-label="Perfil">●</button>
             </div>
-            <textarea value={comment} onChange={e => setComment(e.target.value)} maxLength={500} rows={3} placeholder="Comentário opcional" style={{ width: '100%', boxSizing: 'border-box', marginBottom: 8 }} />
-            <button className="btn-request" onClick={submitRating} disabled={ratingLoading}>{ratingLoading ? '⏳ Enviando...' : '📤 Enviar avaliação'}</button>
-            {ratingMessage && <p>{ratingMessage}</p>}
-          </div>}
-          {ride.status === 'COMPLETED' && rated && <p>✅ Avaliação enviada. Obrigado!</p>}
-          {ride.status === 'CANCELLED' && <p>⚠️ Corrida cancelada.</p>}
-        </div>}
+
+            <div className="location-box">
+              <div className="location-line"><span className="dot current" /><input value={originInput} onChange={e => setOriginInput(e.target.value)} placeholder="Localização atual" /></div>
+              <div className="location-connector" />
+              <div className="location-line"><span className="dot destination" /><input value={destinationInput} onChange={e => setDestinationInput(e.target.value)} placeholder="Digite seu destino" /></div>
+            </div>
+
+            {routeInfo && <div className="trip-preview">
+              <div><strong>R$ {routeInfo.price}</strong><span>estimado</span></div>
+              <div><strong>{routeInfo.duration} min</strong><span>{routeInfo.distance} km</span></div>
+            </div>}
+
+            {!routeInfo ? (
+              <button className="btn-request primary-action" onClick={calculateRoute} disabled={loading || !map || !destinationInput}>
+                {loading ? 'Calculando rota...' : 'Ver preço e rota'}
+              </button>
+            ) : (
+              <button className="btn-request primary-action" onClick={handleCreateRide} disabled={requesting}>
+                {requesting ? 'Solicitando motorista...' : `Solicitar corrida • R$ ${routeInfo.price}`}
+              </button>
+            )}
+            <p className="safe-note">🔒 Sua localização é usada somente para encontrar e acompanhar sua corrida.</p>
+          </>
+        ) : (
+          <>
+            <div className="sheet-handle" />
+            <div className="ride-status-head">
+              <div className="status-pulse"><span /></div>
+              <div><span className="eyebrow">Sua corrida</span><h2>{statusLabel[ride.status] || ride.status}</h2></div>
+            </div>
+
+            {ride.driverId && <div className="driver-card">
+              <div className="driver-avatar">🚗</div>
+              <div className="driver-details"><strong>Motorista encontrado</strong><span>O motorista está a caminho</span></div>
+              <div className="driver-live">AO VIVO</div>
+            </div>}
+
+            <div className="ride-route-card">
+              <div><span className="route-dot blue" /><span>{routeInfo?.origin || originInput || 'Sua localização'}</span></div>
+              <div className="route-line" />
+              <div><span className="route-dot black" /><span>{routeInfo?.destination || destinationInput}</span></div>
+            </div>
+
+            {driverLocation && <div className="driver-distance">📍 Motorista atualizado no mapa em tempo real</div>}
+
+            {isActiveRide && <button className="cancel-link" onClick={handleCancelRide} disabled={cancelling}>{cancelling ? 'Cancelando...' : 'Cancelar corrida'}</button>}
+
+            {ride.status === 'COMPLETED' && !rated && <div className="rating-card">
+              <h3>Avalie seu motorista</h3>
+              <div className="stars">{[1, 2, 3, 4, 5].map(star => <button key={star} type="button" onClick={() => setRating(star)} className={star <= rating ? 'selected' : ''}>★</button>)}</div>
+              <textarea value={comment} onChange={e => setComment(e.target.value)} maxLength={500} rows={2} placeholder="Comentário opcional" />
+              <button className="btn-request primary-action" onClick={submitRating} disabled={ratingLoading}>{ratingLoading ? 'Enviando...' : 'Enviar avaliação'}</button>
+              {ratingMessage && <p>{ratingMessage}</p>}
+            </div>}
+            {ride.status === 'COMPLETED' && rated && <div className="success-message">✓ Avaliação enviada. Obrigado!</div>}
+            {ride.status === 'CANCELLED' && <div className="success-message">Corrida cancelada.</div>}
+          </>
+        )}
       </div>
     </div>
   );
