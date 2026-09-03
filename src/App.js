@@ -18,7 +18,11 @@ function App() {
   const [user, setUser] = useState(() => { try { return JSON.parse(localStorage.getItem('user')) || null; } catch { return null; } });
   const [admin, setAdmin] = useState(() => { try { return JSON.parse(localStorage.getItem('admin')) || null; } catch { return null; } });
 
-  const handleUserLogin = (userData) => { setUser(userData); setCurrentPage(userData?.userType === 'driver' ? 'driver-dashboard' : 'profile'); };
+  // Passageiro entra direto no mapa, como no fluxo principal de apps de transporte.
+  const handleUserLogin = (userData) => {
+    setUser(userData);
+    setCurrentPage(userData?.userType === 'driver' ? 'driver-dashboard' : 'ride');
+  };
   const handleUserLogout = () => { setUser(null); localStorage.removeItem('token'); localStorage.removeItem('user'); setCurrentPage('home'); };
   const handleAdminLogin = (adminData) => {
     setAdmin(adminData);
@@ -40,10 +44,8 @@ function App() {
   switch (currentPage) {
     case 'login': return <Login onLoginSuccess={handleUserLogin} />;
     case 'register': return <Register onRegisterSuccess={handleUserLogin} />;
-    // Mantém o passageiro na tela da corrida depois de solicitar. Antes a navegação
-    // imediata para o perfil desmontava o MapRide e encerrava o Socket.IO.
     case 'ride': return <MapRide onRideCreate={() => {}} onBack={() => setCurrentPage('profile')} />;
-    case 'ride-history': return user ? <RideHistory user={user} onBack={() => setCurrentPage(user.userType === 'driver' ? 'driver-dashboard' : 'profile')} /> : <Login onLoginSuccess={handleUserLogin} />;
+    case 'ride-history': return user ? <RideHistory user={user} onBack={() => setCurrentPage(user.userType === 'driver' ? 'driver-dashboard' : 'ride')} /> : <Login onLoginSuccess={handleUserLogin} />;
     case 'driver-registration': return <DriverRegistration onRegistrationSubmit={() => setCurrentPage('driver-dashboard')} />;
     case 'driver-dashboard': return <DriverDashboard />;
     case 'profile': return user ? <UserProfile user={user} onLogout={handleUserLogout} onRequestRide={() => setCurrentPage('ride')} onHistory={() => setCurrentPage('ride-history')} /> : <Login onLoginSuccess={handleUserLogin} />;
