@@ -20,8 +20,19 @@ function App() {
 
   const handleUserLogin = (userData) => { setUser(userData); setCurrentPage(userData?.userType === 'driver' ? 'driver-dashboard' : 'profile'); };
   const handleUserLogout = () => { setUser(null); localStorage.removeItem('token'); localStorage.removeItem('user'); setCurrentPage('home'); };
-  const handleAdminLogin = (adminData) => { setAdmin(adminData); setCurrentPage('admin-dashboard'); };
-  const handleAdminLogout = () => { setAdmin(null); localStorage.removeItem('adminToken'); localStorage.removeItem('admin'); setCurrentPage('home'); };
+  const handleAdminLogin = (adminData) => {
+    setAdmin(adminData);
+    const token = localStorage.getItem('adminToken');
+    if (token) localStorage.setItem('token', token);
+    setCurrentPage('admin-dashboard');
+  };
+  const handleAdminLogout = () => {
+    setAdmin(null);
+    localStorage.removeItem('adminToken');
+    localStorage.removeItem('token');
+    localStorage.removeItem('admin');
+    setCurrentPage('home');
+  };
 
   if (admin) return <AdminDashboard admin={admin} onLogout={handleAdminLogout} />;
   if (currentPage === 'admin-login' || currentPage === 'admin-dashboard') return <AdminLogin onAdminLogin={handleAdminLogin} />;
