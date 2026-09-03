@@ -23,6 +23,7 @@ function AdminDashboard({ admin, onLogout }) {
   });
   const [daily, setDaily] = useState([]);
   const [statsLoading, setStatsLoading] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState(null);
 
   const getToken = () => localStorage.getItem('adminToken') || localStorage.getItem('token');
 
@@ -33,6 +34,7 @@ function AdminDashboard({ admin, onLogout }) {
     try {
       const response = await axios.get(`${BACKEND_URL}/api/drivers/applications`, { headers: { Authorization: `Bearer ${token}` }, timeout: 10000 });
       setApplications(Array.isArray(response.data?.applications) ? response.data.applications : []);
+      setLastUpdated(new Date());
     } catch (err) {
       if (showLoading) setError(err.response?.data?.error || 'Não foi possível carregar os cadastros de motoristas.');
     } finally {
@@ -40,10 +42,10 @@ function AdminDashboard({ admin, onLogout }) {
     }
   };
 
-  const loadDashboardStats = async () => {
+  const loadDashboardStats = async (showLoading = false) => {
     const token = getToken();
     if (!token) return;
-    setStatsLoading(true);
+    if (showLoading) setStatsLoading(true);
     try {
       const [statsResponse, onlineResponse] = await Promise.all([
         axios.get(`${BACKEND_URL}/api/admin-stats/overview`, { headers: { Authorization: `Bearer ${token}` }, timeout: 10000 }),
@@ -63,23 +65,39 @@ function AdminDashboard({ admin, onLogout }) {
       });
       setOnlineDrivers(Number(onlineResponse.data?.online) || Number(totals.onlineDrivers) || 0);
       setDaily(Array.isArray(statsResponse.data?.daily) ? statsResponse.data.daily : []);
+      setLastUpdated(new Date());
     } catch (_) {
       // O painel mantém os últimos dados visíveis durante falhas momentâneas.
     } finally {
-      setStatsLoading(false);
+      if (showLoading) setStatsLoading(false);
     }
   };
 
   useEffect(() => {
-    loadApplications();
-    loadDashboardStats();
+    let active = true;
 
-    const applicationsInterval = setInterval(() => loadApplications(false), 5000);
-    const statsInterval = setInterval(loadDashboardStats, 5000);
+    const refreshAll = (showLoading = false) => {
+      if (!active) return;
+      loadApplications(showLoading);
+      loadDashboardStats(showLoading);
+    };
+
+    refreshAll(true);
+
+    const interval = window.setInterval(() => refreshAll(false), 5000);
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') refreshAll(false);
+    };
+    const handleFocus = () => refreshAll(false);
+
+    document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('focus', handleFocus);
 
     return () => {
-      clearInterval(applicationsInterval);
-      clearInterval(statsInterval);
+      active = false;
+      window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('focus', handleFocus);
     };
   }, []);
 
@@ -96,8 +114,8 @@ function AdminDashboard({ admin, onLogout }) {
     try {
       await axios.patch(`${BACKEND_URL}/api/drivers/${uid}/approval`, { status }, { headers: { Authorization: `Bearer ${token}` } });
       setSuccess(status === 'approved' ? 'Motorista aprovado com sucesso.' : 'Cadastro de motorista rejeitado.');
-      await loadApplications();
-      await loadDashboardStats();
+      await loadApplications(true);
+      await loadDashboardStats(false);
     } catch (err) { setError(err.response?.data?.error || 'Não foi possível atualizar a aprovação.'); }
     finally { setActionUid(null); }
   };
@@ -137,7 +155,7 @@ function AdminDashboard({ admin, onLogout }) {
       {success && <div className="dashboard-content"><div className="section-description">✅ {success}</div></div>}
       <div className="dashboard-content">
         {activeTab === 'overview' && <div className="overview-section">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}><div><h2>📊 Visão Geral</h2><p className="section-description">Indicadores atualizados automaticamente.</p></div><span style={{ fontSize: 12, color: '#666' }}>{statsLoading ? 'Atualizando…' : '● Atualizado agora'}</span></div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}><div><h2>📊 Visão Geral</h2><p className="section-description">Indicadores atualizados automaticamente.</p></div><span style={{ fontSize: 12, color: '#666' }}>{statsLoading ? 'Atualizando…' : lastUpdated ? `Atualizado às ${lastUpdated.toLocaleTimeString('pt-BR')}` : 'Aguardando atualização…'}</span></div>
           <div className="stats-grid">
             <div className="stat-card"><div className="stat-icon">👥</div><div className="stat-info"><span className="stat-label">Passageiros</span><span className="stat-value">{overview.passengers}</span></div></div>
             <div className="stat-card"><div className="stat-icon">🚗</div><div className="stat-info"><span className="stat-label">Motoristas aprovados</span><span className="stat-value">{overview.approvedDrivers}</span></div></div>
@@ -153,12 +171,12 @@ function AdminDashboard({ admin, onLogout }) {
             <div className="setting-card"><h3>📈 Corridas — últimos 7 dias</h3><div style={{ height: 220, display: 'flex', alignItems: 'flex-end', gap: 10, paddingTop: 20 }}>{daily.map((item) => { const value = Number(item.rides) || 0; const height = `${Math.max(4, (value / maxDailyRides) * 170)}px`; const label = item.date ? new Date(`${item.date}T12:00:00`).toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '') : '—'; return <div key={item.date} style={{ flex: 1, minWidth: 20, textAlign: 'center' }}><div title={`${value} corridas`} style={{ height, background: '#111827', borderRadius: '8px 8px 2px 2px', minHeight: 4 }} /><div style={{ fontSize: 11, marginTop: 6, color: '#666' }}>{label}</div><strong style={{ fontSize: 12 }}>{value}</strong></div>; })}</div></div>
             <div className="setting-card"><h3>💵 Faturamento — últimos 7 dias</h3><div style={{ height: 220, display: 'flex', alignItems: 'flex-end', gap: 10, paddingTop: 20 }}>{daily.map((item) => { const value = Number(item.revenue) || 0; const height = `${Math.max(4, (value / maxDailyRevenue) * 170)}px`; const label = item.date ? new Date(`${item.date}T12:00:00`).toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '') : '—'; return <div key={item.date} style={{ flex: 1, minWidth: 20, textAlign: 'center' }}><div title={`R$ ${value.toFixed(2)}`} style={{ height, background: '#16a34a', borderRadius: '8px 8px 2px 2px', minHeight: 4 }} /><div style={{ fontSize: 11, marginTop: 6, color: '#666' }}>{label}</div><strong style={{ fontSize: 11 }}>R$ {value.toFixed(0)}</strong></div>; })}</div></div>
           </div>
-          <div className="action-buttons" style={{ marginTop: 20 }}><button className="btn-action" onClick={() => { setActiveTab('drivers'); loadApplications(); }}>🔄 Atualizar cadastros</button></div>
+          <div className="action-buttons" style={{ marginTop: 20 }}><button className="btn-action" onClick={() => { setActiveTab('drivers'); loadApplications(true); }}>🔄 Atualizar cadastros</button></div>
         </div>}
 
         {activeTab === 'drivers' && <div className="drivers-section"><h2>🚗 Aprovação de Motoristas</h2><p className="section-description">Analise os cadastros enviados e aprove somente motoristas que cumprirem os requisitos.</p><div style={{ margin: '12px 0 18px', display: 'flex', gap: 10, flexWrap: 'wrap' }}><span>📋 {statsFromApplications.total} cadastros</span><span>⏳ {statsFromApplications.pending} pendentes</span><span>✅ {statsFromApplications.approved} aprovados</span><span>❌ {statsFromApplications.rejected} rejeitados</span></div>{loading ? <p>Carregando cadastros...</p> : applications.length === 0 ? <p className="empty-state">Nenhum cadastro encontrado.</p> : <div className="drivers-list">{applications.map((driver) => <div className="banner-item" key={driver.uid}><div className="banner-details"><h4>{driver.fullName || 'Motorista sem nome'}</h4><p>📧 {driver.email || '—'} · 📱 {driver.phone || '—'}</p><p>🪪 CPF: {maskCpf(driver.cpf)} · 🚘 {driver.vehicleModel || '—'} · Placa: {driver.licensePlate || '—'}</p><p>📄 {driver.documentCount || 0} documentos · Enviado: {driver.submittedAt ? new Date(driver.submittedAt).toLocaleString('pt-BR') : '—'}</p><strong>Status: {driver.status === 'pending' ? '⏳ Pendente' : driver.status === 'approved' ? '✅ Aprovado' : '❌ Rejeitado'}</strong></div>{driver.status === 'pending' && <div className="banner-actions"><button className="btn-submit" disabled={actionUid === driver.uid} onClick={() => reviewDriver(driver.uid, 'approved')}>{actionUid === driver.uid ? 'Aguarde...' : '✅ Aprovar'}</button><button className="btn-delete" disabled={actionUid === driver.uid} onClick={() => reviewDriver(driver.uid, 'rejected')}>❌ Rejeitar</button></div>}</div>)}</div>}</div>}
         {activeTab === 'finance' && <div className="finance-section"><h2>💰 Financeiro</h2><p className="section-description">Resumo automático das corridas concluídas. O faturamento exibido corresponde ao valor total das corridas concluídas no período.</p><div className="stats-grid" style={{ marginTop: 18 }}><div className="stat-card"><div className="stat-icon">💰</div><div className="stat-info"><span className="stat-label">Hoje</span><span className="stat-value">R$ {overview.revenueToday.toFixed(2)}</span></div></div><div className="stat-card"><div className="stat-icon">✅</div><div className="stat-info"><span className="stat-label">Corridas concluídas</span><span className="stat-value">{overview.completedToday}</span></div></div></div></div>}
-        {activeTab === 'settings' && <div className="settings-section"><h2>⚙️ Configurações</h2><div className="settings-grid"><div className="setting-card"><h3>🔐 Alterar senha administrativa</h3><p>Como você já está autenticado como administrador, não é necessário informar a senha antiga.</p><form onSubmit={changePassword} style={{ display: 'grid', gap: 12, marginTop: 16 }}><input type="password" placeholder="Nova senha (mín. 8 caracteres)" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} autoComplete="new-password" required style={{ padding: 12, borderRadius: 8, border: '1px solid #ccc' }} /><input type="password" placeholder="Confirmar nova senha" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} autoComplete="new-password" required style={{ padding: 12, borderRadius: 8, border: '1px solid #ccc' }} /><button type="submit" className="btn-submit" disabled={changingPassword}>{changingPassword ? '⏳ Alterando...' : '🔑 Alterar senha'}</button>{passwordMessage && <div className="password-success">✅ {passwordMessage}</div>}{passwordError && <div className="password-error">❌ {passwordError}</div>}</form></div><div className="setting-card"><h3>🛡️ Segurança</h3><p>O acesso administrativo é protegido por token e validação do perfil no servidor.</p></div><div className="setting-card"><h3>📋 Auditoria</h3><p>A aprovação registra data e administrador responsável.</p></div></div></div>}
+        {activeTab === 'settings' && <div className="settings-section"><h2>⚙️ Configurações</h2><div className="settings-grid"><div className="setting-card"><h3>🔐 Alterar senha administrativa</h3><p>Como você já está autenticado como administrador, não é necessário fazer login novamente para alterar a senha.</p><form onSubmit={changePassword}><input type="password" placeholder="Nova senha" value={newPassword} onChange={e => setNewPassword(e.target.value)} autoComplete="new-password" /><input type="password" placeholder="Confirmar nova senha" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} autoComplete="new-password" /><button className="btn-submit" type="submit" disabled={changingPassword}>{changingPassword ? 'Alterando...' : 'Alterar senha'}</button></form>{passwordError && <p className="error-text">❌ {passwordError}</p>}{passwordMessage && <p className="success-text">✅ {passwordMessage}</p>}</div></div></div>}
       </div>
     </div>
   );
