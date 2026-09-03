@@ -2,32 +2,281 @@ import React, { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import WebSocketService from '../services/WebSocketService';
-import { BACKEND_URL as B } from '../config';
+import { BACKEND_URL } from '../config';
 
-const NOMINATIM='https://nominatim.openstreetmap.org';
-const PHOTON='https://photon.komoot.io/api/';
-const OSRM='https://router.project-osrm.org/route/v1/driving';
-const ACTIVE=['SEARCHING','ACCEPTED','IN_PROGRESS'];
-const css=`.rp{min-height:100vh;font-family:Arial,sans-serif;background:#eef1f4;position:relative}.rm{position:absolute;inset:0}.panel{position:absolute;z-index:1001;top:12px;left:12px;right:12px;max-width:560px;margin:auto}.card{background:#fff;border-radius:18px;box-shadow:0 7px 25px #0003;padding:16px}.row{display:flex;justify-content:space-between;gap:10px;align-items:center}.input{width:100%;box-sizing:border-box;padding:14px;border:1px solid #ddd;border-radius:14px;font-size:16px}.suggest{margin-top:8px;max-height:260px;overflow:auto;border:1px solid #eee;border-radius:12px}.suggest button{display:block;width:100%;padding:12px;border:0;border-bottom:1px solid #eee;background:#fff;text-align:left;cursor:pointer}.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.info{background:#f5f6f7;border-radius:12px;padding:11px}.info b{display:block;color:#6b7280;font-size:12px;margin-bottom:4px}.btn{border:0;border-radius:13px;padding:14px 15px;font-weight:800;cursor:pointer;width:100%}.primary{background:#111;color:#fff}.light{background:#eef0f2;color:#111}.danger{background:#d92d20;color:#fff}.btn:disabled{opacity:.55;cursor:not-allowed}.err{margin-top:9px;background:#fff0f0;color:#9b1c1c;padding:10px;border-radius:10px}.ok{margin-top:9px;background:#effaf2;color:#166534;padding:10px;border-radius:10px}.muted{color:#68707a;font-size:13px;line-height:1.4}.status{display:flex;gap:10px;align-items:center}.avatar{width:54px;height:54px;border-radius:50%;background:#111;color:#fff;display:flex;align-items:center;justify-content:center;overflow:hidden;font-weight:800}.avatar img{width:100%;height:100%;object-fit:cover}.bar{height:7px;background:#eceff2;border-radius:9px;overflow:hidden}.bar i{display:block;height:100%;background:#111}.actions{display:flex;gap:10px;margin-top:12px}.actions>*{flex:1}@media(max-width:640px){.panel{top:8px;left:8px;right:8px}.grid{grid-template-columns:1fr}.card{padding:14px}}`;
-function loc(v){if(!v)return null;const s=v.location||v.currentLocation||v;const lat=Number(s.lat??s.latitude),lng=Number(s.lng??s.longitude);return Number.isFinite(lat)&&Number.isFinite(lng)?{lat,lng}:null}
-function msg(r,d,f){return d?.error||d?.details||(!r?'Não foi possível conectar ao servidor.':f)}
-function Avatar({photo,name}){return <div className="avatar">{photo?<img src={photo} alt={name||'Motorista'}/>:String(name||'U').trim().charAt(0).toUpperCase()}</div>}
+const NOMINATIM = 'https://nominatim.openstreetmap.org';
+const PHOTON = 'https://photon.komoot.io/api/';
+const OSRM = 'https://router.project-osrm.org/route/v1/driving';
+const ACTIVE = ['SEARCHING', 'ACCEPTED', 'IN_PROGRESS'];
 
-export default function MapRidePro({onRideCreate,onBack}){
- const mapEl=useRef(null),map=useRef(null),userMarker=useRef(null),driverMarker=useRef(null),routeLayer=useRef(null),timer=useRef(null),seq=useRef(0),rideRef=useRef(null);
- const [origin,setOrigin]=useState(null),[originText,setOriginText]=useState('Obtendo localização…'),[destination,setDestination]=useState(''),[suggestions,setSuggestions]=useState([]),[searching,setSearching]=useState(false),[trip,setTrip]=useState(null),[ride,setRide]=useState(null),[driverLoc,setDriverLoc]=useState(null),[busy,setBusy]=useState(false),[error,setError]=useState(''),[message,setMessage]=useState(''),[restoring,setRestoring]=useState(true);
- useEffect(()=>{rideRef.current=ride},[ride]);
- useEffect(()=>{const st=document.createElement('style');st.textContent=css;document.head.appendChild(st);const m=L.map(mapEl.current,{zoomControl:false}).setView([-24.5345,-55.7221],14);L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap contributors'}).addTo(m);L.control.zoom({position:'bottomright'}).addTo(m);map.current=m;setTimeout(()=>m.invalidateSize(),200);return()=>{clearTimeout(timer.current);WebSocketService.disconnect();m.remove();st.remove()}},[]);
- const sync=async()=>{const token=localStorage.getItem('token');if(!token)return null;try{const r=await fetch(`${B}/api/rides/active`,{headers:{Authorization:`Bearer ${token}`},cache:'no-store'});const d=await r.json().catch(()=>({}));const a=d.ride;if(r.ok&&a?.id&&ACTIVE.includes(a.status)){setRide(a);setDriverLoc(loc(a.driverLocation));return a}}catch(_){}return null};
- useEffect(()=>{(async()=>{await sync();setRestoring(false)})()},[]);
- useEffect(()=>{if(!ride?.id||!ACTIVE.includes(ride.status)){clearTimeout(timer.current);return}let stop=false;const poll=async()=>{if(stop)return;const a=await sync();if(a?.driverLocation)setDriverLoc(loc(a.driverLocation));timer.current=setTimeout(poll,3500)};timer.current=setTimeout(poll,1500);return()=>{stop=true;clearTimeout(timer.current)}},[ride?.id,ride?.status]);
- useEffect(()=>{if(!navigator.geolocation){setError('Este navegador não oferece localização.');return}const p=x=>{const l=loc(x.coords);if(!l)return;setOrigin(l);if(map.current){if(!userMarker.current)userMarker.current=L.circleMarker([l.lat,l.lng],{radius:8,color:'#fff',weight:3,fillColor:'#1a73e8',fillOpacity:1}).addTo(map.current);else userMarker.current.setLatLng([l.lat,l.lng]);if(!rideRef.current)map.current.setView([l.lat,l.lng],17)}};const id=navigator.geolocation.watchPosition(p,()=>setError('Permita a localização precisa para usar sua posição como embarque.'),{enableHighAccuracy:true,timeout:20000,maximumAge:3000});navigator.geolocation.getCurrentPosition(p,()=>{},{enableHighAccuracy:true,timeout:20000,maximumAge:5000});return()=>navigator.geolocation.clearWatch(id)},[]);
- useEffect(()=>{const l=loc(driverLoc);if(!l||!map.current)return;if(!driverMarker.current)driverMarker.current=L.circleMarker([l.lat,l.lng],{radius:10,color:'#fff',weight:3,fillColor:'#111',fillOpacity:1}).addTo(map.current);else driverMarker.current.setLatLng([l.lat,l.lng])},[driverLoc]);
- useEffect(()=>{const accepted=p=>{const n=p?.ride||p;if(n?.id&&(!rideRef.current?.id||n.id===rideRef.current.id)){setRide(n);setDriverLoc(loc(n.driverLocation));setMessage('Motorista encontrado!')}};const changed=p=>{if(p?.rideId===rideRef.current?.id){const n=p.ride||{};setRide(c=>({...c,...n}))}};WebSocketService.onRideAccepted(accepted);WebSocketService.onDriverLocationUpdate(p=>{if(p?.rideId&&p.rideId!==rideRef.current?.id)return;const l=loc(p);if(l)setDriverLoc(l)});WebSocketService.onRideStarted(changed);WebSocketService.onRideEnded(changed);WebSocketService.onRideCancelled(changed);if(ride?.id){WebSocketService.connect();WebSocketService.joinRideRoom(ride.id)}return()=>{WebSocketService.off('ride-accepted',accepted);WebSocketService.off('ride-started',changed);WebSocketService.off('ride-ended',changed);WebSocketService.off('ride-cancelled',changed)}},[ride?.id]);
- const searchAddress=v=>{setDestination(v);setTrip(null);setError('');setMessage('');clearTimeout(timer.current);if(v.trim().length<3){setSuggestions([]);return}const s=++seq.current;setSearching(true);timer.current=setTimeout(async()=>{try{let a=[];const q=new URLSearchParams({format:'jsonv2',q:v.trim(),limit:'6',countrycodes:'br',addressdetails:'1','accept-language':'pt-BR'});try{a=await(await fetch(`${NOMINATIM}/search?${q}`)).json()}catch(_){}if(!Array.isArray(a)||!a.length){const pq=new URLSearchParams({q:v.trim(),limit:'6',lang:'pt',lat:String(origin?.lat||-23.55),lon:String(origin?.lng||-46.63)});const d=await(await fetch(`${PHOTON}?${pq}`)).json();a=(d.features||[]).map((f,i)=>{const [lng,lat]=f.geometry?.coordinates||[];const p=f.properties||{};return{place_id:`ph-${i}-${lat}-${lng}`,lat:String(lat),lon:String(lng),display_name:[p.name,p.street,p.housenumber,p.city||p.town,p.state].filter(Boolean).join(', ')}})}if(s===seq.current)setSuggestions(a.filter(x=>Number.isFinite(Number(x.lat))&&Number.isFinite(Number(x.lon))))}catch(_){if(s===seq.current)setError('Não foi possível pesquisar o endereço agora.')}finally{if(s===seq.current)setSearching(false)}},350)};
- const choose=async s=>{if(!origin){setError('Aguardando sua localização.');return}const lat=Number(s.lat),lng=Number(s.lon);if(!Number.isFinite(lat)||!Number.isFinite(lng))return;setBusy(true);setError('');setSuggestions([]);try{let r=null;try{r=(await(await fetch(`${OSRM}/${origin.lng},${origin.lat};${lng},${lat}?overview=full&geometries=geojson&steps=false`)).json()).routes?.[0]||null}catch(_){}if(!r){const km=Math.max(.01,Math.sqrt(((lat-origin.lat)*111)**2+((lng-origin.lng)*111*Math.cos(origin.lat*Math.PI/180))**2));r={distance:km*1000,duration:Math.max(60,km/35*3600),geometry:{type:'LineString',coordinates:[[origin.lng,origin.lat],[lng,lat]]}}}if(routeLayer.current)routeLayer.current.remove();routeLayer.current=L.geoJSON(r.geometry,{style:{color:'#111',weight:6,opacity:.9}}).addTo(map.current);map.current.fitBounds(routeLayer.current.getBounds(),{padding:[50,260]});const km=r.distance/1000;setDestination(s.display_name||'Destino');setTrip({distance:km,duration:Math.max(1,Math.ceil(r.duration/60)),price:km*5+10,origin:originText,destination:s.display_name||'Destino',originLocation:origin,destinationLocation:{lat,lng}})}catch(_){setError('Não foi possível calcular a rota. Escolha um endereço sugerido.')}finally{setBusy(false)}};
- const requestRide=async()=>{if(!trip||busy)return;const token=localStorage.getItem('token');if(!token){setError('Sua sessão expirou. Entre novamente.');return}setBusy(true);setError('');setMessage('Criando corrida e procurando motorista…');try{const c=new AbortController(),to=setTimeout(()=>c.abort(),15000);const r=await fetch(`${B}/api/rides/request`,{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`},body:JSON.stringify({origin:{address:trip.origin,location:trip.originLocation},destination:{address:trip.destination,location:trip.destinationLocation}},signal:c.signal});clearTimeout(to);const d=await r.json().catch(()=>({}));if(!r.ok)throw Error(msg(r,d,'Não foi possível solicitar a corrida.'));if(!d.ride?.id)throw Error('O servidor não retornou a corrida criada.');setRide(d.ride);setMessage('Procurando o motorista mais próximo…');WebSocketService.connect();WebSocketService.joinRideRoom(d.ride.id);onRideCreate?.(d.ride);setTimeout(async()=>{try{const rr=await fetch(`${B}/api/rides/${d.ride.id}/search`,{method:'POST',headers:{Authorization:`Bearer ${token}`}});const dd=await rr.json().catch(()=>({}));if(dd.ride&&dd.ride.status!=='SEARCHING')setRide(dd.ride)}catch(_){ }},1800)}catch(e){setMessage('');setError(e.name==='AbortError'?'O servidor demorou para responder. Tente novamente.':e.message||'Erro ao criar corrida.')}finally{setBusy(false)}};
- const cancel=async()=>{if(!ride?.id||busy||!window.confirm('Deseja cancelar esta corrida?'))return;const token=localStorage.getItem('token');setBusy(true);try{const r=await fetch(`${B}/api/rides/${ride.id}/status`,{method:'PATCH',headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`},body:JSON.stringify({status:'CANCELLED',cancellationReason:'Cancelada pelo passageiro'})});const d=await r.json().catch(()=>({}));if(!r.ok)throw Error(msg(r,d,'Erro ao cancelar.'));setRide(d.ride||{...ride,status:'CANCELLED'});setDriverLoc(null);setMessage('Corrida cancelada.')}catch(e){setError(e.message||'Erro ao cancelar.')}finally{setBusy(false)}};
- const labels={SEARCHING:'Procurando motorista',ACCEPTED:'Motorista a caminho',IN_PROGRESS:'Corrida em andamento'};
- return <div className="rp"><div className="rm" ref={mapEl}/><div className="panel"><div className="card"><div className="row"><div><h2 style={{margin:0}}>Para onde vamos?</h2><div className="muted">Embarque: {originText}</div></div><button className="btn light" style={{width:'auto'}} onClick={onBack}>Perfil</button></div>{restoring&&<p className="muted">Verificando corrida ativa…</p>}{!ride&&<><div style={{marginTop:12}}><input className="input" value={destination} onChange={e=>searchAddress(e.target.value)} placeholder="Digite rua, número, cidade ou bairro"/></div>{searching&&<p className="muted">Buscando endereços…</p>}{suggestions.length>0&&<div className="suggest">{suggestions.map(s=><button key={`${s.place_id}-${s.lat}`} onClick={()=>choose(s)}><b>{String(s.display_name||'Endereço').split(',').slice(0,2).join(',')}</b><span className="muted">{s.display_name}</span></button>)}</div>}{trip&&<div className="card" style={{marginTop:12}}><div className="grid"><div className="info"><b>Distância</b>{trip.distance.toFixed(1)} km</div><div className="info"><b>Tempo</b>{trip.duration} min</div><div className="info"><b>Preço</b>R$ {trip.price.toFixed(2)}</div><div className="info"><b>Destino</b>{trip.destination}</div></div><div className="actions"><button className="btn primary" disabled={busy} onClick={requestRide}>{busy?'Procurando…':'🚗 Procurar motorista'}</button></div></div>}{error&&<div className="err">{error}</div>}{message&&<div className="ok">{message}</div>}</>}{ride&&<div style={{marginTop:12}}><div className="bar"><i style={{width:ride.status==='SEARCHING'?'30%':ride.status==='ACCEPTED'?'60%':'82%'}}/></div><div style={{marginTop:9,fontWeight:800}}>{labels[ride.status]||'Status da corrida'}</div><div className="muted">{ride.origin?.address||originText} → {ride.destination?.address||'Destino'}</div>{ride.driverId?<div className="status" style={{marginTop:12}}><Avatar photo={ride.driverProfilePhoto} name={ride.driverName}/><div><b>{ride.driverName||'Motorista'}</b><div className="muted">Motorista encontrado • R$ {Number(ride.price||0).toFixed(2)}</div></div></div>:<p className="muted">Estamos procurando o motorista mais próximo. Aguarde alguns segundos.</p>}{ACTIVE.includes(ride.status)&&<div className="actions"><button className="btn danger" disabled={busy} onClick={cancel}>Cancelar corrida</button></div>}{error&&<div className="err">{error}</div>}{message&&<div className="ok">{message}</div>}</div>}</div></div></div>
+function getLocation(value) {
+  if (!value) return null;
+  const source = value.location || value.currentLocation || value;
+  const lat = Number(source.lat !== undefined ? source.lat : source.latitude);
+  const lng = Number(source.lng !== undefined ? source.lng : source.longitude);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  return { lat: lat, lng: lng };
+}
+
+function getError(response, data, fallback) {
+  if (data && (data.error || data.details)) return data.error || data.details;
+  if (!response) return 'Não foi possível conectar ao servidor.';
+  return fallback;
+}
+
+function Avatar(props) {
+  const name = props.name || 'Motorista';
+  return <div className="map-avatar">{props.photo ? <img src={props.photo} alt={name} /> : name.trim().charAt(0).toUpperCase()}</div>;
+}
+
+export default function MapRidePro(props) {
+  const mapElement = useRef(null);
+  const mapRef = useRef(null);
+  const userMarker = useRef(null);
+  const driverMarker = useRef(null);
+  const routeLayer = useRef(null);
+  const timerRef = useRef(null);
+  const searchSeq = useRef(0);
+  const rideRef = useRef(null);
+  const [origin, setOrigin] = useState(null);
+  const [originText, setOriginText] = useState('Obtendo localização…');
+  const [destination, setDestination] = useState('');
+  const [suggestions, setSuggestions] = useState([]);
+  const [searching, setSearching] = useState(false);
+  const [trip, setTrip] = useState(null);
+  const [ride, setRide] = useState(null);
+  const [driverLoc, setDriverLoc] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [message, setMessage] = useState('');
+  const [restoring, setRestoring] = useState(true);
+
+  useEffect(function () { rideRef.current = ride; }, [ride]);
+
+  useEffect(function () {
+    const style = document.createElement('style');
+    style.textContent = '.map-ride{min-height:100vh;font-family:Arial,sans-serif;background:#eef1f4;position:relative}.map-full{position:absolute;inset:0}.map-panel{position:absolute;z-index:1001;top:12px;left:12px;right:12px;max-width:560px;margin:auto}.map-card{background:#fff;border-radius:18px;box-shadow:0 7px 25px rgba(0,0,0,.2);padding:16px}.map-row{display:flex;justify-content:space-between;gap:10px;align-items:center}.map-input{width:100%;box-sizing:border-box;padding:14px;border:1px solid #ddd;border-radius:14px;font-size:16px}.map-suggest{margin-top:8px;max-height:260px;overflow:auto;border:1px solid #eee;border-radius:12px}.map-suggest button{display:block;width:100%;padding:12px;border:0;border-bottom:1px solid #eee;background:#fff;text-align:left;cursor:pointer}.map-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.map-info{background:#f5f6f7;border-radius:12px;padding:11px}.map-info b{display:block;color:#6b7280;font-size:12px;margin-bottom:4px}.map-btn{border:0;border-radius:13px;padding:14px 15px;font-weight:800;cursor:pointer;width:100%}.map-primary{background:#111;color:#fff}.map-light{background:#eef0f2;color:#111}.map-danger{background:#d92d20;color:#fff}.map-btn:disabled{opacity:.55;cursor:not-allowed}.map-error{margin-top:9px;background:#fff0f0;color:#9b1c1c;padding:10px;border-radius:10px}.map-ok{margin-top:9px;background:#effaf2;color:#166534;padding:10px;border-radius:10px}.map-muted{color:#68707a;font-size:13px;line-height:1.4}.map-status{display:flex;gap:10px;align-items:center}.map-avatar{width:54px;height:54px;border-radius:50%;background:#111;color:#fff;display:flex;align-items:center;justify-content:center;overflow:hidden;font-weight:800}.map-avatar img{width:100%;height:100%;object-fit:cover}.map-actions{display:flex;gap:10px;margin-top:12px}.map-actions>*{flex:1}.map-bar{height:7px;background:#eceff2;border-radius:9px;overflow:hidden}.map-bar i{display:block;height:100%;background:#111}@media(max-width:640px){.map-panel{top:8px;left:8px;right:8px}.map-grid{grid-template-columns:1fr}.map-card{padding:14px}}';
+    document.head.appendChild(style);
+    const map = L.map(mapElement.current, { zoomControl: false }).setView([-23.55, -46.63], 14);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap contributors' }).addTo(map);
+    L.control.zoom({ position: 'bottomright' }).addTo(map);
+    mapRef.current = map;
+    setTimeout(function () { map.invalidateSize(); }, 200);
+    return function () {
+      clearTimeout(timerRef.current);
+      WebSocketService.disconnect();
+      map.remove();
+      style.remove();
+    };
+  }, []);
+
+  async function syncActiveRide() {
+    const token = localStorage.getItem('token');
+    if (!token) return null;
+    try {
+      const response = await fetch(BACKEND_URL + '/api/rides/active', { headers: { Authorization: 'Bearer ' + token }, cache: 'no-store' });
+      const data = await response.json().catch(function () { return {}; });
+      const activeRide = data.ride;
+      if (response.ok && activeRide && activeRide.id && ACTIVE.indexOf(activeRide.status) !== -1) {
+        setRide(activeRide);
+        setDriverLoc(getLocation(activeRide.driverLocation));
+        return activeRide;
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  useEffect(function () {
+    syncActiveRide().finally(function () { setRestoring(false); });
+  }, []);
+
+  useEffect(function () {
+    if (!ride || !ride.id || ACTIVE.indexOf(ride.status) === -1) {
+      clearTimeout(timerRef.current);
+      return undefined;
+    }
+    let stopped = false;
+    async function poll() {
+      if (stopped) return;
+      await syncActiveRide();
+      if (!stopped) timerRef.current = setTimeout(poll, 3500);
+    }
+    timerRef.current = setTimeout(poll, 1500);
+    return function () { stopped = true; clearTimeout(timerRef.current); };
+  }, [ride && ride.id, ride && ride.status]);
+
+  useEffect(function () {
+    if (!navigator.geolocation) {
+      setError('Este navegador não oferece localização.');
+      return undefined;
+    }
+    function positionHandler(position) {
+      const location = getLocation(position.coords);
+      if (!location) return;
+      setOrigin(location);
+      if (mapRef.current) {
+        if (!userMarker.current) userMarker.current = L.circleMarker([location.lat, location.lng], { radius: 8, color: '#fff', weight: 3, fillColor: '#1a73e8', fillOpacity: 1 }).addTo(mapRef.current);
+        else userMarker.current.setLatLng([location.lat, location.lng]);
+        if (!rideRef.current) mapRef.current.setView([location.lat, location.lng], 17);
+      }
+    }
+    const watchId = navigator.geolocation.watchPosition(positionHandler, function () { setError('Permita a localização precisa para usar sua posição como embarque.'); }, { enableHighAccuracy: true, timeout: 20000, maximumAge: 3000 });
+    navigator.geolocation.getCurrentPosition(positionHandler, function () {}, { enableHighAccuracy: true, timeout: 20000, maximumAge: 5000 });
+    return function () { navigator.geolocation.clearWatch(watchId); };
+  }, []);
+
+  useEffect(function () {
+    const location = getLocation(driverLoc);
+    if (!location || !mapRef.current) return;
+    if (!driverMarker.current) driverMarker.current = L.circleMarker([location.lat, location.lng], { radius: 10, color: '#fff', weight: 3, fillColor: '#111', fillOpacity: 1 }).addTo(mapRef.current);
+    else driverMarker.current.setLatLng([location.lat, location.lng]);
+  }, [driverLoc]);
+
+  useEffect(function () {
+    function accepted(data) {
+      const item = data && (data.ride || data);
+      if (item && item.id && (!rideRef.current || item.id === rideRef.current.id)) {
+        setRide(item);
+        setDriverLoc(getLocation(item.driverLocation));
+        setMessage('Motorista encontrado!');
+      }
+    }
+    function changed(data) {
+      if (!data || !rideRef.current || data.rideId !== rideRef.current.id) return;
+      setRide(function (current) { return Object.assign({}, current, data.ride || {}); });
+    }
+    function locationUpdate(data) {
+      if (!data) return;
+      if (data.rideId && rideRef.current && data.rideId !== rideRef.current.id) return;
+      const location = getLocation(data);
+      if (location) setDriverLoc(location);
+    }
+    WebSocketService.onRideAccepted(accepted);
+    WebSocketService.onDriverLocationUpdate(locationUpdate);
+    WebSocketService.onRideStarted(changed);
+    WebSocketService.onRideEnded(changed);
+    WebSocketService.onRideCancelled(changed);
+    if (ride && ride.id) { WebSocketService.connect(); WebSocketService.joinRideRoom(ride.id); }
+    return function () {
+      WebSocketService.off('ride-accepted', accepted);
+      WebSocketService.off('driver-location-update', locationUpdate);
+      WebSocketService.off('ride-started', changed);
+      WebSocketService.off('ride-ended', changed);
+      WebSocketService.off('ride-cancelled', changed);
+    };
+  }, [ride && ride.id]);
+
+  function searchAddress(value) {
+    setDestination(value); setTrip(null); setError(''); setMessage(''); clearTimeout(timerRef.current);
+    if (value.trim().length < 3) { setSuggestions([]); return; }
+    const sequence = ++searchSeq.current;
+    setSearching(true);
+    timerRef.current = setTimeout(async function () {
+      try {
+        let addresses = [];
+        const query = new URLSearchParams({ format: 'jsonv2', q: value.trim(), limit: '6', countrycodes: 'br', addressdetails: '1', 'accept-language': 'pt-BR' });
+        try { addresses = await (await fetch(NOMINATIM + '/search?' + query.toString())).json(); } catch (_) {}
+        if (!Array.isArray(addresses) || !addresses.length) {
+          const photonQuery = new URLSearchParams({ q: value.trim(), limit: '6', lang: 'pt', lat: String(origin ? origin.lat : -23.55), lon: String(origin ? origin.lng : -46.63) });
+          const photon = await (await fetch(PHOTON + '?' + photonQuery.toString())).json();
+          addresses = (photon.features || []).map(function (feature, index) {
+            const coordinates = feature.geometry && feature.geometry.coordinates || [];
+            const properties = feature.properties || {};
+            const lng = coordinates[0]; const lat = coordinates[1];
+            return { place_id: 'ph-' + index + '-' + lat + '-' + lng, lat: String(lat), lon: String(lng), display_name: [properties.name, properties.street, properties.housenumber, properties.city || properties.town, properties.state].filter(Boolean).join(', ') };
+          });
+        }
+        if (sequence === searchSeq.current) setSuggestions(addresses.filter(function (item) { return Number.isFinite(Number(item.lat)) && Number.isFinite(Number(item.lon)); }));
+      } catch (_) { if (sequence === searchSeq.current) setError('Não foi possível pesquisar o endereço agora.'); }
+      finally { if (sequence === searchSeq.current) setSearching(false); }
+    }, 350);
+  }
+
+  async function chooseAddress(item) {
+    if (!origin) { setError('Aguardando sua localização.'); return; }
+    const lat = Number(item.lat); const lng = Number(item.lon);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+    setBusy(true); setError(''); setSuggestions([]);
+    try {
+      let route = null;
+      try {
+        const response = await fetch(OSRM + '/' + origin.lng + ',' + origin.lat + ';' + lng + ',' + lat + '?overview=full&geometries=geojson&steps=false');
+        const data = await response.json(); route = data.routes && data.routes[0];
+      } catch (_) {}
+      if (!route) {
+        const km = Math.max(0.01, Math.sqrt(Math.pow((lat - origin.lat) * 111, 2) + Math.pow((lng - origin.lng) * 111 * Math.cos(origin.lat * Math.PI / 180), 2)));
+        route = { distance: km * 1000, duration: Math.max(60, km / 35 * 3600), geometry: { type: 'LineString', coordinates: [[origin.lng, origin.lat], [lng, lat]] } };
+      }
+      if (routeLayer.current) routeLayer.current.remove();
+      routeLayer.current = L.geoJSON(route.geometry, { style: { color: '#111', weight: 6, opacity: .9 } }).addTo(mapRef.current);
+      mapRef.current.fitBounds(routeLayer.current.getBounds(), { padding: [50, 260] });
+      const km = route.distance / 1000; const address = item.display_name || 'Destino';
+      setDestination(address); setTrip({ distance: km, duration: Math.max(1, Math.ceil(route.duration / 60)), price: km * 5 + 10, origin: originText, destination: address, originLocation: origin, destinationLocation: { lat: lat, lng: lng } });
+    } catch (_) { setError('Não foi possível calcular a rota. Escolha um endereço sugerido.'); }
+    finally { setBusy(false); }
+  }
+
+  async function requestRide() {
+    if (!trip || busy) return;
+    const token = localStorage.getItem('token');
+    if (!token) { setError('Sua sessão expirou. Entre novamente.'); return; }
+    setBusy(true); setError(''); setMessage('Criando corrida e procurando motorista…');
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(function () { controller.abort(); }, 15000);
+      const response = await fetch(BACKEND_URL + '/api/rides/request', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token }, body: JSON.stringify({ origin: { address: trip.origin, location: trip.originLocation }, destination: { address: trip.destination, location: trip.destinationLocation } }), signal: controller.signal });
+      clearTimeout(timeout);
+      const data = await response.json().catch(function () { return {}; });
+      if (!response.ok) throw new Error(errorMessage(response, data, 'Não foi possível solicitar a corrida.'));
+      if (!data.ride || !data.ride.id) throw new Error('O servidor não retornou a corrida criada.');
+      setRide(data.ride); setMessage('Procurando o motorista mais próximo…'); WebSocketService.connect(); WebSocketService.joinRideRoom(data.ride.id);
+      if (props.onRideCreate) props.onRideCreate(data.ride);
+      setTimeout(async function () {
+        try {
+          const reinforce = await fetch(BACKEND_URL + '/api/rides/' + data.ride.id + '/search', { method: 'POST', headers: { Authorization: 'Bearer ' + token } });
+          const reinforceData = await reinforce.json().catch(function () { return {}; });
+          if (reinforceData.ride && reinforceData.ride.status !== 'SEARCHING') setRide(reinforceData.ride);
+        } catch (_) {}
+      }, 1800);
+    } catch (err) { setMessage(''); setError(err.name === 'AbortError' ? 'O servidor demorou para responder. Tente novamente.' : (err.message || 'Erro ao criar corrida.')); }
+    finally { setBusy(false); }
+  }
+
+  async function cancelRide() {
+    if (!ride || !ride.id || busy || !window.confirm('Deseja cancelar esta corrida?')) return;
+    const token = localStorage.getItem('token'); setBusy(true);
+    try {
+      const response = await fetch(BACKEND_URL + '/api/rides/' + ride.id + '/status', { method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token }, body: JSON.stringify({ status: 'CANCELLED', cancellationReason: 'Cancelada pelo passageiro' }) });
+      const data = await response.json().catch(function () { return {}; });
+      if (!response.ok) throw new Error(errorMessage(response, data, 'Erro ao cancelar.'));
+      setRide(data.ride || Object.assign({}, ride, { status: 'CANCELLED' })); setDriverLoc(null); setMessage('Corrida cancelada.');
+    } catch (err) { setError(err.message || 'Erro ao cancelar.'); }
+    finally { setBusy(false); }
+  }
+
+  const labels = { SEARCHING: 'Procurando motorista', ACCEPTED: 'Motorista a caminho', IN_PROGRESS: 'Corrida em andamento' };
+  const progress = ride && ride.status === 'SEARCHING' ? '30%' : ride && ride.status === 'ACCEPTED' ? '60%' : '82%';
+
+  return (
+    <div className="map-ride">
+      <div className="map-full" ref={mapElement} />
+      <div className="map-panel">
+        <div className="map-card">
+          <div className="map-row">
+            <div><h2 style={{ margin: 0 }}>Para onde vamos?</h2><div className="map-muted">Embarque: {originText}</div></div>
+            <button className="map-btn map-light" style={{ width: 'auto' }} onClick={props.onBack}>Perfil</button>
+          </div>
+          {restoring && <p className="map-muted">Verificando corrida ativa…</p>}
+          {!ride && <React.Fragment>
+            <div style={{ marginTop: 12 }}><input className="map-input" value={destination} onChange={function (e) { searchAddress(e.target.value); }} placeholder="Digite rua, número, cidade ou bairro" /></div>
+            {searching && <p className="map-muted">Buscando endereços…</p>}
+            {suggestions.length > 0 && <div className="map-suggest">{suggestions.map(function (item) { return <button key={item.place_id + '-' + item.lat} onClick={function () { chooseAddress(item); }}><b>{String(item.display_name || 'Endereço').split(',').slice(0, 2).join(',')}</b><span className="map-muted">{item.display_name}</span></button>; })}</div>}
+            {trip && <div className="map-card" style={{ marginTop: 12 }}><div className="map-grid"><div className="map-info"><b>Distância</b>{trip.distance.toFixed(1)} km</div><div className="map-info"><b>Tempo</b>{trip.duration} min</div><div className="map-info"><b>Preço</b>R$ {trip.price.toFixed(2)}</div><div className="map-info"><b>Destino</b>{trip.destination}</div></div><div className="map-actions"><button className="map-btn map-primary" disabled={busy} onClick={requestRide}>{busy ? 'Procurando…' : '🚗 Procurar motorista'}</button></div></div>}
+            {error && <div className="map-error">{error}</div>}{message && <div className="map-ok">{message}</div>}
+          </React.Fragment>}
+          {ride && <div style={{ marginTop: 12 }}><div className="map-bar"><i style={{ width: progress }} /></div><div style={{ marginTop: 9, fontWeight: 800 }}>{labels[ride.status] || 'Status da corrida'}</div><div className="map-muted">{ride.origin && ride.origin.address ? ride.origin.address : originText} → {ride.destination && ride.destination.address ? ride.destination.address : 'Destino'}</div>{ride.driverId ? <div className="map-status" style={{ marginTop: 12 }}><Avatar photo={ride.driverProfilePhoto} name={ride.driverName} /><div><b>{ride.driverName || 'Motorista'}</b><div className="map-muted">Motorista encontrado • R$ {Number(ride.price || 0).toFixed(2)}</div></div></div> : <p className="map-muted">Estamos procurando o motorista mais próximo. Aguarde alguns segundos.</p>}{ACTIVE.indexOf(ride.status) !== -1 && <div className="map-actions"><button className="map-btn map-danger" disabled={busy} onClick={cancelRide}>Cancelar corrida</button></div>}{error && <div className="map-error">{error}</div>}{message && <div className="map-ok">{message}</div>}</div>}
+        </div>
+      </div>
+    </div>
+  );
 }
