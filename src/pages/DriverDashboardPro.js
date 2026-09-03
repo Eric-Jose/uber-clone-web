@@ -53,7 +53,12 @@ export default function DriverDashboardPro() {
 
   useEffect(() => {
     if (!token || !uid) return undefined;
-    WebSocketService.connect();
+    const socket = WebSocketService.connect();
+    const joinDriversRoom = () => {
+      if (onlineRef.current) WebSocketService.joinDriversRoom();
+    };
+    socket?.on('connect', joinDriversRoom);
+    if (onlineRef.current) WebSocketService.joinDriversRoom();
 
     const onRequest = (data) => {
       const item = { ...data, id: data?.id || data?.rideId };
@@ -102,6 +107,7 @@ export default function DriverDashboardPro() {
     WebSocketService.onRideCancelled(onCancelled);
 
     return () => {
+      socket?.off('connect', joinDriversRoom);
       WebSocketService.off('new-ride-request', onRequest);
       WebSocketService.off('ride-unavailable', onUnavailable);
       WebSocketService.off('ride-accepted', onAccepted);
@@ -135,6 +141,7 @@ export default function DriverDashboardPro() {
 
       if (dbOnline) {
         WebSocketService.connect();
+        WebSocketService.joinDriversRoom();
         startLocation();
       }
     }).catch(() => {});
