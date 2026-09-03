@@ -70,7 +70,7 @@ export async function syncBackendSession(firebaseUser) {
   if (!firebaseUser) return null;
   try {
     const idToken = await firebaseUser.getIdToken();
-    const response = await fetch(`${BACKEND_URL}/api/admin/auth/firebase-session`, {
+    const response = await fetch(`${BACKEND_URL}/api/auth/firebase-session`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ idToken }),
