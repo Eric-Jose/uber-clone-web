@@ -9,6 +9,7 @@ const User = require('./models/User');
 const Driver = require('./models/Driver');
 const Ride = require('./models/Ride');
 const mapsRouter = require('./routes/maps');
+const adminRouter = require('./routes/admin');
 const mongoose = require('mongoose');
 
 const app = express();
@@ -237,8 +238,19 @@ app.post('/api/rides/request', auth, async (req, res) => {
 app.post('/api/rides/accept', auth, async (req, res) => {
   try {
     const driver = await Driver.findOne({ userId: req.user._id });
-    if (!driver || driver.status !== 'approved') return res.status(403).json({ error: 'Motorista não aprovado.' });
-    const ride = await Ride.findOneAndUpdate({ _id: req.body?.rideId, status: 'SEARCHING', driverId: null },
+    if (!driver || driver.status !== 'approved' || !driver.isOnline) return res.status(403).json({ error: 'Motorista não aprovado ou offline.' });
+    const rideId = req.body?.rideId;
+    const currentRide = await Ride.findById(rideId).lean();
+    if (!currentRide || currentRide.status !== 'SEARCHING' || currentRide.driverId) return res.status(409).json({ error: 'Esta corrida já foi aceita ou não está disponível.' });
+    const originLocation = normalizeLocation(currentRide.origin?.location || currentRide.origin);
+    const driverLocation = freshDriverLocation(driver);
+    if (!originLocation || !driverLocation) return res.status(409).json({ error: 'Localização do motorista desatualizada. Atualize sua localização e tente novamente.' });
+    const candidates = await nearestDrivers(originLocation);
+    const rankIndex = candidates.findIndex(candidate => String(candidate.userId) === String(req.user._id));
+    if (rankIndex < 0) return res.status(409).json({ error: 'Você está fora da área de atendimento desta corrida.' });
+    const allowedRank = dispatchRank(Date.now() - new Date(currentRide.createdAt).getTime());
+    if (rankIndex + 1 > allowedRank) return res.status(409).json({ error: 'A corrida ainda está sendo oferecida a um motorista mais próximo.' });
+    const ride = await Ride.findOneAndUpdate({ _id: rideId, status: 'SEARCHING', driverId: null },
       { $set: { driverId: req.user._id, driverName: req.user.name, driverProfilePhoto: req.user.profileImage || null, status: 'ACCEPTED', updatedAt: new Date() } }, { new: true });
     if (!ride) return res.status(409).json({ error: 'Esta corrida já foi aceita ou não está disponível.' });
     const out = serializeRide(ride); io.to(`ride:${out.id}`).emit('ride-accepted', out); res.json({ ride: out });
@@ -267,6 +279,7 @@ app.patch('/api/rides/:id/status', auth, async (req, res) => {
 });
 
 app.use('/api/maps', mapsRouter);
+app.use('/api', adminRouter);
 
 io.on('connection', socket => {
   try {
