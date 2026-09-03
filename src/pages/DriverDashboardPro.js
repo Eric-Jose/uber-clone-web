@@ -1,24 +1,358 @@
-import React,{useEffect,useRef,useState} from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
-import {BACKEND_URL} from '../config';
+import { BACKEND_URL } from '../config';
 import WebSocketService from '../services/WebSocketService';
-const ACTIVE=['ACCEPTED','IN_PROGRESS'];
-const errMsg=(e,f)=>e?.response?.data?.error||e?.response?.data?.details||e?.message||f;
-function Avatar({photo,name}){return <div className="driver-avatar">{photo?<img src={photo} alt={name||'Passageiro'}/>:String(name||'P').trim().charAt(0).toUpperCase()}</div>}
-export default function DriverDashboardPro(){
- const [user]=useState(()=>{try{return JSON.parse(localStorage.getItem('user')||'null')}catch(_){return null}}),[online,setOnline]=useState(false),[requests,setRequests]=useState([]),[ride,setRide]=useState(null),[message,setMessage]=useState(''),[busy,setBusy]=useState(false);
- const rideRef=useRef(null),onlineRef=useRef(false),watchRef=useRef(null);useEffect(()=>{rideRef.current=ride},[ride]);useEffect(()=>{onlineRef.current=online},[online]);
- const token=localStorage.getItem('token'),uid=user?.uid,headers={Authorization:`Bearer ${token}`};
- const stopLocation=()=>{if(watchRef.current!==null&&navigator.geolocation)navigator.geolocation.clearWatch(watchRef.current);watchRef.current=null};
- const sendLocation=p=>{const lat=Number(p.coords.latitude),lng=Number(p.coords.longitude);if(!Number.isFinite(lat)||!Number.isFinite(lng))return;if(rideRef.current?.id)WebSocketService.sendLocation(rideRef.current.id,uid,lat,lng);else if(onlineRef.current)WebSocketService.sendPresenceLocation(lat,lng)};
- const startLocation=()=>{if(!navigator.geolocation||watchRef.current!==null)return;watchRef.current=navigator.geolocation.watchPosition(sendLocation,()=>{}, {enableHighAccuracy:true,maximumAge:3000,timeout:10000})};
- const recoverAfterAccept=async rideId=>{try{const r=await axios.get(`${BACKEND_URL}/api/rides/active`,{headers,timeout:8000});const a=r.data?.ride;if(a?.id&&String(a.driverId)===String(uid)&&ACTIVE.includes(a.status)){setRide(a);setRequests(x=>x.filter(q=>String(q.id)!==String(rideId)));startLocation();WebSocketService.connect();WebSocketService.joinRideRoom(a.id);return a}}catch(_){}return null};
- useEffect(()=>{if(!token||!uid)return;const socket=WebSocketService.connect();const join=()=>{if(onlineRef.current)WebSocketService.joinDriversRoom()};socket?.on('connect',join);const onRequest=d=>{const item={...d,id:d?.id||d?.rideId};if(!item.id||rideRef.current)return;setRequests(x=>x.some(q=>String(q.id)===String(item.id))?x:[item,...x])};const onUnavailable=d=>{const id=d?.id||d?.rideId;if(id)setRequests(x=>x.filter(q=>String(q.id)!==String(id)))};const onAccepted=d=>{const item=d?.ride||d;if(item?.id&&String(item.driverId)===String(uid)){setRide(item);setRequests(x=>x.filter(q=>String(q.id)!==String(item.id)));startLocation();setMessage('Corrida aceita. Vá até o passageiro.')}else if(item?.id&&item.driverId)setRequests(x=>x.filter(q=>String(q.id)!==String(item.id)))};const onStarted=d=>{const item=d?.ride||d;if(item?.id===rideRef.current?.id)setRide(x=>({...x,...item,status:'IN_PROGRESS'}))};const onEnded=d=>{const item=d?.ride||d;if(item?.id===rideRef.current?.id){setRide(x=>({...x,...item,status:'COMPLETED'}));stopLocation()}};const onCancelled=d=>{if(d?.rideId===rideRef.current?.id){setRide(null);stopLocation();setMessage('Corrida cancelada.')}if(d?.rideId)setRequests(x=>x.filter(q=>String(q.id)!==String(d.rideId)))};WebSocketService.onNewRideRequest(onRequest);WebSocketService.onRideUnavailable(onUnavailable);WebSocketService.onRideAccepted(onAccepted);WebSocketService.onRideStarted(onStarted);WebSocketService.onRideEnded(onEnded);WebSocketService.onRideCancelled(onCancelled);return()=>{socket?.off('connect',join);WebSocketService.off('new-ride-request',onRequest);WebSocketService.off('ride-unavailable',onUnavailable);WebSocketService.off('ride-accepted',onAccepted);WebSocketService.off('ride-started',onStarted);WebSocketService.off('ride-ended',onEnded);WebSocketService.off('ride-cancelled',onCancelled);stopLocation();WebSocketService.disconnect()}},[token,uid]);
- useEffect(()=>{if(!token||!uid)return;let dead=false;Promise.all([axios.get(`${BACKEND_URL}/api/drivers/me`,{headers}),axios.get(`${BACKEND_URL}/api/rides/history?limit=20`,{headers})]).then(([dr,rr])=>{if(dead)return;const d=dr.data?.driver;const on=d?.status==='approved'&&d?.isOnline===true;onlineRef.current=on;setOnline(on);const current=(rr.data?.rides||[]).find(x=>ACTIVE.includes(x.status)&&String(x.driverId)===String(uid));if(current){setRide(current);startLocation()}if(on){WebSocketService.connect();WebSocketService.joinDriversRoom();startLocation()}}).catch(()=>{});return()=>{dead=true}},[token,uid]);
- const toggleOnline=async()=>{if(busy||!uid)return;setBusy(true);setMessage('');try{if(!onlineRef.current){if(!navigator.geolocation)throw Error('Localização não disponível.');const p=await new Promise((res,rej)=>navigator.geolocation.getCurrentPosition(res,rej,{enableHighAccuracy:true,timeout:12000}));await axios.post(`${BACKEND_URL}/api/drivers/${uid}/status`,{isOnline:true,currentLocation:{lat:p.coords.latitude,lng:p.coords.longitude}},{headers});WebSocketService.connect();WebSocketService.joinDriversRoom();WebSocketService.sendPresenceLocation(p.coords.latitude,p.coords.longitude);onlineRef.current=true;setOnline(true);startLocation();setMessage('Você está online e receberá corridas próximas.')}else{stopLocation();await axios.post(`${BACKEND_URL}/api/drivers/${uid}/status`,{isOnline:false},{headers});onlineRef.current=false;setOnline(false);WebSocketService.disconnect();setRequests([]);setMessage('Você ficou offline.')}}catch(e){setMessage(errMsg(e,'Não foi possível alterar o status.'))}finally{setBusy(false)}};
- const acceptRide=async request=>{if(busy||rideRef.current||!request?.id)return;const id=request.id;setBusy(true);setMessage('Aceitando corrida…');try{const r=await axios.post(`${BACKEND_URL}/api/rides/accept`,{rideId:id},{headers,timeout:15000});const a=r.data?.ride;if(!a?.id)throw Error('O servidor não retornou os dados da corrida.');setRide(a);setRequests(x=>x.filter(q=>String(q.id)!==String(id)));startLocation();WebSocketService.connect();WebSocketService.joinRideRoom(a.id);WebSocketService.acceptRide(a.id,uid);setMessage('Corrida aceita. Vá até o passageiro.')}catch(e){const recovered=await recoverAfterAccept(id);if(recovered)setMessage('Corrida aceita com sucesso.');else{setMessage(errMsg(e,'Não foi possível aceitar a corrida.'));setRequests(x=>x.filter(q=>String(q.id)!==String(id)))}}finally{setBusy(false)}};
- const status=async s=>{if(!ride?.id||busy)return;setBusy(true);try{const r=await axios.patch(`${BACKEND_URL}/api/rides/${ride.id}/status`,{status:s},{headers,timeout:12000});setRide(r.data?.ride||ride);if(s==='IN_PROGRESS')WebSocketService.startRide(ride.id,uid);if(s==='COMPLETED'){WebSocketService.endRide(ride.id,uid);stopLocation();setMessage('Corrida concluída com sucesso.')}}catch(e){setMessage(errMsg(e,'Não foi possível atualizar a corrida.'))}finally{setBusy(false)}};
- const cancel=async()=>{if(!ride?.id||busy||!window.confirm('Cancelar esta corrida?'))return;setBusy(true);try{await axios.patch(`${BACKEND_URL}/api/rides/${ride.id}/status`,{status:'CANCELLED',cancellationReason:'Cancelada pelo motorista'},{headers});WebSocketService.cancelRide(ride.id);setRide(null);stopLocation();setMessage('Corrida cancelada.')}catch(e){setMessage(errMsg(e,'Erro ao cancelar a corrida.'))}finally{setBusy(false)}};
- if(!user||user.userType!=='driver')return <div style={{padding:30}}>Acesso restrito ao motorista.</div>;
- return <div className="driver-pro"><style>{`.driver-pro{min-height:100vh;background:#f3f4f6;padding:18px;font-family:Arial}.driver-box{max-width:760px;margin:0 auto 15px;background:#fff;border-radius:18px;padding:18px;box-shadow:0 4px 18px rgba(0,0,0,.08)}.driver-row{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap}.driver-btn{border:0;border-radius:12px;padding:12px 16px;font-weight:800;cursor:pointer}.driver-on{background:#16a34a;color:#fff}.driver-off,.driver-danger{background:#dc2626;color:#fff}.driver-dark{background:#111827;color:#fff}.driver-muted{color:#69717b;font-size:13px;line-height:1.45}.driver-avatar{width:52px;height:52px;border-radius:50%;background:#111;color:#fff;display:flex;align-items:center;justify-content:center;overflow:hidden;font-weight:800}.driver-avatar img{width:100%;height:100%;object-fit:cover}.driver-person{display:flex;gap:10px;align-items:center}.driver-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.driver-info{background:#f5f6f7;border-radius:12px;padding:11px}.driver-info b{display:block;color:#6b7280;font-size:12px;margin-bottom:4px}.driver-request{border:1px solid #e1e5e9;border-radius:15px;padding:14px;margin-top:10px}@media(max-width:640px){.driver-pro{padding:10px}.driver-grid{grid-template-columns:1fr}}`}</style><div className="driver-box"><div className="driver-row"><div><h1 style={{margin:0}}>🚗 Painel do motorista</h1><div className="driver-muted">{user.name||user.email}</div></div><button className={`driver-btn ${online?'driver-off':'driver-on'}`} disabled={busy} onClick={toggleOnline}>{busy?'Aguarde…':online?'Ficar offline':'Ficar online'}</button></div><p><b>Status:</b> {online?'🟢 Online':'⚪ Offline'}</p>{message&&<div className="driver-info">{message}</div>}</div>{ride&&<div className="driver-box"><div className="driver-row"><h2>📍 Corrida atual</h2><b>{ride.status}</b></div><div className="driver-person"><Avatar photo={ride.passengerProfilePhoto} name={ride.passengerName}/><div><b>{ride.passengerName||'Passageiro'}</b><div className="driver-muted">Passageiro da corrida.</div></div></div><div className="driver-grid" style={{marginTop:12}}><div className="driver-info"><b>Embarque</b>{ride.origin?.address||'—'}</div><div className="driver-info"><b>Destino</b>{ride.destination?.address||'—'}</div><div className="driver-info"><b>Valor</b>R$ {Number(ride.price||0).toFixed(2)}</div><div className="driver-info"><b>Distância</b>{ride.distance||'—'} km</div></div><div className="driver-row" style={{marginTop:12}}>{ride.status==='ACCEPTED'&&<button className="driver-btn driver-dark" disabled={busy} onClick={()=>status('IN_PROGRESS')}>▶️ Iniciar</button>}{ride.status==='IN_PROGRESS'&&<button className="driver-btn driver-on" disabled={busy} onClick={()=>status('COMPLETED')}>✅ Finalizar</button>}{ACTIVE.includes(ride.status)&&<button className="driver-btn driver-danger" disabled={busy} onClick={cancel}>Cancelar</button>}</div></div>}<div className="driver-box"><h2>🔔 Solicitações</h2>{!online&&<p className="driver-muted">Fique online para receber corridas.</p>}{online&&requests.length===0&&<p className="driver-muted">Aguardando a próxima corrida mais próxima…</p>}{online&&requests.map(r=><div className="driver-request" key={r.id}><div className="driver-person"><Avatar photo={r.passengerProfilePhoto} name={r.passengerName}/><div><b>{r.passengerName||'Passageiro'}</b><div className="driver-muted">{r.estimatedDistanceKm!=null?`${r.estimatedDistanceKm} km até o embarque`:'Perto de você'}</div></div></div><p>📍 {r.origin?.address||'Embarque informado'}</p><p>🏁 {r.destination?.address||'Destino informado'}</p><p><b>R$ {Number(r.price||0).toFixed(2)}</b> • {Number(r.distance||0).toFixed(1)} km</p><button className="driver-btn driver-on" disabled={busy||!!ride} onClick={()=>acceptRide(r)}>{busy?'Aceitando…':'Aceitar corrida'}</button></div>)}</div></div>
+
+const ACTIVE = ['ACCEPTED', 'IN_PROGRESS'];
+
+function getError(error, fallback) {
+  return (error && error.response && error.response.data && (error.response.data.error || error.response.data.details)) || error.message || fallback;
+}
+
+function Avatar({ photo, name }) {
+  const letter = String(name || 'P').trim().charAt(0).toUpperCase();
+  return (
+    <div className="driver-avatar">
+      {photo ? <img src={photo} alt={name || 'Passageiro'} /> : letter}
+    </div>
+  );
+}
+
+export default function DriverDashboardPro() {
+  const [user] = useState(function () {
+    try { return JSON.parse(localStorage.getItem('user') || 'null'); } catch (_) { return null; }
+  });
+  const [online, setOnline] = useState(false);
+  const [requests, setRequests] = useState([]);
+  const [ride, setRide] = useState(null);
+  const [message, setMessage] = useState('');
+  const [busy, setBusy] = useState(false);
+  const rideRef = useRef(null);
+  const onlineRef = useRef(false);
+  const watchRef = useRef(null);
+
+  useEffect(function () { rideRef.current = ride; }, [ride]);
+  useEffect(function () { onlineRef.current = online; }, [online]);
+
+  const token = localStorage.getItem('token');
+  const uid = user && user.uid;
+  const headers = { Authorization: 'Bearer ' + token };
+
+  function stopLocation() {
+    if (watchRef.current !== null && navigator.geolocation) {
+      navigator.geolocation.clearWatch(watchRef.current);
+    }
+    watchRef.current = null;
+  }
+
+  function sendLocation(position) {
+    const lat = Number(position.coords.latitude);
+    const lng = Number(position.coords.longitude);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+    if (rideRef.current && rideRef.current.id) {
+      WebSocketService.sendLocation(rideRef.current.id, uid, lat, lng);
+    } else if (onlineRef.current) {
+      WebSocketService.sendPresenceLocation(lat, lng);
+    }
+  }
+
+  function startLocation() {
+    if (!navigator.geolocation || watchRef.current !== null) return;
+    watchRef.current = navigator.geolocation.watchPosition(
+      sendLocation,
+      function () {},
+      { enableHighAccuracy: true, maximumAge: 3000, timeout: 10000 }
+    );
+  }
+
+  async function recoverAfterAccept(rideId) {
+    try {
+      const response = await axios.get(BACKEND_URL + '/api/rides/active', { headers: headers, timeout: 8000 });
+      const activeRide = response.data && response.data.ride;
+      if (activeRide && activeRide.id && String(activeRide.driverId) === String(uid) && ACTIVE.indexOf(activeRide.status) !== -1) {
+        setRide(activeRide);
+        setRequests(function (items) { return items.filter(function (item) { return String(item.id) !== String(rideId); }); });
+        startLocation();
+        WebSocketService.connect();
+        WebSocketService.joinRideRoom(activeRide.id);
+        return activeRide;
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  useEffect(function () {
+    if (!token || !uid) return undefined;
+    const socket = WebSocketService.connect();
+
+    function join() {
+      if (onlineRef.current) WebSocketService.joinDriversRoom();
+    }
+    function onRequest(data) {
+      const item = Object.assign({}, data || {}, { id: (data && (data.id || data.rideId)) });
+      if (!item.id || rideRef.current) return;
+      setRequests(function (items) {
+        if (items.some(function (x) { return String(x.id) === String(item.id); })) return items;
+        return [item].concat(items);
+      });
+    }
+    function onUnavailable(data) {
+      const id = data && (data.id || data.rideId);
+      if (id) setRequests(function (items) { return items.filter(function (x) { return String(x.id) !== String(id); }); });
+    }
+    function onAccepted(data) {
+      const item = data && (data.ride || data);
+      if (item && item.id && String(item.driverId) === String(uid)) {
+        setRide(item);
+        setRequests(function (items) { return items.filter(function (x) { return String(x.id) !== String(item.id); }); });
+        startLocation();
+        setMessage('Corrida aceita. Vá até o passageiro.');
+      } else if (item && item.id && item.driverId) {
+        setRequests(function (items) { return items.filter(function (x) { return String(x.id) !== String(item.id); }); });
+      }
+    }
+    function onStarted(data) {
+      const item = data && (data.ride || data);
+      if (item && item.id === (rideRef.current && rideRef.current.id)) {
+        setRide(function (current) { return Object.assign({}, current, item, { status: 'IN_PROGRESS' }); });
+      }
+    }
+    function onEnded(data) {
+      const item = data && (data.ride || data);
+      if (item && item.id === (rideRef.current && rideRef.current.id)) {
+        setRide(function (current) { return Object.assign({}, current, item, { status: 'COMPLETED' }); });
+        stopLocation();
+      }
+    }
+    function onCancelled(data) {
+      const id = data && data.rideId;
+      if (id && String(id) === String(rideRef.current && rideRef.current.id)) {
+        setRide(null);
+        stopLocation();
+        setMessage('Corrida cancelada.');
+      }
+      if (id) setRequests(function (items) { return items.filter(function (x) { return String(x.id) !== String(id); }); });
+    }
+
+    if (socket) socket.on('connect', join);
+    WebSocketService.onNewRideRequest(onRequest);
+    WebSocketService.onRideUnavailable(onUnavailable);
+    WebSocketService.onRideAccepted(onAccepted);
+    WebSocketService.onRideStarted(onStarted);
+    WebSocketService.onRideEnded(onEnded);
+    WebSocketService.onRideCancelled(onCancelled);
+
+    return function () {
+      if (socket) socket.off('connect', join);
+      WebSocketService.off('new-ride-request', onRequest);
+      WebSocketService.off('ride-unavailable', onUnavailable);
+      WebSocketService.off('ride-accepted', onAccepted);
+      WebSocketService.off('ride-started', onStarted);
+      WebSocketService.off('ride-ended', onEnded);
+      WebSocketService.off('ride-cancelled', onCancelled);
+      stopLocation();
+      WebSocketService.disconnect();
+    };
+  }, [token, uid]);
+
+  useEffect(function () {
+    if (!token || !uid) return undefined;
+    let dead = false;
+    Promise.all([
+      axios.get(BACKEND_URL + '/api/drivers/me', { headers: headers }),
+      axios.get(BACKEND_URL + '/api/rides/history?limit=20', { headers: headers })
+    ]).then(function (results) {
+      if (dead) return;
+      const driver = results[0].data && results[0].data.driver;
+      const isOnline = driver && driver.status === 'approved' && driver.isOnline === true;
+      onlineRef.current = isOnline;
+      setOnline(isOnline);
+      const rides = (results[1].data && results[1].data.rides) || [];
+      const current = rides.find(function (item) {
+        return ACTIVE.indexOf(item.status) !== -1 && String(item.driverId) === String(uid);
+      });
+      if (current) {
+        setRide(current);
+        startLocation();
+      }
+      if (isOnline) {
+        WebSocketService.connect();
+        WebSocketService.joinDriversRoom();
+        startLocation();
+      }
+    }).catch(function () {});
+    return function () { dead = true; };
+  }, [token, uid]);
+
+  async function toggleOnline() {
+    if (busy || !uid) return;
+    setBusy(true);
+    setMessage('');
+    try {
+      if (!onlineRef.current) {
+        if (!navigator.geolocation) throw new Error('Localização não disponível.');
+        const position = await new Promise(function (resolve, reject) {
+          navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 12000 });
+        });
+        await axios.post(BACKEND_URL + '/api/drivers/' + uid + '/status', {
+          isOnline: true,
+          currentLocation: { lat: position.coords.latitude, lng: position.coords.longitude }
+        }, { headers: headers });
+        WebSocketService.connect();
+        WebSocketService.joinDriversRoom();
+        WebSocketService.sendPresenceLocation(position.coords.latitude, position.coords.longitude);
+        onlineRef.current = true;
+        setOnline(true);
+        startLocation();
+        setMessage('Você está online e receberá corridas próximas.');
+      } else {
+        stopLocation();
+        await axios.post(BACKEND_URL + '/api/drivers/' + uid + '/status', { isOnline: false }, { headers: headers });
+        onlineRef.current = false;
+        setOnline(false);
+        WebSocketService.disconnect();
+        setRequests([]);
+        setMessage('Você ficou offline.');
+      }
+    } catch (error) {
+      setMessage(getError(error, 'Não foi possível alterar o status.'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function acceptRide(request) {
+    if (busy || rideRef.current || !request || !request.id) return;
+    const id = request.id;
+    setBusy(true);
+    setMessage('Aceitando corrida…');
+    try {
+      const response = await axios.post(BACKEND_URL + '/api/rides/accept', { rideId: id }, { headers: headers, timeout: 15000 });
+      const accepted = response.data && response.data.ride;
+      if (!accepted || !accepted.id) throw new Error('O servidor não retornou os dados da corrida.');
+      setRide(accepted);
+      setRequests(function (items) { return items.filter(function (x) { return String(x.id) !== String(id); }); });
+      startLocation();
+      WebSocketService.connect();
+      WebSocketService.joinRideRoom(accepted.id);
+      WebSocketService.acceptRide(accepted.id, uid);
+      setMessage('Corrida aceita. Vá até o passageiro.');
+    } catch (error) {
+      const recovered = await recoverAfterAccept(id);
+      if (recovered) setMessage('Corrida aceita com sucesso.');
+      else {
+        setMessage(getError(error, 'Não foi possível aceitar a corrida.'));
+        setRequests(function (items) { return items.filter(function (x) { return String(x.id) !== String(id); }); });
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function updateStatus(nextStatus) {
+    if (!ride || !ride.id || busy) return;
+    setBusy(true);
+    try {
+      const response = await axios.patch(BACKEND_URL + '/api/rides/' + ride.id + '/status', { status: nextStatus }, { headers: headers, timeout: 12000 });
+      setRide((response.data && response.data.ride) || ride);
+      if (nextStatus === 'IN_PROGRESS') WebSocketService.startRide(ride.id, uid);
+      if (nextStatus === 'COMPLETED') {
+        WebSocketService.endRide(ride.id, uid);
+        stopLocation();
+        setMessage('Corrida concluída com sucesso.');
+      }
+    } catch (error) {
+      setMessage(getError(error, 'Não foi possível atualizar a corrida.'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function cancelRide() {
+    if (!ride || !ride.id || busy || !window.confirm('Cancelar esta corrida?')) return;
+    setBusy(true);
+    try {
+      await axios.patch(BACKEND_URL + '/api/rides/' + ride.id + '/status', {
+        status: 'CANCELLED',
+        cancellationReason: 'Cancelada pelo motorista'
+      }, { headers: headers });
+      WebSocketService.cancelRide(ride.id);
+      setRide(null);
+      stopLocation();
+      setMessage('Corrida cancelada.');
+    } catch (error) {
+      setMessage(getError(error, 'Erro ao cancelar a corrida.'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!user || user.userType !== 'driver') {
+    return <div style={{ padding: 30 }}>Acesso restrito ao motorista.</div>;
+  }
+
+  return (
+    <div className="driver-pro">
+      <style>{` .driver-pro{min-height:100vh;background:#f3f4f6;padding:18px;font-family:Arial}.driver-box{max-width:760px;margin:0 auto 15px;background:#fff;border-radius:18px;padding:18px;box-shadow:0 4px 18px rgba(0,0,0,.08)}.driver-row{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap}.driver-btn{border:0;border-radius:12px;padding:12px 16px;font-weight:800;cursor:pointer}.driver-btn:disabled{opacity:.55;cursor:not-allowed}.driver-on{background:#16a34a;color:#fff}.driver-off,.driver-danger{background:#dc2626;color:#fff}.driver-dark{background:#111827;color:#fff}.driver-muted{color:#69717b;font-size:13px;line-height:1.45}.driver-avatar{width:52px;height:52px;border-radius:50%;background:#111;color:#fff;display:flex;align-items:center;justify-content:center;overflow:hidden;font-weight:800}.driver-avatar img{width:100%;height:100%;object-fit:cover}.driver-person{display:flex;gap:10px;align-items:center}.driver-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.driver-info{background:#f5f6f7;border-radius:12px;padding:11px}.driver-info b{display:block;color:#6b7280;font-size:12px;margin-bottom:4px}.driver-request{border:1px solid #e1e5e9;border-radius:15px;padding:14px;margin-top:10px}@media(max-width:640px){.driver-pro{padding:10px}.driver-grid{grid-template-columns:1fr}} `}</style>
+      <div className="driver-box">
+        <div className="driver-row">
+          <div>
+            <h1 style={{ margin: 0 }}>🚗 Painel do motorista</h1>
+            <div className="driver-muted">{user.name || user.email}</div>
+          </div>
+          <button className={'driver-btn ' + (online ? 'driver-off' : 'driver-on')} disabled={busy} onClick={toggleOnline}>
+            {busy ? 'Aguarde…' : online ? 'Ficar offline' : 'Ficar online'}
+          </button>
+        </div>
+        <p><b>Status:</b> {online ? '🟢 Online' : '⚪ Offline'}</p>
+        {message && <div className="driver-info">{message}</div>}
+      </div>
+
+      {ride && (
+        <div className="driver-box">
+          <div className="driver-row"><h2>📍 Corrida atual</h2><b>{ride.status}</b></div>
+          <div className="driver-person">
+            <Avatar photo={ride.passengerProfilePhoto} name={ride.passengerName} />
+            <div><b>{ride.passengerName || 'Passageiro'}</b><div className="driver-muted">Passageiro da corrida.</div></div>
+          </div>
+          <div className="driver-grid" style={{ marginTop: 12 }}>
+            <div className="driver-info"><b>Embarque</b>{(ride.origin && ride.origin.address) || '—'}</div>
+            <div className="driver-info"><b>Destino</b>{(ride.destination && ride.destination.address) || '—'}</div>
+            <div className="driver-info"><b>Valor</b>R$ {Number(ride.price || 0).toFixed(2)}</div>
+            <div className="driver-info"><b>Distância</b>{ride.distance || '—'} km</div>
+          </div>
+          <div className="driver-row" style={{ marginTop: 12 }}>
+            {ride.status === 'ACCEPTED' && <button className="driver-btn driver-dark" disabled={busy} onClick={function () { updateStatus('IN_PROGRESS'); }}>▶️ Iniciar</button>}
+            {ride.status === 'IN_PROGRESS' && <button className="driver-btn driver-on" disabled={busy} onClick={function () { updateStatus('COMPLETED'); }}>✅ Finalizar</button>}
+            {ACTIVE.indexOf(ride.status) !== -1 && <button className="driver-btn driver-danger" disabled={busy} onClick={cancelRide}>Cancelar</button>}
+          </div>
+        </div>
+      )}
+
+      <div className="driver-box">
+        <h2>🔔 Solicitações</h2>
+        {!online && <p className="driver-muted">Fique online para receber corridas.</p>}
+        {online && requests.length === 0 && <p className="driver-muted">Aguardando a próxima corrida mais próxima…</p>}
+        {online && requests.map(function (request) {
+          return (
+            <div className="driver-request" key={request.id}>
+              <div className="driver-person">
+                <Avatar photo={request.passengerProfilePhoto} name={request.passengerName} />
+                <div>
+                  <b>{request.passengerName || 'Passageiro'}</b>
+                  <div className="driver-muted">{request.estimatedDistanceKm != null ? request.estimatedDistanceKm + ' km até o embarque' : 'Perto de você'}</div>
+                </div>
+              </div>
+              <p>📍 {(request.origin && request.origin.address) || 'Embarque informado'}</p>
+              <p>🏁 {(request.destination && request.destination.address) || 'Destino informado'}</p>
+              <p><b>R$ {Number(request.price || 0).toFixed(2)}</b> • {Number(request.distance || 0).toFixed(1)} km</p>
+              <button className="driver-btn driver-on" disabled={busy || !!ride} onClick={function () { acceptRide(request); }}>
+                {busy ? 'Aceitando…' : 'Aceitar corrida'}
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
