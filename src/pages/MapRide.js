@@ -12,6 +12,7 @@ function MapRide({ onRideCreate, onBack }) {
   const autocompleteListenerRef = useRef(null);
   const driverMarkerRef = useRef(null);
   const userMarkerRef = useRef(null);
+  const directionsRendererRef = useRef(null);
   const [map, setMap] = useState(null);
   const [originInput, setOriginInput] = useState('');
   const [destinationInput, setDestinationInput] = useState('');
@@ -113,11 +114,15 @@ function MapRide({ onRideCreate, onBack }) {
       ]
     });
     setMap(mapInstance);
-    setDirectionsRenderer(new window.google.maps.DirectionsRenderer({
+
+    const renderer = new window.google.maps.DirectionsRenderer({
       map: mapInstance,
       suppressMarkers: true,
+      preserveViewport: false,
       polylineOptions: { strokeColor: '#111111', strokeOpacity: 0.9, strokeWeight: 6 }
-    }));
+    });
+    directionsRendererRef.current = renderer;
+    setDirectionsRenderer(renderer);
 
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition((position) => {
@@ -143,7 +148,9 @@ function MapRide({ onRideCreate, onBack }) {
         new window.google.maps.Geocoder().geocode({ location }, (results, status) => {
           if (status === 'OK' && results?.[0]) setOriginInput(results[0].formatted_address);
         });
-      }, () => {});
+      }, (error) => {
+        console.warn('Não foi possível obter a localização atual:', error);
+      }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 });
     }
   };
 
@@ -154,36 +161,65 @@ function MapRide({ onRideCreate, onBack }) {
   };
 
   const calculateRoute = async () => {
-    const origin = userLocation || originInput;
-    const destination = destinationPlaceRef.current?.geometry?.location || destinationInput;
-    if (!origin || !destination || !map) return alert('Informe o destino para calcular a rota.');
+    if (!window.google?.maps || !map) return alert('O mapa ainda está carregando. Aguarde um instante.');
+
+    const destinationPlace = destinationPlaceRef.current;
+    const destination = destinationPlace?.geometry?.location || destinationInput.trim();
+    const origin = userLocation || originInput.trim();
+
+    if (!origin) return alert('Não foi possível localizar sua posição. Ative a localização do celular e tente novamente.');
+    if (!destination) return alert('Informe o destino para calcular a rota.');
+
     setLoading(true);
     try {
-      const result = await new window.google.maps.DirectionsService().route({
+      const service = new window.google.maps.DirectionsService();
+      const result = await service.route({
         origin,
         destination,
-        travelMode: window.google.maps.TravelMode.DRIVING
+        travelMode: window.google.maps.TravelMode.DRIVING,
+        provideRouteAlternatives: false
       });
-      directionsRenderer?.setDirections(result);
+
+      if (!result?.routes?.length || !result.routes[0]?.legs?.length) {
+        throw new Error('ROUTE_NOT_FOUND');
+      }
+
+      const renderer = directionsRendererRef.current || directionsRenderer;
+      if (!renderer) throw new Error('MAP_RENDERER_NOT_READY');
+      renderer.setMap(map);
+      renderer.setDirections(result);
+
       const leg = result.routes[0].legs[0];
-      const distanceKm = leg.distance.value / 1000;
+      const distanceKm = Number(leg.distance?.value || 0) / 1000;
+      const durationMin = Math.ceil(Number(leg.duration?.value || 0) / 60);
+      const destinationLocation = leg.end_location ? {
+        lat: leg.end_location.lat(),
+        lng: leg.end_location.lng()
+      } : destinationPlace?.geometry?.location ? {
+        lat: destinationPlace.geometry.location.lat(),
+        lng: destinationPlace.geometry.location.lng()
+      } : null;
+
       setRouteInfo({
         distance: distanceKm.toFixed(2),
-        duration: Math.ceil(leg.duration.value / 60),
+        duration: durationMin,
         price: (distanceKm * 5 + 10).toFixed(2),
         origin: leg.start_address || originInput || 'Minha localização',
         destination: leg.end_address || destinationInput,
         originLocation: userLocation || null,
-        destinationLocation: leg.end_location ? {
-          lat: leg.end_location.lat(),
-          lng: leg.end_location.lng()
-        } : null
+        destinationLocation
       });
+
       map.fitBounds(result.routes[0].bounds, { top: 80, right: 40, bottom: 300, left: 40 });
     } catch (error) {
-      console.error(error);
-      alert('Não foi possível calcular a rota. Verifique o destino e tente novamente.');
-    } finally { setLoading(false); }
+      console.error('Erro ao calcular rota:', error);
+      const message = error?.message === 'ROUTE_NOT_FOUND'
+        ? 'Não encontramos uma rota de carro para esse destino. Escolha um endereço sugerido pelo Google.'
+        : 'Não foi possível localizar a rota. Confira o destino e tente novamente.';
+      alert(message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -197,7 +233,7 @@ function MapRide({ onRideCreate, onBack }) {
     autocompleteListenerRef.current = autocomplete.addListener('place_changed', () => {
       const place = autocomplete.getPlace();
       if (!place?.geometry?.location) {
-        alert('Selecione um local da lista de sugestões do Google.');
+        alert('Selecione um endereço da lista de sugestões do Google.');
         return;
       }
       destinationPlaceRef.current = place;
@@ -206,7 +242,8 @@ function MapRide({ onRideCreate, onBack }) {
       setRouteInfo(null);
       if (place.geometry.viewport) map.fitBounds(place.geometry.viewport, { top: 100, right: 40, bottom: 300, left: 40 });
       else map.panTo(place.geometry.location);
-      window.setTimeout(() => calculateRoute(), 0);
+
+      window.setTimeout(() => calculateRoute(), 50);
     });
 
     return () => {
@@ -215,7 +252,7 @@ function MapRide({ onRideCreate, onBack }) {
         autocompleteListenerRef.current = null;
       }
     };
-  }, [map, userLocation]);
+  }, [map, userLocation, directionsRenderer]);
 
   const handleCreateRide = async () => {
     if (!routeInfo || requesting) return;
