@@ -1,89 +1,90 @@
-// src/routes/maps.js
 const express = require('express');
 const router = express.Router();
 const axios = require('axios');
 
-const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
+const NOMINATIM_URL = 'https://nominatim.openstreetmap.org';
+const OSRM_URL = 'https://router.project-osrm.org/route/v1/driving';
+const USER_AGENT = 'UberClone/1.0 (mapa@uberclone.local)';
 
-// Calcular rota entre dois pontos
+function normalizePoint(value) {
+  const lat = Number(value?.lat ?? value?.latitude);
+  const lng = Number(value?.lng ?? value?.longitude ?? value?.lon);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
+  return { lat, lng };
+}
+
+async function geocodeAddress(address) {
+  const text = String(address || '').trim();
+  if (!text) return null;
+  const response = await axios.get(`${NOMINATIM_URL}/search`, {
+    params: {
+      format: 'jsonv2',
+      q: text,
+      limit: 1,
+      countrycodes: 'br',
+      addressdetails: 1,
+      'accept-language': 'pt-BR'
+    },
+    headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' },
+    timeout: 15000
+  });
+  const result = response.data?.[0];
+  if (!result) return null;
+  return {
+    latitude: Number(result.lat),
+    longitude: Number(result.lon),
+    formattedAddress: result.display_name
+  };
+}
+
+function resolvePoint(value) {
+  return normalizePoint(value) || normalizePoint(value?.location);
+}
+
 router.post('/calculate-route', async (req, res) => {
   try {
-    const { origin, destination } = req.body;
+    const origin = resolvePoint(req.body?.origin);
+    const destination = resolvePoint(req.body?.destination);
+    if (!origin || !destination) return res.status(400).json({ error: 'Origem ou destino inválido.' });
 
     const response = await axios.get(
-      `https://maps.googleapis.com/maps/api/directions/json`,
-      {
-        params: {
-          origin,
-          destination,
-          key: GOOGLE_MAPS_API_KEY,
-          mode: 'driving'
-        }
-      }
+      `${OSRM_URL}/${origin.lng},${origin.lat};${destination.lng},${destination.lat}`,
+      { params: { overview: 'full', geometries: 'geojson', steps: false }, timeout: 20000 }
     );
+    const route = response.data?.routes?.[0];
+    if (!route) return res.status(404).json({ error: 'Rota não encontrada.' });
 
-    if (response.data.routes.length === 0) {
-      return res.status(404).json({ error: 'Rota não encontrada' });
-    }
-
-    const leg = response.data.routes[0].legs[0];
-    const distance = leg.distance.value / 1000; // km
-    const duration = leg.duration.value / 60; // minutos
-
-    res.json({
+    const distance = Number(route.distance || 0) / 1000;
+    const duration = Math.max(1, Math.ceil(Number(route.duration || 0) / 60));
+    return res.json({
       distance: distance.toFixed(2),
-      duration: Math.ceil(duration),
-      polyline: response.data.routes[0].overview_polyline.points,
+      duration,
+      geometry: route.geometry,
+      polyline: route.geometry?.coordinates || [],
       estimatedPrice: (distance * 5 + 10).toFixed(2)
     });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('MAP_ROUTE_ERROR', error.message);
+    return res.status(500).json({ error: 'Não foi possível calcular a rota agora.' });
   }
 });
 
-// Geocodificar endereço (converter texto em coordenadas)
 router.post('/geocode', async (req, res) => {
   try {
-    const { address } = req.body;
-
-    const response = await axios.get(
-      `https://maps.googleapis.com/maps/api/geocode/json`,
-      {
-        params: {
-          address,
-          key: GOOGLE_MAPS_API_KEY
-        }
-      }
-    );
-
-    if (response.data.results.length === 0) {
-      return res.status(404).json({ error: 'Endereço não encontrado' });
-    }
-
-    const location = response.data.results[0].geometry.location;
-    res.json({
-      latitude: location.lat,
-      longitude: location.lng,
-      formattedAddress: response.data.results[0].formatted_address
-    });
+    const result = await geocodeAddress(req.body?.address);
+    if (!result) return res.status(404).json({ error: 'Endereço não encontrado.' });
+    return res.json(result);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('MAP_GEOCODE_ERROR', error.message);
+    return res.status(500).json({ error: 'Não foi possível pesquisar o endereço agora.' });
   }
 });
 
-// Encontrar drivers próximos
-router.post('/nearby-drivers', async (req, res) => {
-  try {
-    const { latitude, longitude, radius } = req.body;
-
-    // Aqui você faria uma busca no banco de dados
-    // procurando motoristas dentro do raio especificado
-    const drivers = [];
-
-    res.json({ drivers });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
+router.post('/nearby-drivers', async (_req, res) => {
+  // O despacho real de motoristas é feito pelo server.js, usando localização fresca
+  // e ranking por distância/tempo de espera.
+  return res.json({ drivers: [] });
 });
 
 module.exports = router;
