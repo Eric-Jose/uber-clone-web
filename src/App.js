@@ -1,9 +1,10 @@
-/* Navegação autenticada: validação de sessão não deve sobrescrever a tela atual. */
+/* Navegação autenticada: perfil e corrida usam rotas independentes. */
 import React, { useEffect, useState } from 'react';
 import AdminLogin from './pages/AdminLogin';
 import AdminDashboardLive from './pages/AdminDashboardLive';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import UserProfile from './pages/UserProfile';
 import DriverRegistration from './pages/DriverRegistration';
 import DriverDashboardPro from './pages/DriverDashboardPro';
 import AdminPanel from './pages/AdminPanel';
@@ -28,8 +29,8 @@ const resolveUserPage = (user) => {
 };
 const isUserPage = (page, user) => {
   if (!user) return false;
-  if (page === 'ride' || page === 'ride-history') return true;
-  if (user.userType === 'driver' && user.driverApprovalStatus === 'approved' && (page === 'driver-dashboard' || page === 'profile')) return true;
+  if (page === 'ride' || page === 'ride-history' || page === 'profile') return true;
+  if (user.userType === 'driver' && user.driverApprovalStatus === 'approved' && page === 'driver-dashboard') return true;
   if (user.userType === 'driver' && user.driverApprovalStatus === 'pending' && page === 'driver-pending') return true;
   if (user.userType === 'driver' && user.driverApprovalStatus !== 'approved' && user.driverApprovalStatus !== 'pending' && page === 'driver-registration') return true;
   return false;
@@ -50,21 +51,24 @@ function AccountPanel({ account, currentPage, onNavigate, children }) {
   const isDriver = account?.userType === 'driver' && account?.driverApprovalStatus === 'approved';
   const items = isDriver
     ? [{ page: 'driver-dashboard', icon: '⌂', label: 'Início' }, { page: 'ride-history', icon: '▤', label: 'Histórico' }, { page: 'profile', icon: '◯', label: 'Perfil' }]
-    : [{ page: 'ride', icon: '⌖', label: 'Procurar corrida' }, { page: 'ride-history', icon: '▤', label: 'Histórico' }];
+    : [{ page: 'ride', icon: '⌖', label: 'Procurar corrida' }, { page: 'ride-history', icon: '▤', label: 'Histórico' }, { page: 'profile', icon: '◯', label: 'Perfil' }];
+
   return <div className="account-shell">
     <div className="account-topbar">
       <div className="account-brand">UberClone</div>
-      {isDriver && <button className="account-profile-trigger" onClick={() => onNavigate('profile')} aria-label="Abrir perfil"><ProfilePhoto account={account} compact /></button>}
+      <button className="account-profile-trigger" onClick={() => onNavigate('profile')} aria-label="Abrir perfil">
+        <ProfilePhoto account={account} compact />
+      </button>
     </div>
     <main className="account-content">{children}</main>
     <nav className="app-bottom-nav" aria-label="Navegação principal">
-      {items.map(item => <button key={item.page} className={`app-nav-item ${currentPage === item.page ? 'active' : ''}`} onClick={() => onNavigate(item.page)}><span className="app-nav-icon">{item.icon}</span><span>{item.label}</span></button>)}
+      {items.map(item => <button key={item.page} type="button" className={`app-nav-item ${currentPage === item.page ? 'active' : ''}`} onClick={() => onNavigate(item.page)}><span className="app-nav-icon">{item.icon}</span><span>{item.label}</span></button>)}
     </nav>
   </div>;
 }
 
 function DriverPending({ user, onLogout }) {
-  return <div style={{ minHeight: '100vh', background: '#f5f5f5', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, fontFamily: 'Arial' }}><div style={{ maxWidth: 520, width: '100%', background: '#fff', borderRadius: 16, padding: 28, textAlign: 'center' }}><ProfilePhoto account={user} compact /><div style={{ fontSize: 54 }}>⏳</div><h1>Cadastro em análise</h1><p style={{ color: '#666', lineHeight: 1.6 }}>{user?.name ? `${user.name}, ` : ''}seu cadastro de motorista foi enviado e aguarda aprovação.</p><p style={{ color: '#777', fontSize: 13 }}>Esta tela será atualizada automaticamente quando o administrador revisar o cadastro.</p><button onClick={onLogout} style={{ border: 0, borderRadius: 10, padding: '12px 20px', background: '#111827', color: '#fff', fontWeight: 700 }}>Sair</button></div></div>;
+  return <div style={{ minHeight: '100vh', background: '#f5f5f5', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, fontFamily: 'Arial' }}><div style={{ maxWidth: 520, width: '100%', background: '#fff', borderRadius: 16, padding: 28, textAlign: 'center' }}><ProfilePhoto account={user} compact /><div style={{ fontSize: 54 }}>⏳</div><h1>Cadastro em análise</h1><p style={{ color: '#666', lineHeight: 1.6 }}>{user?.name ? `${user.name}, ` : ''}seu cadastro de motorista foi enviado e aguarda aprovação.</p><p style={{ color: '#777', fontSize: 13 }}>Esta tela será atualizada automaticamente quando o administrador revisar o cadastro.</p><button type="button" onClick={onLogout} style={{ border: 0, borderRadius: 10, padding: '12px 20px', background: '#111827', color: '#fff', fontWeight: 700 }}>Sair</button></div></div>;
 }
 
 function App() {
@@ -122,7 +126,13 @@ function App() {
   }, [admin, currentPage]);
 
   useEffect(() => {
-    const onPhoto = (event) => { const uid = event.detail?.uid; const storedUser = getStored('user'); const storedAdmin = getStored('admin'); if (storedUser && (!uid || storedUser.uid === uid)) setUser({ ...storedUser, profilePhoto: event.detail.photo || null }); if (storedAdmin && (!uid || storedAdmin.uid === uid)) setAdmin({ ...storedAdmin, profilePhoto: event.detail.photo || null }); };
+    const onPhoto = (event) => {
+      const uid = event.detail?.uid;
+      const storedUser = getStored('user');
+      const storedAdmin = getStored('admin');
+      if (storedUser && (!uid || storedUser.uid === uid)) setUser({ ...storedUser, profilePhoto: event.detail.photo || null });
+      if (storedAdmin && (!uid || storedAdmin.uid === uid)) setAdmin({ ...storedAdmin, profilePhoto: event.detail.photo || null });
+    };
     window.addEventListener('profile-photo-updated', onPhoto);
     return () => window.removeEventListener('profile-photo-updated', onPhoto);
   }, []);
@@ -132,7 +142,7 @@ function App() {
   const handleDriverRegistration = (registration) => { const currentUser = getStored('user') || user || {}; const updatedUser = { ...currentUser, userType: 'driver', driverApprovalStatus: registration?.status || 'pending' }; setUser(updatedUser); localStorage.setItem('user', JSON.stringify(updatedUser)); setCurrentPage(resolveUserPage(updatedUser)); };
   const handleAdminLogin = (adminData) => { setUser(null); setAdmin(adminData); localStorage.removeItem('token'); localStorage.removeItem('user'); localStorage.setItem('admin', JSON.stringify(adminData)); setCurrentPage('admin-dashboard'); };
   const handleAdminLogout = async () => { await logoutFirebase(); setAdmin(null); localStorage.removeItem('adminToken'); localStorage.removeItem('admin'); setCurrentPage('home'); };
-  const navigate = (page) => setCurrentPage(page === 'profile' && user?.userType !== 'driver' ? 'ride' : page);
+  const navigate = (page) => setCurrentPage(page);
 
   if (admin) return <AdminDashboardLive admin={admin} onLogout={handleAdminLogout} />;
   if (currentPage === 'admin-login' || currentPage === 'admin-dashboard') return <AdminLogin onAdminLogin={handleAdminLogin} />;
@@ -145,11 +155,11 @@ function App() {
     case 'driver-registration': return <DriverRegistration onRegistrationSubmit={handleDriverRegistration} />;
     case 'driver-pending': return <DriverPending user={user} onLogout={handleLogout} />;
     case 'driver-dashboard': return user ? <AccountPanel account={user} currentPage="driver-dashboard" onNavigate={navigate}><LiveStatsBar userType="driver" /><DriverDashboardPro /></AccountPanel> : <Login onLoginSuccess={handleUserLogin} />;
-    case 'profile': return user && user.userType === 'driver' ? <AccountPanel account={user} currentPage="profile" onNavigate={navigate}><div style={{ padding: 24 }}>Perfil do motorista.</div></AccountPanel> : user ? <AccountPanel account={user} currentPage="ride" onNavigate={navigate}><LiveStatsBar userType="passenger" /><MapRidePro onRideCreate={() => {}} onBack={() => setCurrentPage('ride')} /></AccountPanel> : <Login onLoginSuccess={handleUserLogin} />;
+    case 'profile': return user ? <AccountPanel account={user} currentPage="profile" onNavigate={navigate}><UserProfile user={user} onLogout={handleLogout} onRequestRide={() => setCurrentPage('ride')} onHistory={() => setCurrentPage('ride-history')} /></AccountPanel> : <Login onLoginSuccess={handleUserLogin} />;
     case 'admin-panel': return <AdminPanel />;
     case 'payment': return <Payment rideId="RIDE001" amount={32.5} onPaymentSuccess={() => alert('Pagamento realizado!')} />;
     case 'notifications': return <NotificationCenter />;
-    default: return <div className="home-page"><div className="home-container"><div className="home-badge">🚗 Transporte inteligente</div><h1>UberClone</h1><p>Entre na sua conta para solicitar corridas, acompanhar seu motorista e acessar seu histórico.</p><div className="home-buttons"><button onClick={() => setCurrentPage('login')} className="btn-home">👤 Entrar como usuário</button><button onClick={() => setCurrentPage('register')} className="btn-home secondary">✨ Criar conta</button><button onClick={() => setCurrentPage('admin-login')} className="btn-home admin">🔐 Administrador</button></div></div></div>;
+    default: return <div className="home-page"><div className="home-container"><div className="home-badge">🚗 Transporte inteligente</div><h1>UberClone</h1><p>Entre na sua conta para solicitar corridas, acompanhar seu motorista e acessar seu histórico.</p><div className="home-buttons"><button type="button" onClick={() => setCurrentPage('login')} className="btn-home">👤 Entrar como usuário</button><button type="button" onClick={() => setCurrentPage('register')} className="btn-home secondary">✨ Criar conta</button><button type="button" onClick={() => setCurrentPage('admin-login')} className="btn-home admin">🔐 Administrador</button></div></div></div>;
   }
 }
 
