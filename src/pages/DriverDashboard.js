@@ -32,12 +32,14 @@ function DriverDashboard() {
   const [loading, setLoading] = useState(false);
   const watchId = useRef(null);
   const activeRideRef = useRef(null);
+  const onlineRef = useRef(false);
 
   const token = localStorage.getItem('token');
   const uid = user?.uid;
   const authConfig = { headers: { Authorization: `Bearer ${token}` } };
 
   useEffect(() => { activeRideRef.current = activeRide; }, [activeRide]);
+  useEffect(() => { onlineRef.current = online; }, [online]);
 
   const updateDriverStatus = useCallback(async (isOnline, position) => {
     if (!uid || !token) return;
@@ -46,9 +48,14 @@ function DriverDashboard() {
   }, [uid, token]);
 
   const sendPosition = useCallback((position) => {
+    const latitude = position.coords.latitude;
+    const longitude = position.coords.longitude;
     const ride = activeRideRef.current;
-    if (!ride?.id || !uid) return;
-    WebSocketService.sendLocation(ride.id, uid, position.coords.latitude, position.coords.longitude);
+    if (ride?.id && uid) {
+      WebSocketService.sendLocation(ride.id, uid, latitude, longitude);
+    } else if (onlineRef.current) {
+      WebSocketService.sendPresenceLocation(latitude, longitude);
+    }
   }, [uid]);
 
   const startWatchingLocation = useCallback(() => {
@@ -89,17 +96,24 @@ function DriverDashboard() {
       setActiveRide(null);
       setMessage(data?.cancellationReason ? `Corrida cancelada: ${data.cancellationReason}` : 'A corrida foi cancelada.');
     };
+    const onConnect = () => {
+      if (onlineRef.current) WebSocketService.joinDriversRoom();
+      if (activeRideRef.current?.id) WebSocketService.joinRideRoom(activeRideRef.current.id);
+    };
     WebSocketService.onNewRideRequest(onRequest);
     WebSocketService.onRideAccepted(onAccepted);
     WebSocketService.onRideStarted(onStarted);
     WebSocketService.onRideEnded(onEnded);
     WebSocketService.onRideCancelled(onCancelled);
+    WebSocketService.onConnect(onConnect);
+    if (onlineRef.current) WebSocketService.joinDriversRoom();
     return () => {
       WebSocketService.off('new-ride-request', onRequest);
       WebSocketService.off('ride-accepted', onAccepted);
       WebSocketService.off('ride-started', onStarted);
       WebSocketService.off('ride-ended', onEnded);
       WebSocketService.off('ride-cancelled', onCancelled);
+      WebSocketService.offConnect(onConnect);
       stopWatchingLocation();
       WebSocketService.disconnect();
     };
@@ -115,13 +129,16 @@ function DriverDashboard() {
         await updateDriverStatus(true, position);
         WebSocketService.connect();
         WebSocketService.joinDriversRoom();
+        setOnline(true); onlineRef.current = true;
+        WebSocketService.joinDriversRoom();
+        WebSocketService.sendPresenceLocation(position.coords.latitude, position.coords.longitude);
         startWatchingLocation();
-        setOnline(true); setMessage('Você está online e recebendo corridas.');
+        setMessage('Você está online e recebendo corridas.');
       } else {
         stopWatchingLocation();
         await updateDriverStatus(false);
         WebSocketService.disconnect();
-        setOnline(false); setRequests([]); setMessage('Você ficou offline.');
+        setOnline(false); onlineRef.current = false; setRequests([]); setMessage('Você ficou offline.');
       }
     } catch (error) {
       setMessage(error.response?.data?.error || error.message || 'Não foi possível alterar seu status.');
