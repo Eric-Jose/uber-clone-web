@@ -18,6 +18,7 @@ import LiveStatsBar from './pages/LiveStatsBar';
 import ProfilePhoto from './pages/ProfilePhoto';
 import { auth, onAuthStateChanged, syncBackendSession, logoutFirebase } from './firebase';
 import { BACKEND_URL } from './config';
+import { dispatchRideSearch } from './services/rideDispatch';
 import './App.css';
 
 const getStored = (key) => { try { return JSON.parse(localStorage.getItem(key) || 'null'); } catch (_) { return null; } };
@@ -128,15 +129,7 @@ function App() {
     const rideId = ride?.id;
     const token = localStorage.getItem('token');
     if (!rideId || !token) return;
-    window.setTimeout(async () => {
-      try {
-        await fetch(`${BACKEND_URL}/api/rides/${rideId}/search`, {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${token}` },
-          cache: 'no-store'
-        });
-      } catch (_) {}
-    }, 5000);
+    void dispatchRideSearch(rideId, token);
   };
   if (admin) return <AdminDashboardLive admin={admin} onLogout={handleAdminLogout} />;
   if (currentPage === 'admin-login' || currentPage === 'admin-dashboard') return <AdminLogin onAdminLogin={handleAdminLogin} />;
