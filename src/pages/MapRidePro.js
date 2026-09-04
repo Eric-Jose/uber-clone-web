@@ -15,11 +15,11 @@ function getLocation(value) {
   const lat = Number(source.lat !== undefined ? source.lat : source.latitude);
   const lng = Number(source.lng !== undefined ? source.lng : source.longitude);
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
-  return { lat: lat, lng: lng };
+  return { lat, lng };
 }
 
 function getError(response, data, fallback) {
-  if (data && (data.error || data.details)) return data.error || data.details;
+  if (data && (data.error || data.details || data.message)) return data.error || data.details || data.message;
   if (!response) return 'Não foi possível conectar ao servidor.';
   return fallback;
 }
@@ -62,12 +62,7 @@ export default function MapRidePro(props) {
     L.control.zoom({ position: 'bottomright' }).addTo(map);
     mapRef.current = map;
     setTimeout(function () { map.invalidateSize(); }, 200);
-    return function () {
-      clearTimeout(timerRef.current);
-      WebSocketService.disconnect();
-      map.remove();
-      style.remove();
-    };
+    return function () { clearTimeout(timerRef.current); WebSocketService.disconnect(); map.remove(); style.remove(); };
   }, []);
 
   async function syncActiveRide() {
@@ -78,42 +73,28 @@ export default function MapRidePro(props) {
       const data = await response.json().catch(function () { return {}; });
       const activeRide = data.ride;
       if (response.ok && activeRide && activeRide.id && ACTIVE.indexOf(activeRide.status) !== -1) {
-        setRide(activeRide);
-        setDriverLoc(getLocation(activeRide.driverLocation));
-        return activeRide;
+        setRide(activeRide); setDriverLoc(getLocation(activeRide.driverLocation)); return activeRide;
       }
     } catch (_) {}
     return null;
   }
 
-  useEffect(function () {
-    syncActiveRide().finally(function () { setRestoring(false); });
-  }, []);
+  useEffect(function () { syncActiveRide().finally(function () { setRestoring(false); }); }, []);
 
   useEffect(function () {
-    if (!ride || !ride.id || ACTIVE.indexOf(ride.status) === -1) {
-      clearTimeout(timerRef.current);
-      return undefined;
-    }
+    if (!ride || !ride.id || ACTIVE.indexOf(ride.status) === -1) { clearTimeout(timerRef.current); return undefined; }
     let stopped = false;
-    async function poll() {
-      if (stopped) return;
-      await syncActiveRide();
-      if (!stopped) timerRef.current = setTimeout(poll, 3500);
-    }
+    async function poll() { if (stopped) return; await syncActiveRide(); if (!stopped) timerRef.current = setTimeout(poll, 3500); }
     timerRef.current = setTimeout(poll, 1500);
     return function () { stopped = true; clearTimeout(timerRef.current); };
   }, [ride && ride.id, ride && ride.status]);
 
   useEffect(function () {
-    if (!navigator.geolocation) {
-      setError('Este navegador não oferece localização.');
-      return undefined;
-    }
+    if (!navigator.geolocation) { setError('Este navegador não oferece localização.'); return undefined; }
     function positionHandler(position) {
-      const location = getLocation(position.coords);
-      if (!location) return;
+      const location = getLocation(position.coords); if (!location) return;
       setOrigin(location);
+      setOriginText('Sua localização atual');
       if (mapRef.current) {
         if (!userMarker.current) userMarker.current = L.circleMarker([location.lat, location.lng], { radius: 8, color: '#fff', weight: 3, fillColor: '#1a73e8', fillOpacity: 1 }).addTo(mapRef.current);
         else userMarker.current.setLatLng([location.lat, location.lng]);
@@ -126,8 +107,7 @@ export default function MapRidePro(props) {
   }, []);
 
   useEffect(function () {
-    const location = getLocation(driverLoc);
-    if (!location || !mapRef.current) return;
+    const location = getLocation(driverLoc); if (!location || !mapRef.current) return;
     if (!driverMarker.current) driverMarker.current = L.circleMarker([location.lat, location.lng], { radius: 10, color: '#fff', weight: 3, fillColor: '#111', fillOpacity: 1 }).addTo(mapRef.current);
     else driverMarker.current.setLatLng([location.lat, location.lng]);
   }, [driverLoc]);
@@ -135,11 +115,7 @@ export default function MapRidePro(props) {
   useEffect(function () {
     function accepted(data) {
       const item = data && (data.ride || data);
-      if (item && item.id && (!rideRef.current || item.id === rideRef.current.id)) {
-        setRide(item);
-        setDriverLoc(getLocation(item.driverLocation));
-        setMessage('Motorista encontrado!');
-      }
+      if (item && item.id && (!rideRef.current || item.id === rideRef.current.id)) { setRide(item); setDriverLoc(getLocation(item.driverLocation)); setMessage('Motorista encontrado!'); }
     }
     function changed(data) {
       if (!data || !rideRef.current || data.rideId !== rideRef.current.id) return;
@@ -148,29 +124,17 @@ export default function MapRidePro(props) {
     function locationUpdate(data) {
       if (!data) return;
       if (data.rideId && rideRef.current && data.rideId !== rideRef.current.id) return;
-      const location = getLocation(data);
-      if (location) setDriverLoc(location);
+      const location = getLocation(data); if (location) setDriverLoc(location);
     }
-    WebSocketService.onRideAccepted(accepted);
-    WebSocketService.onDriverLocationUpdate(locationUpdate);
-    WebSocketService.onRideStarted(changed);
-    WebSocketService.onRideEnded(changed);
-    WebSocketService.onRideCancelled(changed);
+    WebSocketService.onRideAccepted(accepted); WebSocketService.onDriverLocationUpdate(locationUpdate); WebSocketService.onRideStarted(changed); WebSocketService.onRideEnded(changed); WebSocketService.onRideCancelled(changed);
     if (ride && ride.id) { WebSocketService.connect(); WebSocketService.joinRideRoom(ride.id); }
-    return function () {
-      WebSocketService.off('ride-accepted', accepted);
-      WebSocketService.off('driver-location-update', locationUpdate);
-      WebSocketService.off('ride-started', changed);
-      WebSocketService.off('ride-ended', changed);
-      WebSocketService.off('ride-cancelled', changed);
-    };
+    return function () { WebSocketService.off('ride-accepted', accepted); WebSocketService.off('driver-location-update', locationUpdate); WebSocketService.off('ride-started', changed); WebSocketService.off('ride-ended', changed); WebSocketService.off('ride-cancelled', changed); };
   }, [ride && ride.id]);
 
   function searchAddress(value) {
     setDestination(value); setTrip(null); setError(''); setMessage(''); clearTimeout(timerRef.current);
     if (value.trim().length < 3) { setSuggestions([]); return; }
-    const sequence = ++searchSeq.current;
-    setSearching(true);
+    const sequence = ++searchSeq.current; setSearching(true);
     timerRef.current = setTimeout(async function () {
       try {
         let addresses = [];
@@ -180,10 +144,8 @@ export default function MapRidePro(props) {
           const photonQuery = new URLSearchParams({ q: value.trim(), limit: '6', lang: 'pt', lat: String(origin ? origin.lat : -23.55), lon: String(origin ? origin.lng : -46.63) });
           const photon = await (await fetch(PHOTON + '?' + photonQuery.toString())).json();
           addresses = (photon.features || []).map(function (feature, index) {
-            const coordinates = feature.geometry && feature.geometry.coordinates || [];
-            const properties = feature.properties || {};
-            const lng = coordinates[0]; const lat = coordinates[1];
-            return { place_id: 'ph-' + index + '-' + lat + '-' + lng, lat: String(lat), lon: String(lng), display_name: [properties.name, properties.street, properties.housenumber, properties.city || properties.town, properties.state].filter(Boolean).join(', ') };
+            const coordinates = feature.geometry && feature.geometry.coordinates || []; const properties = feature.properties || {};
+            return { place_id: 'ph-' + index + '-' + coordinates[1] + '-' + coordinates[0], lat: String(coordinates[1]), lon: String(coordinates[0]), display_name: [properties.name, properties.street, properties.housenumber, properties.city || properties.town, properties.state].filter(Boolean).join(', ') };
           });
         }
         if (sequence === searchSeq.current) setSuggestions(addresses.filter(function (item) { return Number.isFinite(Number(item.lat)) && Number.isFinite(Number(item.lon)); }));
@@ -194,15 +156,11 @@ export default function MapRidePro(props) {
 
   async function chooseAddress(item) {
     if (!origin) { setError('Aguardando sua localização.'); return; }
-    const lat = Number(item.lat); const lng = Number(item.lon);
-    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+    const lat = Number(item.lat); const lng = Number(item.lon); if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
     setBusy(true); setError(''); setSuggestions([]);
     try {
       let route = null;
-      try {
-        const response = await fetch(OSRM + '/' + origin.lng + ',' + origin.lat + ';' + lng + ',' + lat + '?overview=full&geometries=geojson&steps=false');
-        const data = await response.json(); route = data.routes && data.routes[0];
-      } catch (_) {}
+      try { const response = await fetch(OSRM + '/' + origin.lng + ',' + origin.lat + ';' + lng + ',' + lat + '?overview=full&geometries=geojson&steps=false'); const data = await response.json(); route = data.routes && data.routes[0]; } catch (_) {}
       if (!route) {
         const km = Math.max(0.01, Math.sqrt(Math.pow((lat - origin.lat) * 111, 2) + Math.pow((lng - origin.lng) * 111 * Math.cos(origin.lat * Math.PI / 180), 2)));
         route = { distance: km * 1000, duration: Math.max(60, km / 35 * 3600), geometry: { type: 'LineString', coordinates: [[origin.lng, origin.lat], [lng, lat]] } };
@@ -211,23 +169,23 @@ export default function MapRidePro(props) {
       routeLayer.current = L.geoJSON(route.geometry, { style: { color: '#111', weight: 6, opacity: .9 } }).addTo(mapRef.current);
       mapRef.current.fitBounds(routeLayer.current.getBounds(), { padding: [50, 260] });
       const km = route.distance / 1000; const address = item.display_name || 'Destino';
-      setDestination(address); setTrip({ distance: km, duration: Math.max(1, Math.ceil(route.duration / 60)), price: km * 5 + 10, origin: originText, destination: address, originLocation: origin, destinationLocation: { lat: lat, lng: lng } });
+      setDestination(address); setTrip({ distance: km, duration: Math.max(1, Math.ceil(route.duration / 60)), price: km * 5 + 10, origin: originText, destination: address, originLocation: origin, destinationLocation: { lat, lng } });
     } catch (_) { setError('Não foi possível calcular a rota. Escolha um endereço sugerido.'); }
     finally { setBusy(false); }
   }
 
   async function requestRide() {
     if (!trip || busy) return;
-    const token = localStorage.getItem('token');
-    if (!token) { setError('Sua sessão expirou. Entre novamente.'); return; }
+    const token = localStorage.getItem('token'); if (!token) { setError('Sua sessão expirou. Entre novamente.'); return; }
     setBusy(true); setError(''); setMessage('Criando corrida e procurando motorista…');
     try {
-      const controller = new AbortController();
-      const timeout = setTimeout(function () { controller.abort(); }, 15000);
-      const response = await fetch(BACKEND_URL + '/api/rides/request', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token }, body: JSON.stringify({ origin: { address: trip.origin, location: trip.originLocation }, destination: { address: trip.destination, location: trip.destinationLocation } }), signal: controller.signal });
-      clearTimeout(timeout);
+      const controller = new AbortController(); const timeout = setTimeout(function () { controller.abort(); }, 15000);
+      let response;
+      try {
+        response = await fetch(BACKEND_URL + '/api/rides/request', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token }, body: JSON.stringify({ origin: { address: trip.origin, location: trip.originLocation }, destination: { address: trip.destination, location: trip.destinationLocation } }), signal: controller.signal });
+      } finally { clearTimeout(timeout); }
       const data = await response.json().catch(function () { return {}; });
-      if (!response.ok) throw new Error(errorMessage(response, data, 'Não foi possível solicitar a corrida.'));
+      if (!response.ok) throw new Error(getError(response, data, 'Não foi possível solicitar a corrida.'));
       if (!data.ride || !data.ride.id) throw new Error('O servidor não retornou a corrida criada.');
       setRide(data.ride); setMessage('Procurando o motorista mais próximo…'); WebSocketService.connect(); WebSocketService.joinRideRoom(data.ride.id);
       if (props.onRideCreate) props.onRideCreate(data.ride);
@@ -248,7 +206,7 @@ export default function MapRidePro(props) {
     try {
       const response = await fetch(BACKEND_URL + '/api/rides/' + ride.id + '/status', { method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token }, body: JSON.stringify({ status: 'CANCELLED', cancellationReason: 'Cancelada pelo passageiro' }) });
       const data = await response.json().catch(function () { return {}; });
-      if (!response.ok) throw new Error(errorMessage(response, data, 'Erro ao cancelar.'));
+      if (!response.ok) throw new Error(getError(response, data, 'Erro ao cancelar.'));
       setRide(data.ride || Object.assign({}, ride, { status: 'CANCELLED' })); setDriverLoc(null); setMessage('Corrida cancelada.');
     } catch (err) { setError(err.message || 'Erro ao cancelar.'); }
     finally { setBusy(false); }
@@ -257,26 +215,17 @@ export default function MapRidePro(props) {
   const labels = { SEARCHING: 'Procurando motorista', ACCEPTED: 'Motorista a caminho', IN_PROGRESS: 'Corrida em andamento' };
   const progress = ride && ride.status === 'SEARCHING' ? '30%' : ride && ride.status === 'ACCEPTED' ? '60%' : '82%';
 
-  return (
-    <div className="map-ride">
-      <div className="map-full" ref={mapElement} />
-      <div className="map-panel">
-        <div className="map-card">
-          <div className="map-row">
-            <div><h2 style={{ margin: 0 }}>Para onde vamos?</h2><div className="map-muted">Embarque: {originText}</div></div>
-            <button className="map-btn map-light" style={{ width: 'auto' }} onClick={props.onBack}>Perfil</button>
-          </div>
-          {restoring && <p className="map-muted">Verificando corrida ativa…</p>}
-          {!ride && <React.Fragment>
-            <div style={{ marginTop: 12 }}><input className="map-input" value={destination} onChange={function (e) { searchAddress(e.target.value); }} placeholder="Digite rua, número, cidade ou bairro" /></div>
-            {searching && <p className="map-muted">Buscando endereços…</p>}
-            {suggestions.length > 0 && <div className="map-suggest">{suggestions.map(function (item) { return <button key={item.place_id + '-' + item.lat} onClick={function () { chooseAddress(item); }}><b>{String(item.display_name || 'Endereço').split(',').slice(0, 2).join(',')}</b><span className="map-muted">{item.display_name}</span></button>; })}</div>}
-            {trip && <div className="map-card" style={{ marginTop: 12 }}><div className="map-grid"><div className="map-info"><b>Distância</b>{trip.distance.toFixed(1)} km</div><div className="map-info"><b>Tempo</b>{trip.duration} min</div><div className="map-info"><b>Preço</b>R$ {trip.price.toFixed(2)}</div><div className="map-info"><b>Destino</b>{trip.destination}</div></div><div className="map-actions"><button className="map-btn map-primary" disabled={busy} onClick={requestRide}>{busy ? 'Procurando…' : '🚗 Procurar motorista'}</button></div></div>}
-            {error && <div className="map-error">{error}</div>}{message && <div className="map-ok">{message}</div>}
-          </React.Fragment>}
-          {ride && <div style={{ marginTop: 12 }}><div className="map-bar"><i style={{ width: progress }} /></div><div style={{ marginTop: 9, fontWeight: 800 }}>{labels[ride.status] || 'Status da corrida'}</div><div className="map-muted">{ride.origin && ride.origin.address ? ride.origin.address : originText} → {ride.destination && ride.destination.address ? ride.destination.address : 'Destino'}</div>{ride.driverId ? <div className="map-status" style={{ marginTop: 12 }}><Avatar photo={ride.driverProfilePhoto} name={ride.driverName} /><div><b>{ride.driverName || 'Motorista'}</b><div className="map-muted">Motorista encontrado • R$ {Number(ride.price || 0).toFixed(2)}</div></div></div> : <p className="map-muted">Estamos procurando o motorista mais próximo. Aguarde alguns segundos.</p>}{ACTIVE.indexOf(ride.status) !== -1 && <div className="map-actions"><button className="map-btn map-danger" disabled={busy} onClick={cancelRide}>Cancelar corrida</button></div>}{error && <div className="map-error">{error}</div>}{message && <div className="map-ok">{message}</div>}</div>}
-        </div>
-      </div>
-    </div>
-  );
+  return <div className="map-ride"><div ref={mapElement} className="map-full" />
+    <div className="map-panel"><div className="map-card">
+      <div className="map-row"><strong>Uber Clone</strong><span className="map-muted">{restoring ? 'Carregando…' : 'Passageiro'}</span></div>
+      {!ride && <><div style={{marginTop:12}}><input className="map-input" value={destination} onChange={function(e){searchAddress(e.target.value);}} placeholder="Para onde você vai?" disabled={busy} /></div>
+        {searching && <div className="map-muted" style={{marginTop:8}}>Pesquisando endereço…</div>}
+        {suggestions.length > 0 && <div className="map-suggest">{suggestions.map(function(item){return <button key={item.place_id || item.display_name} onClick={function(){chooseAddress(item);}}>{item.display_name}</button>;})}</div>}
+        {trip && <div style={{marginTop:12}}><div className="map-grid"><div className="map-info"><b>Distância</b>{trip.distance.toFixed(1)} km</div><div className="map-info"><b>Estimativa</b>{trip.duration} min</div><div className="map-info"><b>Valor</b>R$ {trip.price.toFixed(2)}</div><div className="map-info"><b>Embarque</b>{trip.origin}</div></div><div className="map-actions"><button className="map-btn map-light" onClick={function(){setTrip(null);setDestination('');if(routeLayer.current){routeLayer.current.remove();routeLayer.current=null;}}} disabled={busy}>Alterar</button><button className="map-btn map-primary" onClick={requestRide} disabled={busy}>{busy ? 'Solicitando…' : '🚗 Procurar motorista'}</button></div></div>}
+        {!trip && <div className="map-muted" style={{marginTop:10}}>Embarque: {originText}. Digite o destino e escolha uma sugestão do mapa.</div>}
+      </>}
+      {ride && <><div style={{marginTop:12}} className="map-status"><Avatar name={ride.driverName || 'Motorista'} photo={ride.driverPhoto} /><div><strong>{labels[ride.status] || ride.status}</strong><div className="map-muted">{ride.driverName ? ride.driverName : 'Aguardando um motorista aceitar'}</div></div></div><div style={{marginTop:12}} className="map-bar"><i style={{width:progress}} /></div>{message && <div className="map-ok">{message}</div>}<div className="map-actions"><button className="map-btn map-danger" onClick={cancelRide} disabled={busy || !['SEARCHING','ACCEPTED'].includes(ride.status)}>Cancelar corrida</button></div></>}
+      {error && <div className="map-error">{error}</div>}
+    </div></div>
+  </div>;
 }
