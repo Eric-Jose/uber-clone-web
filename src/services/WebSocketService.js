@@ -4,6 +4,7 @@ import { BACKEND_URL } from '../config';
 class WebSocketService {
   constructor() {
     this.socket = null;
+    this.activeRideId = null;
   }
 
   connect() {
@@ -19,7 +20,10 @@ class WebSocketService {
         reconnectionDelayMax: 5000,
         reconnectionAttempts: 10
       });
-      this.socket.on('connect', () => this.joinDriversRoom());
+      this.socket.on('connect', () => {
+        this.joinDriversRoom();
+        if (this.activeRideId) this.socket.emit('join-ride-room', this.activeRideId);
+      });
       this.socket.on('connect_error', (error) => console.warn('Socket.IO:', error?.message || 'falha de conexão'));
     }
     return this.socket;
@@ -33,8 +37,15 @@ class WebSocketService {
 
   onConnect(callback) { return this.ensureSocket()?.on('connect', callback); }
   offConnect(callback) { this.socket?.off('connect', callback); }
-  joinRideRoom(rideId) { if (rideId) this.ensureSocket()?.emit('join-ride-room', rideId); }
-  leaveRideRoom(rideId) { if (rideId) this.ensureSocket()?.emit('leave-ride-room', rideId); }
+  joinRideRoom(rideId) {
+    if (!rideId) return;
+    this.activeRideId = rideId;
+    this.ensureSocket()?.emit('join-ride-room', rideId);
+  }
+  leaveRideRoom(rideId) {
+    if (rideId && this.activeRideId === rideId) this.activeRideId = null;
+    if (rideId) this.ensureSocket()?.emit('leave-ride-room', rideId);
+  }
   joinDriversRoom() { const socket = this.ensureSocket(); if (socket) socket.emit('join-drivers-room'); }
   joinDriverRoom() { this.joinDriversRoom(); }
 
