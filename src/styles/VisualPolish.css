@@ -1,0 +1,91 @@
+/* PreçoFixo17 — acabamento visual global, sem alterar a lógica das telas. */
+:root {
+  --pf17-orange: #ff5a00;
+  --pf17-black: #0b0b0c;
+  --pf17-ink: #17181a;
+  --pf17-soft: #f5f6f7;
+  --pf17-line: #e7e8ea;
+  --pf17-shadow: 0 18px 55px rgba(0,0,0,.14);
+}
+
+/* Microinterações consistentes */
+button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; }
+button { transition: transform .16s ease, filter .16s ease, box-shadow .16s ease, background-color .16s ease, border-color .16s ease; }
+button:active { transform: scale(.985); }
+
+/* Cabeçalho autenticado */
+.account-topbar {
+  height: 66px !important;
+  padding: 10px max(16px, env(safe-area-inset-left)) 10px max(16px, env(safe-area-inset-right)) !important;
+  box-shadow: 0 8px 28px rgba(0,0,0,.18);
+}
+.account-brand { text-shadow: 0 2px 14px rgba(255,90,0,.16); }
+.account-profile-trigger { box-shadow: 0 0 0 3px rgba(255,90,0,.10), 0 8px 22px rgba(0,0,0,.24); }
+.account-profile-trigger:hover { filter: brightness(1.08); }
+
+/* Barra inferior com aparência de app nativo */
+.app-bottom-nav {
+  bottom: max(10px, env(safe-area-inset-bottom)) !important;
+  box-shadow: 0 20px 50px rgba(0,0,0,.32), 0 0 0 1px rgba(255,255,255,.04) inset !important;
+}
+.app-nav-item { min-height: 56px !important; }
+.app-nav-item.active { box-shadow: 0 7px 20px rgba(255,90,0,.28); }
+
+/* Home: acabamento premium */
+.home-page { isolation: isolate; }
+.home-hero { box-shadow: 0 34px 110px rgba(0,0,0,.62), inset 0 0 0 1px rgba(255,255,255,.045) !important; }
+.home-hero::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(120deg, transparent 35%, rgba(255,255,255,.035) 50%, transparent 65%);
+  transform: translateX(-70%);
+  animation: pf17-sheen 8s ease-in-out infinite;
+}
+.home-buttons .btn-home { min-height: 58px; }
+.home-buttons .btn-home:focus-visible { outline: 3px solid rgba(255,90,0,.45); outline-offset: 3px; }
+.home-feature-row span { transition: transform .16s ease, border-color .16s ease, background .16s ease; }
+.home-feature-row span:hover { transform: translateY(-2px); border-color: rgba(255,90,0,.55); background: #171717; }
+
+/* Painel de corrida: hierarquia visual e leitura em mapa */
+.rp .panel > .card {
+  border: 1px solid rgba(20,20,20,.07) !important;
+  box-shadow: var(--pf17-shadow) !important;
+}
+.rp .panel .input:focus {
+  border-color: rgba(255,90,0,.65) !important;
+  box-shadow: 0 0 0 4px rgba(255,90,0,.10) !important;
+  outline: 0 !important;
+}
+.rp .panel .suggest button:hover { background: #fff7f2 !important; }
+.rp .panel .primary { box-shadow: 0 10px 24px rgba(255,90,0,.22); }
+.rp .panel .primary:hover { filter: brightness(1.04); box-shadow: 0 14px 30px rgba(255,90,0,.28); }
+
+/* Evita que o conteúdo fique escondido atrás da navegação em aparelhos baixos. */
+@media (max-height: 700px) and (max-width: 700px) {
+  .account-content { padding-bottom: 82px !important; }
+  .rp .panel { bottom: 82px !important; }
+  .rp .panel > .card { max-height: 58svh !important; }
+}
+
+@media (max-width: 760px) {
+  .home-page { padding: 12px !important; align-items: stretch !important; }
+  .home-hero { min-height: calc(100svh - 24px) !important; grid-template-columns: 1fr !important; gap: 16px !important; padding: 24px 18px !important; border-radius: 22px !important; overflow-y: auto !important; }
+  .home-visual { min-height: 330px !important; order: -1; }
+  .home-car { height: 190px !important; }
+  .home-price-card { transform: scale(.82) rotate(2deg); transform-origin: top right; }
+  .home-brand-lockup { margin-bottom: 12px !important; }
+  .home-hero h1 { font-size: clamp(34px, 11vw, 50px) !important; }
+  .home-hero p { font-size: 15px !important; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; transition-duration: .01ms !important; }
+}
+
+@keyframes pf17-sheen {
+  0%, 55%, 100% { transform: translateX(-70%); opacity: 0; }
+  65% { opacity: 1; }
+  78% { transform: translateX(70%); opacity: 0; }
+}
