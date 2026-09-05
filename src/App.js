@@ -16,6 +16,7 @@ import RideHistoryPro from './pages/RideHistoryPro';
 import ResetPassword from './pages/ResetPassword';
 import LiveStatsBar from './pages/LiveStatsBar';
 import ProfilePhoto from './pages/ProfilePhoto';
+import RideRatingPanel from './pages/RideRatingPanel';
 import { auth, onAuthStateChanged, syncBackendSession, logoutFirebase } from './firebase';
 import { BACKEND_URL } from './config';
 import { dispatchRideSearch } from './services/rideDispatch';
@@ -62,6 +63,7 @@ function AccountPanel({ account, currentPage, onNavigate, children }) {
       </button>
     </div>
     <main className="account-content">{children}</main>
+    <RideRatingPanel account={account} />
     <nav className="app-bottom-nav" aria-label="Navegação principal">
       {items.map(item => <button key={item.page} type="button" className={`app-nav-item ${currentPage === item.page ? 'active' : ''}`} onClick={() => onNavigate(item.page)}><span className="app-nav-icon">{item.icon}</span><span>{item.label}</span></button>)}
     </nav>
@@ -144,7 +146,7 @@ function App() {
     case 'driver-dashboard': return user ? <AccountPanel account={user} currentPage="driver-dashboard" onNavigate={navigate}><LiveStatsBar userType="driver" /><DriverDashboardPro /></AccountPanel> : <Login onLoginSuccess={handleUserLogin} />;
     case 'profile': return user ? <AccountPanel account={user} currentPage="profile" onNavigate={navigate}><UserProfile user={user} onLogout={handleLogout} onRequestRide={() => setCurrentPage('ride')} onHistory={() => setCurrentPage('ride-history')} /></AccountPanel> : <Login onLoginSuccess={handleUserLogin} />;
     case 'admin-panel': return <AdminPanel />;
-    case 'payment': return <Payment rideId="RIDE001" amount={32.5} onPaymentSuccess={() => alert('Pagamento realizado!')} />;
+    case 'payment': return <Payment rideId="RIDE001" amount={32.5} onPaymentSuccess={() => {}} />;
     case 'notifications': return <NotificationCenter />;
     default: return <div className="home-page"><div className="home-container"><div className="home-badge">🚗 Transporte inteligente</div><h1>UberClone</h1><p>Entre na sua conta para solicitar corridas, acompanhar seu motorista e acessar seu histórico.</p><div className="home-buttons"><button type="button" onClick={() => setCurrentPage('login')} className="btn-home">👤 Entrar como usuário</button><button type="button" onClick={() => setCurrentPage('register')} className="btn-home secondary">✨ Criar conta</button><button type="button" onClick={() => setCurrentPage('admin-login')} className="btn-home admin">🔐 Administrador</button></div></div></div>;
   }
