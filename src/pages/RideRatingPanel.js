@@ -15,7 +15,8 @@ export default function RideRatingPanel({ account }) {
       const ended = payload?.ride || payload;
       if (!ended?.id || ended.status !== 'COMPLETED') return;
       const uid = account?.uid;
-      if (!uid || String(ended.userId) !== String(uid) && String(ended.driverId) !== String(uid)) return;
+      const isParticipant = uid && (String(ended.userId) === String(uid) || String(ended.driverId) === String(uid));
+      if (!isParticipant) return;
       setRide(ended);
       setRating(0);
       setComment('');
