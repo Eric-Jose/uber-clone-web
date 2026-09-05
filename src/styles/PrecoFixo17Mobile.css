@@ -1,0 +1,498 @@
+/* PreçoFixo17 — identidade mobile oficial (iPhone + Android)
+   Referência visual: preto profundo + laranja, cards escuros, cantos robustos,
+   tipografia forte e mapa integrado ao mesmo sistema visual. */
+:root {
+  --pf17-black: #020506;
+  --pf17-bg: #05080a;
+  --pf17-surface: #0a1014;
+  --pf17-surface-2: #10171c;
+  --pf17-border: #27323a;
+  --pf17-text: #f7f8fa;
+  --pf17-muted: #98a4ad;
+  --pf17-orange: #ff6b00;
+  --pf17-orange-2: #ff8b1f;
+  --pf17-green: #27c96f;
+  --pf17-red: #ef3d20;
+  --pf17-radius: 20px;
+  --pf17-shadow: 0 18px 45px rgba(0,0,0,.48);
+}
+
+html,
+body,
+#root { min-height: 100%; background: var(--pf17-black); }
+
+body {
+  margin: 0;
+  color: var(--pf17-text);
+  background: var(--pf17-black) !important;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overscroll-behavior-y: none;
+}
+
+button,
+input,
+textarea,
+select { -webkit-tap-highlight-color: transparent; }
+
+button { min-height: 48px; }
+
+/* O produto é mobile-first: em telas maiores, preservamos o canvas estreito para testes fiéis ao telefone. */
+.account-shell,
+.home-page,
+.auth-container,
+.driver-registration-container,
+.payment-container,
+.admin-login-container,
+.admin-live,
+.admin-dashboard,
+.hp,
+.user-profile-container,
+.notification-center {
+  width: 100%;
+  max-width: 680px;
+  margin-left: auto;
+  margin-right: auto;
+  min-height: 100svh;
+  background: var(--pf17-bg) !important;
+  color: var(--pf17-text) !important;
+}
+
+.account-topbar {
+  height: calc(64px + env(safe-area-inset-top));
+  padding: calc(10px + env(safe-area-inset-top)) 16px 10px;
+  background: linear-gradient(180deg, rgba(2,5,6,.98), rgba(7,11,14,.96)) !important;
+  border-bottom: 1px solid rgba(255,107,0,.72) !important;
+  box-shadow: 0 10px 30px rgba(0,0,0,.42) !important;
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+.account-brand {
+  font-size: 21px !important;
+  line-height: 1 !important;
+  letter-spacing: -.04em !important;
+  text-transform: none !important;
+  text-shadow: 0 2px 14px rgba(255,107,0,.12);
+}
+.account-brand span { color: #fff !important; }
+.account-brand strong { color: var(--pf17-orange) !important; }
+
+.account-profile-trigger {
+  width: 44px !important;
+  height: 44px !important;
+  border: 2px solid var(--pf17-orange) !important;
+  background: #0d1419 !important;
+  box-shadow: 0 6px 18px rgba(0,0,0,.3);
+}
+
+.account-content {
+  padding-top: calc(64px + env(safe-area-inset-top)) !important;
+  padding-bottom: calc(94px + env(safe-area-inset-bottom)) !important;
+  background: var(--pf17-bg) !important;
+}
+
+.app-bottom-nav {
+  left: 50% !important;
+  bottom: calc(10px + env(safe-area-inset-bottom)) !important;
+  width: calc(100% - 18px) !important;
+  max-width: 640px !important;
+  gap: 5px !important;
+  padding: 7px !important;
+  border: 1px solid #2a3740 !important;
+  border-radius: 22px !important;
+  background: rgba(2,5,7,.96) !important;
+  box-shadow: 0 18px 45px rgba(0,0,0,.60) !important;
+}
+.app-nav-item {
+  min-height: 56px !important;
+  border-radius: 16px !important;
+  color: #a6b0b7 !important;
+  font-size: 10px !important;
+  font-weight: 850 !important;
+  letter-spacing: .01em;
+}
+.app-nav-item.active {
+  background: linear-gradient(135deg, var(--pf17-orange-2), var(--pf17-orange)) !important;
+  color: #fff !important;
+  box-shadow: 0 8px 24px rgba(255,107,0,.26) !important;
+}
+.app-nav-icon { font-size: 20px !important; }
+
+/* Home / abertura */
+.home-page {
+  padding: max(18px, env(safe-area-inset-top)) 14px calc(22px + env(safe-area-inset-bottom)) !important;
+  display: block !important;
+  overflow-y: auto !important;
+  background:
+    radial-gradient(circle at 50% -12%, rgba(255,107,0,.22), transparent 32%),
+    linear-gradient(180deg, #030608 0%, #05080a 55%, #020506 100%) !important;
+}
+.home-hero {
+  width: 100% !important;
+  min-height: calc(100svh - 36px) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 18px !important;
+  padding: 18px !important;
+  border: 1px solid #26323a !important;
+  border-radius: 26px !important;
+  background: linear-gradient(160deg, #070b0e, #0c1318 58%, #070a0c) !important;
+  box-shadow: var(--pf17-shadow), inset 0 0 0 1px rgba(255,255,255,.025) !important;
+}
+.home-copy { max-width: none !important; }
+.home-brand-lockup {
+  display: grid !important;
+  grid-template-columns: auto auto auto !important;
+  align-items: end !important;
+  gap: 5px !important;
+  margin-bottom: 12px !important;
+}
+.home-brand-lockup span {
+  font-size: clamp(28px, 10vw, 44px) !important;
+  color: #fff !important;
+}
+.home-brand-lockup strong {
+  font-size: clamp(34px, 12vw, 52px) !important;
+  color: var(--pf17-orange) !important;
+}
+.home-brand-lockup em {
+  font-size: clamp(52px, 17vw, 86px) !important;
+  color: #fff !important;
+  text-shadow: 4px 4px 0 var(--pf17-orange) !important;
+}
+.home-tagline {
+  padding: 8px 10px !important;
+  background: var(--pf17-orange) !important;
+  border-radius: 5px !important;
+  font-size: 10px !important;
+  box-shadow: 0 8px 22px rgba(255,107,0,.18) !important;
+}
+.home-hero h1 {
+  margin: 18px 0 8px !important;
+  font-size: clamp(32px, 10vw, 48px) !important;
+  line-height: .98 !important;
+}
+.home-hero h1 strong { color: var(--pf17-orange) !important; }
+.home-hero p {
+  margin-bottom: 16px !important;
+  font-size: 14px !important;
+  line-height: 1.55 !important;
+  color: #c7cdd1 !important;
+}
+.home-feature-row { gap: 6px !important; margin-bottom: 18px !important; }
+.home-feature-row span {
+  padding: 8px 10px !important;
+  border: 1px solid #2b3941 !important;
+  background: #0c1216 !important;
+  color: #e9edf0 !important;
+  font-size: 10px !important;
+}
+.home-buttons { max-width: none !important; gap: 9px !important; }
+.btn-home {
+  min-height: 54px !important;
+  border-radius: 15px !important;
+  background: linear-gradient(135deg, var(--pf17-orange-2), var(--pf17-orange)) !important;
+  box-shadow: 0 12px 26px rgba(255,107,0,.22) !important;
+}
+.btn-home.secondary {
+  background: transparent !important;
+  color: #fff !important;
+  border: 1px solid var(--pf17-orange) !important;
+}
+.home-admin-link { color: #7d8991 !important; margin-top: 8px !important; }
+.home-visual {
+  min-height: 260px !important;
+  padding: 16px 8px 12px !important;
+  border-radius: 22px !important;
+  background: radial-gradient(circle at 50% 30%, rgba(255,107,0,.19), transparent 44%), linear-gradient(145deg, #12191e, #06090b) !important;
+  border: 1px solid #2a353d !important;
+}
+.home-price-card {
+  right: 12px !important;
+  top: 10px !important;
+  width: 92px !important;
+  height: 84px !important;
+  padding: 8px !important;
+  border-color: #fff !important;
+  border-radius: 12px !important;
+  background: linear-gradient(145deg, var(--pf17-orange-2), #dc4900) !important;
+}
+.home-price-card b { font-size: 46px !important; }
+.home-price-card small { font-size: 12px !important; }
+.home-price-card span { font-size: 7px !important; }
+.home-car { height: 190px !important; margin-top: 28px; }
+.home-car-real { max-width: 96% !important; }
+.home-visual-caption { left: 10px !important; right: 10px !important; bottom: 10px !important; padding: 8px 10px !important; }
+.home-visual-caption b { font-size: 11px !important; }
+.home-visual-caption span { font-size: 8px !important; }
+
+/* Auth, cadastro, pagamento e cartões de conteúdo */
+.auth-container,
+.driver-registration-container,
+.payment-container,
+.admin-login-container,
+.admin-live,
+.admin-dashboard,
+.hp,
+.user-profile-container,
+.notification-center {
+  padding-left: 12px !important;
+  padding-right: 12px !important;
+  padding-top: calc(12px + env(safe-area-inset-top)) !important;
+  padding-bottom: calc(24px + env(safe-area-inset-bottom)) !important;
+}
+
+.auth-card,
+.registration-card,
+.payment-card,
+.admin-login-card,
+.admin-live .box,
+.admin-dashboard .stat-card,
+.admin-dashboard .drivers-section,
+.admin-dashboard .finance-section,
+.admin-dashboard .settings-section,
+.admin-dashboard .setting-card,
+.hp .hc,
+.user-profile-container .profile-card,
+.user-profile-container .profile-header,
+.notification-center .notification-item {
+  width: 100% !important;
+  border-radius: var(--pf17-radius) !important;
+  background: linear-gradient(160deg, #0a1014, #0d1419) !important;
+  border: 1px solid var(--pf17-border) !important;
+  box-shadow: var(--pf17-shadow) !important;
+}
+
+.auth-card,
+.registration-card,
+.payment-card,
+.admin-login-card { padding: 20px !important; }
+
+.auth-card input,
+.registration-card input,
+.registration-card select,
+.registration-card textarea,
+.payment-card input,
+.admin-live input,
+.admin-dashboard input,
+.user-profile-container input,
+.user-profile-container select,
+.user-profile-container textarea {
+  width: 100% !important;
+  min-height: 52px !important;
+  border-radius: 15px !important;
+  background: #0a1014 !important;
+  color: #fff !important;
+  border: 1px solid #2b3941 !important;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.015) !important;
+}
+
+.auth-card button,
+.registration-card .btn-primary,
+.payment-card .btn-pay,
+.admin-dashboard .btn-action,
+.admin-dashboard .btn-submit,
+.user-profile-container .btn-edit,
+.user-profile-container .btn-save,
+.notification-center .filter-btn.active {
+  min-height: 52px !important;
+  border-radius: 15px !important;
+  background: linear-gradient(135deg, var(--pf17-orange-2), var(--pf17-orange)) !important;
+  color: #fff !important;
+  border: 0 !important;
+  box-shadow: 0 10px 25px rgba(255,107,0,.19) !important;
+}
+
+.auth-card a,
+.registration-card a,
+.user-profile-container a { color: var(--pf17-orange-2) !important; }
+.auth-card label,
+.registration-card label,
+.payment-card label,
+.admin-live label,
+.admin-dashboard label { color: #d8dee2 !important; }
+
+/* Mapa passageiro + motorista */
+.rp {
+  background: #020506 !important;
+  color: #fff !important;
+  min-height: 100svh !important;
+}
+.rp .rm {
+  position: fixed !important;
+  inset: 0 !important;
+  background: #0b1115 !important;
+}
+.rp .rm .leaflet-tile-pane {
+  filter: brightness(.52) saturate(.62) contrast(1.05) !important;
+}
+.rp .rm .leaflet-overlay-pane path {
+  stroke: var(--pf17-orange) !important;
+}
+.rp .panel {
+  position: fixed !important;
+  left: 9px !important;
+  right: 9px !important;
+  bottom: calc(88px + env(safe-area-inset-bottom)) !important;
+  top: auto !important;
+  width: auto !important;
+  max-width: none !important;
+  transform: none !important;
+  margin: 0 !important;
+}
+.rp .panel > .card {
+  max-height: min(62svh, 520px) !important;
+  overflow-y: auto !important;
+  padding: 16px !important;
+  border-radius: 24px !important;
+  background: linear-gradient(160deg, rgba(7,11,14,.98), rgba(12,18,23,.98)) !important;
+  border: 1px solid #2a3740 !important;
+  box-shadow: 0 22px 60px rgba(0,0,0,.62) !important;
+  color: #fff !important;
+}
+.rp .panel > .card::before {
+  width: 48px !important;
+  height: 4px !important;
+  border-radius: 999px !important;
+  background: var(--pf17-orange) !important;
+  margin-bottom: 14px !important;
+}
+.rp .row { gap: 8px !important; }
+.rp .input {
+  min-height: 52px !important;
+  border-radius: 15px !important;
+  background: #0b1217 !important;
+  color: #fff !important;
+  border: 1px solid #2b3942 !important;
+  font-size: 15px !important;
+}
+.rp .suggest {
+  background: #0a1014 !important;
+  border: 1px solid #2a3740 !important;
+  border-radius: 15px !important;
+  box-shadow: 0 15px 35px rgba(0,0,0,.45) !important;
+}
+.rp .suggest button {
+  min-height: 52px !important;
+  background: transparent !important;
+  color: #eef2f4 !important;
+  border-bottom: 1px solid #1f2a31 !important;
+}
+.rp .suggest button:active,
+.rp .suggest button:hover { background: rgba(255,107,0,.10) !important; }
+.rp .grid { gap: 9px !important; }
+.rp .info {
+  background: #0f171c !important;
+  border: 1px solid #26323a !important;
+  color: #fff !important;
+  border-radius: 15px !important;
+  padding: 12px !important;
+}
+.rp .info b { color: #9da9b1 !important; }
+.rp .btn {
+  min-height: 50px !important;
+  border-radius: 15px !important;
+}
+.rp .primary {
+  background: linear-gradient(135deg, var(--pf17-orange-2), var(--pf17-orange)) !important;
+  color: #fff !important;
+  box-shadow: 0 10px 24px rgba(255,107,0,.2) !important;
+}
+.rp .light { background: #121a20 !important; color: #fff !important; border: 1px solid #29363e !important; }
+.rp .danger { background: #9e2d1d !important; color: #fff !important; }
+.rp .err { background: rgba(239,61,32,.14) !important; color: #ffb3a6 !important; border: 1px solid rgba(239,61,32,.28) !important; }
+.rp .ok { background: rgba(39,201,111,.12) !important; color: #baf3d1 !important; border: 1px solid rgba(39,201,111,.25) !important; }
+.rp .muted { color: #97a4ad !important; }
+.rp .bar { background: #202a31 !important; }
+.rp .bar i { background: linear-gradient(90deg, var(--pf17-orange), var(--pf17-orange-2)) !important; }
+.rp .avatar { background: #11191f !important; border: 1px solid #344149 !important; }
+.rp .leaflet-control-zoom {
+  margin-right: 12px !important;
+  margin-bottom: calc(180px + env(safe-area-inset-bottom)) !important;
+}
+.rp .leaflet-control-zoom a {
+  width: 42px !important;
+  height: 42px !important;
+  line-height: 40px !important;
+  background: #0b1115 !important;
+  color: #fff !important;
+  border: 1px solid #2c3941 !important;
+}
+.rp .leaflet-control-attribution {
+  background: rgba(3,6,8,.76) !important;
+  color: #8f9aa2 !important;
+}
+.rp .leaflet-control-attribution a { color: var(--pf17-orange-2) !important; }
+
+/* Perfil / histórico / notificações */
+.hp h1,
+.user-profile-container h1,
+.user-profile-container h2,
+.notification-center h1,
+.notification-center h2 { color: #fff !important; }
+.hp .muted,
+.user-profile-container .profile-info p,
+.user-profile-container .user-type,
+.user-profile-container .profile-card p,
+.notification-center .notification-content p,
+.notification-center .timestamp { color: var(--pf17-muted) !important; }
+.hp .ride,
+.user-profile-container .stat-item {
+  border-radius: 16px !important;
+  background: #0e161b !important;
+  border: 1px solid #28353d !important;
+  border-left: 3px solid var(--pf17-orange) !important;
+}
+.hp .pill,
+.notification-center .unread-badge,
+.notification-center .filter-btn.active { background: var(--pf17-orange) !important; color: #fff !important; }
+.user-profile-container .stat-number,
+.user-profile-container .rating { color: var(--pf17-orange) !important; }
+.user-profile-container .btn-cancel,
+.user-profile-container .btn-option { background: #121a20 !important; color: #fff !important; border: 1px solid #29363e !important; border-radius: 15px !important; }
+.user-profile-container .btn-logout { background: #0c1115 !important; color: #fff !important; border: 1px solid #2b3740 !important; border-radius: 15px !important; }
+
+/* Admin mobile */
+.admin-dashboard .dashboard-nav,
+.admin-live .card { background: #0a1014 !important; border: 1px solid #27333b !important; }
+.admin-dashboard .nav-btn { color: #a9b4bb !important; }
+.admin-dashboard .nav-btn.active { background: var(--pf17-orange) !important; color: #fff !important; }
+.admin-live table,
+.admin-live th,
+.admin-live td {
+  background: #070d11 !important;
+  color: #fff !important;
+  border-color: #27333b !important;
+}
+
+/* Cadastro motorista */
+.driver-registration-container .registration-header {
+  background: linear-gradient(145deg, #070b0e, #121a20) !important;
+  border-top: 2px solid var(--pf17-orange) !important;
+}
+.driver-registration-container .step span { background: #1b252c !important; color: #dae0e4 !important; }
+.driver-registration-container .step.active span { background: var(--pf17-orange) !important; color: #fff !important; }
+.driver-registration-container .file-upload { background: rgba(255,107,0,.08) !important; border-color: rgba(255,107,0,.55) !important; }
+
+/* iOS: evita zoom involuntário nos inputs */
+@supports (-webkit-touch-callout: none) {
+  input,
+  textarea,
+  select { font-size: 16px !important; }
+}
+
+@media (min-width: 681px) {
+  .account-shell,
+  .home-page,
+  .auth-container,
+  .driver-registration-container,
+  .payment-container,
+  .admin-login-container,
+  .admin-live,
+  .admin-dashboard,
+  .hp,
+  .user-profile-container,
+  .notification-center { box-shadow: 0 0 80px rgba(0,0,0,.35); }
+}
