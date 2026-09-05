@@ -18,15 +18,9 @@ export default ({ config }) => ({
   android: {
     ...(config.android || {}),
     package: 'com.precofixo17.app',
-    adaptiveIcon: {
-      backgroundColor: '#ff6a00',
-      foregroundImage: './assets/icon-foreground.png'
-    },
     permissions: ['ACCESS_COARSE_LOCATION', 'ACCESS_FINE_LOCATION']
   },
-  plugins: [
-    'expo-location'
-  ],
+  plugins: ['expo-location'],
   extra: {
     ...(config.extra || {}),
     backendUrl: 'https://uber-clone-backend-production.up.railway.app'
