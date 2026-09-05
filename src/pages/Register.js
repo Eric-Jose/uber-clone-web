@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import '../styles/Auth.css';
-import { syncFirebaseRegistration } from '../firebase';
 import { BACKEND_URL } from '../config';
 
 function Register({ onRegisterSuccess, onBackToLogin }) {
@@ -27,13 +26,13 @@ function Register({ onRegisterSuccess, onBackToLogin }) {
       if (!response.ok) throw new Error(data.error || 'Erro ao registrar');
       if (!data.token || !data.user) throw new Error('Resposta de cadastro incompleta.');
 
-      // Firebase é sincronização auxiliar; o cadastro principal já foi criado
-      // pelo backend com Firebase Admin e a sessão JWT abaixo é persistida.
-      try { await syncFirebaseRegistration(normalizedEmail, formData.password); } catch (_) {}
+      // O backend é a autoridade da conta e da sessão. Persistimos o JWT
+      // imediatamente para que o cadastro não dependa do Firebase Auth
+      // nem provoque troca de sessão/deslogamento após concluir.
       localStorage.setItem('token', data.token);
       localStorage.setItem('user', JSON.stringify(data.user));
       setSuccess('✅ Cadastro realizado com sucesso!');
-      setTimeout(() => onRegisterSuccess(data.user), 700);
+      setTimeout(() => onRegisterSuccess(data.user), 300);
     } catch (err) {
       setError(err.message || 'Erro ao registrar');
     } finally { setLoading(false); }
@@ -42,7 +41,7 @@ function Register({ onRegisterSuccess, onBackToLogin }) {
   return (
     <div className="auth-container">
       <div className="auth-card large">
-        <div className="auth-header"><h1>🚗 UberClone</h1><p>Crie sua conta e comece!</p></div>
+        <div className="auth-header"><h1>🚗 PreçoFixo17</h1><p>Crie sua conta e comece!</p></div>
         {error && <div className="error-message">❌ {error}</div>}
         {success && <div className="success-message">{success}</div>}
         <form onSubmit={handleRegister} className="auth-form">
