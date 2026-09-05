@@ -5,6 +5,7 @@ class WebSocketService {
   constructor() {
     this.socket = null;
     this.activeRideId = null;
+    this.cancelRefreshBound = false;
   }
 
   connect() {
@@ -24,12 +25,27 @@ class WebSocketService {
         if (this.activeRideId) this.socket.emit('join-ride-room', this.activeRideId);
       });
       this.socket.on('connect_error', (error) => console.warn('Socket.IO:', error?.message || 'falha de conexão'));
+      this.bindPassengerCancellationRefresh();
     }
     return this.socket;
   }
 
+  bindPassengerCancellationRefresh() {
+    if (this.cancelRefreshBound || !this.socket) return;
+    this.cancelRefreshBound = true;
+    this.socket.on('ride-cancelled', (payload) => {
+      const rideId = payload?.rideId || payload?.ride?.id;
+      let user = null;
+      try { user = JSON.parse(localStorage.getItem('user') || 'null'); } catch (_) {}
+      if (!rideId || String(rideId) !== String(this.activeRideId) || user?.userType !== 'passenger') return;
+      this.activeRideId = null;
+      window.setTimeout(() => window.location.reload(), 50);
+    });
+  }
+
   disconnect() {
     if (this.socket) { this.socket.disconnect(); this.socket = null; }
+    this.cancelRefreshBound = false;
   }
 
   ensureSocket() { return this.socket || this.connect(); }
