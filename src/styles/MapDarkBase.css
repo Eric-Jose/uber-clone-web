@@ -1,0 +1,54 @@
+/* PreçoFixo17 — base cartográfica escura compartilhada por passageiro e motorista. */
+.rp .rm,
+.driver-map-shell .driver-ride-map {
+  background: #070d11 !important;
+}
+
+/* Os tiles já são a camada escura; evita aplicar um filtro cinza que apague ruas e rótulos. */
+.rp .rm .leaflet-tile-pane,
+.driver-map-shell .leaflet-tile-pane {
+  filter: none !important;
+}
+
+.rp .rm .leaflet-control-zoom,
+.driver-map-shell .leaflet-control-zoom {
+  border-radius: 12px !important;
+  overflow: hidden !important;
+  border: 1px solid #303a41 !important;
+  box-shadow: 0 10px 25px rgba(0,0,0,.48) !important;
+}
+
+.rp .rm .leaflet-control-zoom a,
+.driver-map-shell .leaflet-control-zoom a {
+  width: 40px !important;
+  height: 40px !important;
+  line-height: 38px !important;
+  background: rgba(5,8,10,.94) !important;
+  color: #fff !important;
+  border: 0 !important;
+  border-bottom: 1px solid #303a41 !important;
+  font-weight: 900 !important;
+}
+
+.rp .rm .leaflet-control-zoom a:last-child,
+.driver-map-shell .leaflet-control-zoom a:last-child {
+  border-bottom: 0 !important;
+}
+
+.rp .rm .leaflet-control-zoom a:hover,
+.driver-map-shell .leaflet-control-zoom a:hover {
+  background: #ff6b00 !important;
+  color: #fff !important;
+}
+
+.rp .rm .leaflet-control-attribution,
+.driver-map-shell .leaflet-control-attribution {
+  background: rgba(3,6,8,.76) !important;
+  color: #7f8b93 !important;
+  font-size: 9px !important;
+}
+
+.rp .rm .leaflet-control-attribution a,
+.driver-map-shell .leaflet-control-attribution a {
+  color: #ff8b1f !important;
+}
