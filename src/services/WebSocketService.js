@@ -6,27 +6,42 @@ class WebSocketService {
     this.socket = null;
     this.activeRideId = null;
     this.cancelRefreshBound = false;
+    this.authToken = null;
   }
 
   connect() {
-    if (this.socket?.connected) return this.socket;
     const token = localStorage.getItem('token');
-    if (!token) return null;
-    if (!this.socket) {
-      this.socket = io(BACKEND_URL, {
-        auth: { token },
-        transports: ['websocket', 'polling'],
-        reconnection: true,
-        reconnectionDelay: 1000,
-        reconnectionDelayMax: 5000,
-        reconnectionAttempts: 10
-      });
-      this.socket.on('connect', () => {
-        if (this.activeRideId) this.socket.emit('join-ride-room', this.activeRideId);
-      });
-      this.socket.on('connect_error', (error) => console.warn('Socket.IO:', error?.message || 'falha de conexão'));
-      this.bindPassengerCancellationRefresh();
+    if (!token) {
+      this.disconnect();
+      return null;
     }
+
+    // Nunca reutilizar um socket autenticado com o JWT de outra sessão.
+    if (this.socket && this.authToken && this.authToken !== token) {
+      this.disconnect();
+    }
+
+    if (this.socket?.connected) return this.socket;
+    if (this.socket) {
+      this.authToken = token;
+      return this.socket;
+    }
+
+    this.authToken = token;
+    this.socket = io(BACKEND_URL, {
+      auth: { token },
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      reconnectionAttempts: 10
+    });
+
+    this.socket.on('connect', () => {
+      if (this.activeRideId) this.socket.emit('join-ride-room', this.activeRideId);
+    });
+    this.socket.on('connect_error', (error) => console.warn('Socket.IO:', error?.message || 'falha de conexão'));
+    this.bindPassengerCancellationRefresh();
     return this.socket;
   }
 
@@ -44,7 +59,12 @@ class WebSocketService {
   }
 
   disconnect() {
-    if (this.socket) { this.socket.disconnect(); this.socket = null; }
+    if (this.socket) {
+      this.socket.removeAllListeners();
+      this.socket.disconnect();
+      this.socket = null;
+    }
+    this.authToken = null;
     this.cancelRefreshBound = false;
   }
 
@@ -68,13 +88,8 @@ class WebSocketService {
   sendLocation(rideId, driverId, latitude, longitude) { this.ensureSocket()?.emit('driver-location', { rideId, driverId, latitude, longitude, timestamp: new Date().toISOString() }); }
   sendPassengerLocation(rideId, latitude, longitude) { this.ensureSocket()?.emit('passenger-location', { rideId, latitude, longitude, timestamp: new Date().toISOString() }); }
 
-  requestRide(rideData) {
-    return Boolean(rideData?.rideId);
-  }
-
-  acceptRide(rideId, driverId) {
-    return Boolean(rideId && driverId);
-  }
+  requestRide(rideData) { return Boolean(rideData?.rideId); }
+  acceptRide(rideId, driverId) { return Boolean(rideId && driverId); }
 
   // Alterações de estado são feitas pela API HTTP. O Socket.IO apenas
   // distribui as notificações emitidas pelo backend após a alteração.
