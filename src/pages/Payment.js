@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
 import '../styles/Payment.css';
 
-function Payment({ rideId, amount, onPaymentSuccess }) {
+const FIXED_RIDE_PRICE = 17;
+
+function Payment({ rideId, onPaymentSuccess }) {
   const [paymentMethod, setPaymentMethod] = useState('pix');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
 
-  const total = Number(amount) || 0;
+  const total = FIXED_RIDE_PRICE;
 
   const handlePayment = async (e) => {
     e?.preventDefault();
@@ -31,7 +33,7 @@ function Payment({ rideId, amount, onPaymentSuccess }) {
 
         <div className="price-section">
           <div className="price-breakdown">
-            <div className="price-item total"><span>Total:</span><span>R$ {total.toFixed(2)}</span></div>
+            <div className="price-item total"><span>Preço fixo:</span><span>R$ {total.toFixed(2)}</span></div>
           </div>
         </div>
 
@@ -66,7 +68,7 @@ function Payment({ rideId, amount, onPaymentSuccess }) {
           </>}
           {message && <div className="error-message" role="status">{message}</div>}
           <button className="btn-pay" onClick={handlePayment} disabled={loading}>
-            {loading ? '⏳ Verificando...' : 'Continuar pagamento'}
+            {loading ? '⏳ Verificando...' : 'Continuar pagamento • R$ 17,00'}
           </button>
         </div>
       </div>
