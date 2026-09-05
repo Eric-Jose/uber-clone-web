@@ -21,9 +21,6 @@ class WebSocketService {
         reconnectionAttempts: 10
       });
       this.socket.on('connect', () => {
-        // A inscrição na sala de motoristas é feita pelo DriverDashboardPro
-        // quando o motorista está realmente online. Fazer aqui também causava
-        // duas leituras simultâneas de users/{uid} no Firebase RTDB.
         if (this.activeRideId) this.socket.emit('join-ride-room', this.activeRideId);
       });
       this.socket.on('connect_error', (error) => console.warn('Socket.IO:', error?.message || 'falha de conexão'));
@@ -55,17 +52,10 @@ class WebSocketService {
   sendLocation(rideId, driverId, latitude, longitude) { this.ensureSocket()?.emit('driver-location', { rideId, driverId, latitude, longitude, timestamp: new Date().toISOString() }); }
   sendPassengerLocation(rideId, latitude, longitude) { this.ensureSocket()?.emit('passenger-location', { rideId, latitude, longitude, timestamp: new Date().toISOString() }); }
 
-  // O POST /api/rides/request é o único responsável por criar e despachar a
-  // corrida. O Socket.IO fica responsável pelo realtime depois que a corrida
-  // existe. Não emitimos request-ride aqui para evitar duas buscas/ofertas
-  // simultâneas para a mesma corrida.
   requestRide(rideData) {
     return Boolean(rideData?.rideId);
   }
 
-  // A aceitação é feita de forma atômica pelo POST /api/rides/accept.
-  // Este método permanece por compatibilidade com telas antigas, mas não
-  // envia uma segunda aceitação pelo Socket.IO, evitando eventos duplicados.
   acceptRide(rideId, driverId) {
     return Boolean(rideId && driverId);
   }
@@ -79,13 +69,25 @@ class WebSocketService {
   onNewRideRequest(callback) { return this.ensureSocket()?.on('new-ride-request', callback); }
   onRideUnavailable(callback) { return this.ensureSocket()?.on('ride-unavailable', callback); }
   onRideAccepted(callback) { return this.ensureSocket()?.on('ride-accepted', callback); }
-  onRideStarted(callback) { const socket = this.ensureSocket(); if (!socket) return; socket.on('ride-started', callback); socket.on('ride-in_progress', callback); return socket; }
-  onRideEnded(callback) { const socket = this.ensureSocket(); if (!socket) return; socket.on('ride-ended', callback); socket.on('ride-completed', callback); return socket; }
+  onRideStarted(callback) {
+    const socket = this.ensureSocket();
+    if (!socket) return;
+    socket.on('ride-started', callback);
+    socket.on('ride_in_progress', callback);
+    return socket;
+  }
+  onRideEnded(callback) {
+    const socket = this.ensureSocket();
+    if (!socket) return;
+    socket.on('ride-ended', callback);
+    socket.on('ride-completed', callback);
+    return socket;
+  }
   onRideCancelled(callback) { return this.ensureSocket()?.on('ride-cancelled', callback); }
   off(event, callback) {
     if (!this.socket) return;
     this.socket.off(event, callback);
-    if (event === 'ride-started') this.socket.off('ride-in_progress', callback);
+    if (event === 'ride-started') this.socket.off('ride_in_progress', callback);
     if (event === 'ride-ended') this.socket.off('ride-completed', callback);
   }
 }
