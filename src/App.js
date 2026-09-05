@@ -18,7 +18,7 @@ import ResetPassword from './pages/ResetPassword';
 import LiveStatsBar from './pages/LiveStatsBar';
 import ProfilePhoto from './pages/ProfilePhoto';
 import RideRatingPanel from './pages/RideRatingPanel';
-import { auth, onAuthStateChanged, syncBackendSession, logoutFirebase } from './firebase';
+import { logoutFirebase } from './firebase';
 import { BACKEND_URL } from './config';
 import { dispatchRideSearch } from './services/rideDispatch';
 import './App.css';
@@ -40,8 +40,42 @@ function App() {
   const [currentPage, setCurrentPage] = useState(getInitialPage);
   const [user, setUser] = useState(() => getStored('user'));
   const [admin, setAdmin] = useState(() => getStored('admin'));
-  useEffect(() => { if (!auth) return undefined; let cancelled = false; const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => { if (!firebaseUser || cancelled || getStored('admin')) return; const data = await syncBackendSession(firebaseUser); if (cancelled || !data?.user) return; setUser(data.user); setAdmin(null); localStorage.removeItem('admin'); localStorage.removeItem('adminToken'); setCurrentPage((page) => isUserPage(page, data.user) ? page : resolveUserPage(data.user)); }); return () => { cancelled = true; unsubscribe(); }; }, []);
-  useEffect(() => { if (admin && localStorage.getItem('adminToken')) return undefined; const token = localStorage.getItem('token'); const storedUser = getStored('user'); if (!token || !storedUser) return undefined; let cancelled = false; const verifySession = async () => { try { const response = await fetch(`${BACKEND_URL}/api/auth/verify`, { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' }); const data = await response.json().catch(() => ({})); if (cancelled) return; if (response.ok && data.valid && data.user) { localStorage.setItem('user', JSON.stringify(data.user)); setUser(data.user); setCurrentPage((page) => isUserPage(page, data.user) ? page : resolveUserPage(data.user)); } else if (response.status === 401) { localStorage.removeItem('token'); localStorage.removeItem('user'); setUser(null); setCurrentPage('login'); } } catch (_) {} }; verifySession(); const interval = window.setInterval(verifySession, currentPage === 'driver-pending' ? 5000 : 30000); const onFocus = () => verifySession(); const onVisibility = () => { if (document.visibilityState === 'visible') verifySession(); }; window.addEventListener('focus', onFocus); document.addEventListener('visibilitychange', onVisibility); return () => { cancelled = true; window.clearInterval(interval); window.removeEventListener('focus', onFocus); document.removeEventListener('visibilitychange', onVisibility); }; }, [admin, currentPage]);
+
+  // O backend/JWT é a única autoridade da sessão do usuário.
+  // Não ouvimos onAuthStateChanged aqui porque uma sessão Firebase persistida
+  // de uma conta anterior poderia sobrescrever o JWT recém-criado e trocar o usuário.
+  useEffect(() => {
+    if (admin && localStorage.getItem('adminToken')) return undefined;
+    const token = localStorage.getItem('token');
+    const storedUser = getStored('user');
+    if (!token || !storedUser) return undefined;
+    let cancelled = false;
+    const verifySession = async () => {
+      try {
+        const response = await fetch(`${BACKEND_URL}/api/auth/verify`, { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' });
+        const data = await response.json().catch(() => ({}));
+        if (cancelled) return;
+        if (response.ok && data.valid && data.user) {
+          localStorage.setItem('user', JSON.stringify(data.user));
+          setUser(data.user);
+          setCurrentPage((page) => isUserPage(page, data.user) ? page : resolveUserPage(data.user));
+        } else if (response.status === 401) {
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          setUser(null);
+          setCurrentPage('login');
+        }
+      } catch (_) {}
+    };
+    verifySession();
+    const interval = window.setInterval(verifySession, currentPage === 'driver-pending' ? 5000 : 30000);
+    const onFocus = () => verifySession();
+    const onVisibility = () => { if (document.visibilityState === 'visible') verifySession(); };
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => { cancelled = true; window.clearInterval(interval); window.removeEventListener('focus', onFocus); document.removeEventListener('visibilitychange', onVisibility); };
+  }, [admin, currentPage]);
+
   useEffect(() => { const onPhoto = (event) => { const uid = event.detail?.uid; const storedUser = getStored('user'); const storedAdmin = getStored('admin'); if (storedUser && (!uid || storedUser.uid === uid)) setUser({ ...storedUser, profilePhoto: event.detail.photo || null }); if (storedAdmin && (!uid || storedAdmin.uid === uid)) setAdmin({ ...storedAdmin, profilePhoto: event.detail.photo || null }); }; window.addEventListener('profile-photo-updated', onPhoto); return () => window.removeEventListener('profile-photo-updated', onPhoto); }, []);
   const handleUserLogin = (userData) => { setUser(userData); setAdmin(null); localStorage.setItem('user', JSON.stringify(userData)); localStorage.removeItem('admin'); localStorage.removeItem('adminToken'); setCurrentPage(resolveUserPage(userData)); };
   const handleLogout = async () => { await logoutFirebase(); setUser(null); localStorage.removeItem('token'); localStorage.removeItem('user'); setCurrentPage('home'); };
