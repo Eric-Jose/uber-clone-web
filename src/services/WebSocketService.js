@@ -55,10 +55,12 @@ class WebSocketService {
   sendLocation(rideId, driverId, latitude, longitude) { this.ensureSocket()?.emit('driver-location', { rideId, driverId, latitude, longitude, timestamp: new Date().toISOString() }); }
   sendPassengerLocation(rideId, latitude, longitude) { this.ensureSocket()?.emit('passenger-location', { rideId, latitude, longitude, timestamp: new Date().toISOString() }); }
 
+  // O POST /api/rides/request é o único responsável por criar e despachar a
+  // corrida. O Socket.IO fica responsável pelo realtime depois que a corrida
+  // existe. Não emitimos request-ride aqui para evitar duas buscas/ofertas
+  // simultâneas para a mesma corrida.
   requestRide(rideData) {
-    const socket = this.ensureSocket(); if (!socket) return;
-    const emitRequest = () => socket.emit('request-ride', rideData);
-    if (socket.connected) emitRequest(); else socket.once('connect', emitRequest);
+    return Boolean(rideData?.rideId);
   }
   acceptRide(rideId, driverId) { this.ensureSocket()?.emit('accept-ride', { rideId, driverId }); }
   startRide(rideId, driverId) { this.ensureSocket()?.emit('start-ride', { rideId, driverId }); }
