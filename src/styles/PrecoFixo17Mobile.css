@@ -476,6 +476,63 @@ button { min-height: 48px; }
 .driver-registration-container .step.active span { background: var(--pf17-orange) !important; color: #fff !important; }
 .driver-registration-container .file-upload { background: rgba(255,107,0,.08) !important; border-color: rgba(255,107,0,.55) !important; }
 
+/* Driver: o painel também segue o padrão oficial em vez do CSS legado claro. */
+.driver-pro {
+  min-height: 100svh !important;
+  margin: 0 !important;
+  padding: 12px !important;
+  background: var(--pf17-bg) !important;
+  color: var(--pf17-text) !important;
+}
+.driver-box {
+  width: 100% !important;
+  box-sizing: border-box !important;
+  margin: 0 auto 12px !important;
+  padding: 16px !important;
+  border-radius: 22px !important;
+  background: linear-gradient(160deg, #0a1014, #0d1419) !important;
+  border: 1px solid var(--pf17-border) !important;
+  box-shadow: var(--pf17-shadow) !important;
+}
+.driver-pro h1,
+.driver-pro h2,
+.driver-pro b { color: #fff !important; }
+.driver-muted { color: var(--pf17-muted) !important; }
+.driver-info,
+.driver-request {
+  background: #0f171c !important;
+  color: #fff !important;
+  border: 1px solid #28353d !important;
+  border-radius: 16px !important;
+}
+.driver-request { border-left: 3px solid var(--pf17-orange) !important; }
+.driver-accent {
+  background: linear-gradient(135deg, var(--pf17-orange-2), var(--pf17-orange)) !important;
+  color: #fff !important;
+  box-shadow: 0 10px 24px rgba(255,107,0,.2) !important;
+}
+.driver-on { background: #179c58 !important; color: #fff !important; }
+.driver-off,
+.driver-danger { background: #9e2d1d !important; color: #fff !important; }
+.driver-arrival {
+  background: rgba(255,107,0,.08) !important;
+  border: 1px solid rgba(255,107,0,.34) !important;
+  color: #fff !important;
+  border-radius: 16px !important;
+}
+.driver-success {
+  background: rgba(39,201,111,.10) !important;
+  border: 1px solid rgba(39,201,111,.30) !important;
+  border-radius: 18px !important;
+}
+.driver-map-shell {
+  border: 1px solid #2b3941 !important;
+  border-radius: 20px !important;
+  box-shadow: 0 18px 45px rgba(0,0,0,.48) !important;
+}
+.driver-ride-map .leaflet-tile-pane { filter: brightness(.52) saturate(.62) contrast(1.05) !important; }
+.driver-ride-map + .driver-map-caption { background: #0b1115 !important; color: #fff !important; border-color: var(--pf17-orange) !important; }
+
 /* iOS: evita zoom involuntário nos inputs */
 @supports (-webkit-touch-callout: none) {
   input,
@@ -495,4 +552,5 @@ button { min-height: 48px; }
   .hp,
   .user-profile-container,
   .notification-center { box-shadow: 0 0 80px rgba(0,0,0,.35); }
+  .driver-pro { max-width: 680px !important; margin-left: auto !important; margin-right: auto !important; }
 }
