@@ -30,9 +30,14 @@ function Login({ onLoginSuccess }) {
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || 'Não foi possível entrar na conta.');
+      if (!data.token || !data.user) throw new Error('Resposta de login incompleta.');
+
+      // O backend/Firebase Auth é a fonte principal da autenticação.
+      // A sincronização do SDK Firebase no navegador é auxiliar e não pode
+      // impedir o acesso quando ela falhar por configuração/cache do browser.
       localStorage.setItem('token', data.token);
       localStorage.setItem('user', JSON.stringify(data.user));
-      await syncFirebaseLogin(normalizedEmail, password);
+      try { await syncFirebaseLogin(normalizedEmail, password); } catch (_) {}
       onLoginSuccess(data.user);
     } catch (err) {
       setError(err.message || 'Não foi possível fazer login.');
