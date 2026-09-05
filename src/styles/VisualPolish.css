@@ -8,12 +8,10 @@
   --pf17-shadow: 0 18px 55px rgba(0,0,0,.14);
 }
 
-/* Microinterações consistentes */
 button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; }
 button { transition: transform .16s ease, filter .16s ease, box-shadow .16s ease, background-color .16s ease, border-color .16s ease; }
 button:active { transform: scale(.985); }
 
-/* Cabeçalho autenticado */
 .account-topbar {
   height: 66px !important;
   padding: 10px max(16px, env(safe-area-inset-left)) 10px max(16px, env(safe-area-inset-right)) !important;
@@ -23,7 +21,6 @@ button:active { transform: scale(.985); }
 .account-profile-trigger { box-shadow: 0 0 0 3px rgba(255,90,0,.10), 0 8px 22px rgba(0,0,0,.24); }
 .account-profile-trigger:hover { filter: brightness(1.08); }
 
-/* Barra inferior com aparência de app nativo */
 .app-bottom-nav {
   bottom: max(10px, env(safe-area-inset-bottom)) !important;
   box-shadow: 0 20px 50px rgba(0,0,0,.32), 0 0 0 1px rgba(255,255,255,.04) inset !important;
@@ -62,11 +59,206 @@ button:active { transform: scale(.985); }
 .rp .panel .primary { box-shadow: 0 10px 24px rgba(255,90,0,.22); }
 .rp .panel .primary:hover { filter: brightness(1.04); box-shadow: 0 14px 30px rgba(255,90,0,.28); }
 
+/* Novo painel do passageiro: mapa dominante + folha de corrida premium. */
+.rp {
+  background: #e9edf1 !important;
+  isolation: isolate;
+}
+.rp .rm {
+  z-index: 0;
+  filter: saturate(.96) contrast(1.02);
+}
+.rp .panel {
+  z-index: 20 !important;
+  top: auto !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: max(14px, env(safe-area-inset-bottom)) !important;
+  max-width: none !important;
+  width: 100% !important;
+  margin: 0 !important;
+  padding: 0 14px !important;
+  box-sizing: border-box !important;
+  pointer-events: none !important;
+}
+.rp .panel > .card {
+  pointer-events: auto !important;
+  background: rgba(255,255,255,.97) !important;
+  backdrop-filter: blur(18px) saturate(1.08);
+  -webkit-backdrop-filter: blur(18px) saturate(1.08);
+  color: var(--pf17-ink) !important;
+  border: 1px solid rgba(255,255,255,.88) !important;
+  border-radius: 26px !important;
+  padding: 16px !important;
+  box-shadow: 0 24px 60px rgba(0,0,0,.22), 0 6px 18px rgba(0,0,0,.12) !important;
+}
+.rp .panel > .card::before {
+  content: '';
+  display: block;
+  width: 42px;
+  height: 4px;
+  border-radius: 99px;
+  margin: 0 auto 12px;
+  background: #d8dadd;
+}
+.rp .panel h2 {
+  color: #111214 !important;
+  font-size: clamp(22px, 3vw, 30px) !important;
+  letter-spacing: -.02em;
+  line-height: 1.05;
+}
+.rp .panel .muted {
+  color: #6b7280 !important;
+}
+.rp .panel .row > div:first-child {
+  min-width: 0;
+}
+.rp .panel .row > div:first-child .muted {
+  margin-top: 5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rp .panel .row > .btn.light,
+.rp .panel .row > button.light {
+  width: 44px !important;
+  height: 44px !important;
+  min-width: 44px !important;
+  padding: 0 !important;
+  border-radius: 50% !important;
+  font-size: 0 !important;
+  background: #f1f2f4 !important;
+  position: relative;
+  flex: 0 0 44px;
+}
+.rp .panel .row > button.light::after {
+  content: '⌂';
+  font-size: 19px;
+  color: #202124;
+}
+.rp .panel .input {
+  min-height: 56px !important;
+  padding: 16px 18px 16px 48px !important;
+  border: 1px solid #e5e7eb !important;
+  border-radius: 18px !important;
+  background: #f7f8f9 !important;
+  color: #111827 !important;
+  font-size: 16px !important;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.85) !important;
+}
+.rp .panel .input::placeholder { color: #8a919b !important; }
+.rp .panel > .card > div[style*="marginTop: 12"]:has(.input) { position: relative; }
+.rp .panel > .card > div[style*="marginTop: 12"]:has(.input)::before {
+  content: '⌖';
+  position: absolute;
+  left: 17px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--pf17-orange);
+  background: rgba(255,90,0,.10);
+  font-size: 14px;
+  z-index: 1;
+  pointer-events: none;
+}
+.rp .panel .suggest {
+  margin-top: 8px !important;
+  border: 1px solid #eceef0 !important;
+  border-radius: 18px !important;
+  background: #fff !important;
+  box-shadow: 0 16px 35px rgba(0,0,0,.12) !important;
+  overflow: auto;
+}
+.rp .panel .suggest button {
+  min-height: 62px !important;
+  padding: 13px 15px !important;
+  background: #fff !important;
+  color: #15171a !important;
+  border-bottom: 1px solid #eff0f2 !important;
+}
+.rp .panel .suggest button b {
+  display: block;
+  font-size: 14px;
+  margin-bottom: 3px;
+}
+.rp .panel .grid {
+  gap: 8px !important;
+}
+.rp .panel .info {
+  background: #f6f7f8 !important;
+  border: 1px solid #eceef0;
+  border-radius: 16px !important;
+  padding: 12px !important;
+}
+.rp .panel .info b {
+  color: #8a919b !important;
+}
+.rp .panel .actions {
+  gap: 9px !important;
+  margin-top: 12px !important;
+}
+.rp .panel .btn {
+  min-height: 50px;
+  border-radius: 16px !important;
+  font-size: 14px;
+}
+.rp .panel .primary {
+  background: linear-gradient(135deg, #ff690f, #ff5a00) !important;
+  color: #fff !important;
+  box-shadow: 0 14px 30px rgba(255,90,0,.28) !important;
+}
+.rp .panel .light {
+  background: #eef0f2 !important;
+  color: #17181a !important;
+}
+.rp .panel .danger {
+  background: #17181a !important;
+  color: #fff !important;
+}
+.rp .panel .ok {
+  margin-top: 10px !important;
+  background: #f3fbf5 !important;
+  color: #1f6b36 !important;
+  border: 1px solid #d9f0df;
+  border-radius: 14px !important;
+}
+.rp .panel .err {
+  margin-top: 10px !important;
+  background: #fff3f2 !important;
+  color: #a32920 !important;
+  border: 1px solid #f5d4d0;
+  border-radius: 14px !important;
+}
+.rp .panel .bar {
+  height: 8px !important;
+  background: #eceef0 !important;
+}
+.rp .panel .bar i {
+  background: linear-gradient(90deg, #ff6a10, #ff5a00) !important;
+}
+.rp .panel .status {
+  padding: 11px !important;
+  margin-top: 12px !important;
+  border-radius: 16px;
+  background: #f7f8f9;
+  border: 1px solid #eceef0;
+}
+.rp .panel .avatar {
+  width: 48px !important;
+  height: 48px !important;
+  border: 2px solid #fff;
+  box-shadow: 0 4px 12px rgba(0,0,0,.12);
+}
+
 /* Evita que o conteúdo fique escondido atrás da navegação em aparelhos baixos. */
 @media (max-height: 700px) and (max-width: 700px) {
   .account-content { padding-bottom: 82px !important; }
   .rp .panel { bottom: 82px !important; }
-  .rp .panel > .card { max-height: 58svh !important; }
+  .rp .panel > .card { max-height: 58svh !important; overflow-y: auto !important; }
 }
 
 @media (max-width: 760px) {
@@ -78,6 +270,35 @@ button:active { transform: scale(.985); }
   .home-brand-lockup { margin-bottom: 12px !important; }
   .home-hero h1 { font-size: clamp(34px, 11vw, 50px) !important; }
   .home-hero p { font-size: 15px !important; }
+  .rp .panel { padding: 0 8px !important; bottom: max(8px, env(safe-area-inset-bottom)) !important; }
+  .rp .panel > .card { border-radius: 24px !important; padding: 14px !important; }
+  .rp .panel h2 { font-size: 22px !important; }
+  .rp .panel .input { min-height: 54px !important; }
+}
+
+@media (min-width: 761px) {
+  .rp .panel {
+    top: 24px !important;
+    bottom: auto !important;
+    left: 24px !important;
+    right: auto !important;
+    width: min(430px, calc(100% - 48px)) !important;
+    padding: 0 !important;
+  }
+  .rp .panel > .card { border-radius: 24px !important; }
+  .rp .panel::after {
+    content: 'PREÇO FIXO17 • CORRIDA PARTICULAR';
+    display: block;
+    margin: 10px 5px 0;
+    padding: 8px 11px;
+    width: fit-content;
+    border-radius: 999px;
+    background: rgba(11,11,12,.88);
+    color: rgba(255,255,255,.9);
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: .08em;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
