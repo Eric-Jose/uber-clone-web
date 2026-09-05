@@ -32,9 +32,6 @@ function Login({ onLoginSuccess }) {
       if (!response.ok) throw new Error(data.error || 'Não foi possível entrar na conta.');
       if (!data.token || !data.user) throw new Error('Resposta de login incompleta.');
 
-      // O backend/Firebase Auth é a fonte principal da autenticação.
-      // A sincronização do SDK Firebase no navegador é auxiliar e não pode
-      // impedir o acesso quando ela falhar por configuração/cache do browser.
       localStorage.setItem('token', data.token);
       localStorage.setItem('user', JSON.stringify(data.user));
       try { await syncFirebaseLogin(normalizedEmail, password); } catch (_) {}
@@ -50,21 +47,33 @@ function Login({ onLoginSuccess }) {
     <div className="auth-container login-page">
       <div className="login-shell">
         <aside className="login-showcase" aria-hidden="true">
-          <div className="login-brand">UberClone</div>
-          <div className="login-showcase-copy">
-            <span className="login-eyebrow">Transporte simples e seguro</span>
-            <h1>Chegue onde precisa.</h1>
-            <p>Solicite uma corrida, acompanhe seu motorista em tempo real e tenha tudo na palma da mão.</p>
+          <div className="login-showcase-glow" />
+          <div className="login-brand-lockup">
+            <span className="login-brand-main">PREÇO</span>
+            <span className="login-brand-orange">FIXO</span>
+            <span className="login-brand-price"><small>R$</small>17</span>
           </div>
-          <div className="login-showcase-meta"><span>●</span> Experiência rápida no celular</div>
+          <div className="login-showcase-car" aria-hidden="true"><span>🚘</span></div>
+          <div className="login-showcase-copy">
+            <span className="login-eyebrow">CORRIDA PARTICULAR</span>
+            <h1>Preço justo.<br /><em>Sem surpresa.</em></h1>
+            <p>Corridas rápidas, segurança e conforto para você chegar ao seu destino.</p>
+          </div>
+          <div className="login-benefits">
+            <span><b>R$</b> Preço justo</span>
+            <span><b>✓</b> Segurança</span>
+            <span><b>●</b> Atendimento</span>
+            <span><b>◷</b> Pontualidade</span>
+          </div>
+          <div className="login-showcase-meta"><strong>17</strong> na cidade · rápido, seguro e sem complicação</div>
         </aside>
 
         <main className="auth-card login-card">
-          <div className="mobile-login-brand">UberClone</div>
+          <div className="mobile-login-brand"><span>PREÇO</span><strong>FIXO</strong><b>17</b></div>
           <div className="auth-header login-header">
-            <div className="login-icon" aria-hidden="true">↗</div>
-            <h1>Entrar</h1>
-            <p>Acesse sua conta para continuar.</p>
+            <div className="login-welcome-badge">17</div>
+            <h1>Bem-vindo!</h1>
+            <p>Entre na sua conta para continuar.</p>
           </div>
 
           {error && <div className="error-message" role="alert"><span>!</span>{error}</div>}
@@ -84,16 +93,17 @@ function Login({ onLoginSuccess }) {
             </div>
 
             <div className="login-actions-row">
-              <span>Conta protegida</span>
-              <button type="button" className="auth-link-button forgot-link" onClick={() => setShowForgotPassword(true)}>Esqueci a senha</button>
+              <span>🔒 Conta protegida</span>
+              <button type="button" className="auth-link-button forgot-link" onClick={() => setShowForgotPassword(true)}>Esqueci minha senha</button>
             </div>
 
-            <button type="submit" className="btn-primary login-submit" disabled={loading}>{loading ? 'Entrando…' : 'Continuar'}</button>
+            <button type="submit" className="btn-primary login-submit" disabled={loading}>{loading ? 'Entrando…' : 'ENTRAR'}</button>
           </form>
 
           <div className="login-divider"><span>ou</span></div>
-          <button type="button" className="login-outline-button" onClick={() => setShowRegister(true)}>Criar uma conta</button>
-          <p className="login-legal">Ao continuar, você concorda com os termos e a política de privacidade do UberClone.</p>
+          <button type="button" className="login-outline-button" onClick={() => setShowRegister(true)}>CRIAR MINHA CONTA</button>
+          <p className="login-legal">Ao continuar, você concorda com os termos e a política de privacidade do PreçoFixo17.</p>
+          <div className="login-footer-slogan">🚗 <strong>PreçoFixo17</strong> · conforto e confiança para você.</div>
         </main>
       </div>
     </div>
