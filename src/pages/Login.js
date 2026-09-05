@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import '../styles/Auth.css';
 import Register from './Register';
 import ForgotPassword from './ForgotPassword';
-import { syncFirebaseLogin } from '../firebase';
 import { BACKEND_URL } from '../config';
 
 function Login({ onLoginSuccess }) {
@@ -32,9 +31,11 @@ function Login({ onLoginSuccess }) {
       if (!response.ok) throw new Error(data.error || 'Não foi possível entrar na conta.');
       if (!data.token || !data.user) throw new Error('Resposta de login incompleta.');
 
+      // A sessão oficial do aplicativo é o JWT emitido pelo backend.
+      // Firebase Auth fica apenas como integração opcional e não pode sobrescrever
+      // a sessão recém-criada ou provocar logout/troca de usuário inesperada.
       localStorage.setItem('token', data.token);
       localStorage.setItem('user', JSON.stringify(data.user));
-      try { await syncFirebaseLogin(normalizedEmail, password); } catch (_) {}
       onLoginSuccess(data.user);
     } catch (err) {
       setError(err.message || 'Não foi possível fazer login.');
