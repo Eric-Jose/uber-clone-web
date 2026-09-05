@@ -8,7 +8,7 @@ import Register from './pages/Register';
 import UserProfile from './pages/UserProfile';
 import DriverRegistration from './pages/DriverRegistration';
 import DriverDashboardMapPro from './pages/DriverDashboardMapPro';
-import DriverNavigationMap from './components/DriverNavigationMap';
+import DriverPanelMap from './components/DriverPanelMap';
 import AdminPanel from './pages/AdminPanel';
 import Payment from './pages/Payment';
 import NotificationCenter from './pages/NotificationCenter';
@@ -60,7 +60,7 @@ function App() {
     case 'ride-history': return user ? <AccountPanel account={user} currentPage="ride-history" onNavigate={navigate}><RideHistoryPro user={user} onBack={() => setCurrentPage(user.userType === 'driver' ? 'driver-dashboard' : 'ride')} /></AccountPanel> : <Login onLoginSuccess={handleUserLogin} />;
     case 'driver-registration': return <DriverRegistration onRegistrationSubmit={handleDriverRegistration} />;
     case 'driver-pending': return <DriverPending user={user} onLogout={handleLogout} />;
-    case 'driver-dashboard': return user ? <AccountPanel account={user} currentPage="driver-dashboard" onNavigate={navigate}><LiveStatsBar userType="driver" /><DriverNavigationMap /><DriverDashboardMapPro /></AccountPanel> : <Login onLoginSuccess={handleUserLogin} />;
+    case 'driver-dashboard': return user ? <AccountPanel account={user} currentPage="driver-dashboard" onNavigate={navigate}><LiveStatsBar userType="driver" /><DriverPanelMap /><DriverDashboardMapPro /></AccountPanel> : <Login onLoginSuccess={handleUserLogin} />;
     case 'profile': return user ? <AccountPanel account={user} currentPage="profile" onNavigate={navigate}><UserProfile user={user} onLogout={handleLogout} onRequestRide={() => setCurrentPage('ride')} onHistory={() => setCurrentPage('ride-history')} /></AccountPanel> : <Login onLoginSuccess={handleUserLogin} />;
     case 'admin-panel': return <AdminPanel />;
     case 'payment': return <Payment rideId="RIDE001" amount={32.5} onPaymentSuccess={() => {}} />;
