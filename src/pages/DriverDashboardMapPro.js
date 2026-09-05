@@ -5,6 +5,7 @@ import WebSocketService from '../services/WebSocketService';
 import DriverRideMap from '../components/DriverRideMap';
 
 const ACTIVE = ['ACCEPTED', 'IN_PROGRESS'];
+const ARRIVAL_RADIUS_KM = 0.5;
 
 function errorMessage(error, fallback) {
   var data = error && error.response && error.response.data;
@@ -82,24 +83,29 @@ export default function DriverDashboardMapPro() {
       var current = { lat: Number(position.coords.latitude), lng: Number(position.coords.longitude) };
       if (!Number.isFinite(current.lat) || !Number.isFinite(current.lng)) return;
       setDriverLocation(current);
-      if (rideRef.current && rideRef.current.id) {
-        WebSocketService.sendLocation(rideRef.current.id, uid, current.lat, current.lng);
-      } else if (onlineRef.current) {
-        WebSocketService.sendPresenceLocation(current.lat, current.lng);
-      }
+      if (rideRef.current && rideRef.current.id) WebSocketService.sendLocation(rideRef.current.id, uid, current.lat, current.lng);
+      else if (onlineRef.current) WebSocketService.sendPresenceLocation(current.lat, current.lng);
     }, function () {}, { enableHighAccuracy: true, maximumAge: 1500, timeout: 10000 });
   }
 
   async function getFreshLocation() {
-    if (!navigator.geolocation) throw new Error('Localização não disponível neste dispositivo.');
-    var position = await new Promise(function (resolve, reject) {
-      navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, maximumAge: 0, timeout: 12000 });
-    });
-    var loc = { lat: Number(position.coords.latitude), lng: Number(position.coords.longitude) };
-    if (!Number.isFinite(loc.lat) || !Number.isFinite(loc.lng)) throw new Error('Não foi possível obter sua localização atual.');
-    setDriverLocation(loc);
-    if (rideRef.current && rideRef.current.id) WebSocketService.sendLocation(rideRef.current.id, uid, loc.lat, loc.lng);
-    return loc;
+    if (!navigator.geolocation) {
+      if (driverLocation) return driverLocation;
+      throw new Error('Localização não disponível neste dispositivo.');
+    }
+    try {
+      var position = await new Promise(function (resolve, reject) {
+        navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, maximumAge: 0, timeout: 12000 });
+      });
+      var loc = { lat: Number(position.coords.latitude), lng: Number(position.coords.longitude) };
+      if (!Number.isFinite(loc.lat) || !Number.isFinite(loc.lng)) throw new Error('Localização inválida.');
+      setDriverLocation(loc);
+      if (rideRef.current && rideRef.current.id) WebSocketService.sendLocation(rideRef.current.id, uid, loc.lat, loc.lng);
+      return loc;
+    } catch (gpsError) {
+      if (driverLocation) return driverLocation;
+      throw new Error('Não foi possível obter sua localização atual. Ative o GPS para iniciar a corrida.');
+    }
   }
 
   function clearRide(text) {
@@ -124,11 +130,10 @@ export default function DriverDashboardMapPro() {
 
   async function syncDriverLocationToServer(loc) {
     if (!loc || !uid) return;
-    try {
-      await axios.post(BACKEND_URL + '/api/drivers/' + uid + '/status', { isOnline: true, currentLocation: loc }, { headers: headers, timeout: 10000 });
-      onlineRef.current = true;
-      setOnline(true);
-    } catch (_) {}
+    var response = await axios.post(BACKEND_URL + '/api/drivers/' + uid + '/status', { isOnline: true, currentLocation: loc }, { headers: headers, timeout: 10000 });
+    if (!response || response.status < 200 || response.status >= 300) throw new Error('Não foi possível sincronizar a localização do motorista.');
+    onlineRef.current = true;
+    setOnline(true);
   }
 
   useEffect(function () {
@@ -159,7 +164,11 @@ export default function DriverDashboardMapPro() {
       setRequests(function (items) { return items.filter(function (x) { return String(x.id) !== String(item.id); }); });
       startLocation();
       WebSocketService.joinRideRoom(item.id);
-      setMessage('Corrida aceita. Rota até o passageiro aberta automaticamente.');
+      setMessage('Corrida aceita. Navegação interna até o passageiro ativada.');
+      setTimeout(function () {
+        var map = document.querySelector('.driver-map-shell');
+        if (map && typeof map.scrollIntoView === 'function') map.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 100);
     }
 
     function onPassengerLocation(data) {
@@ -174,7 +183,7 @@ export default function DriverDashboardMapPro() {
       var item = data && (data.ride || data);
       if (!item || String(item.id) !== String(rideRef.current && rideRef.current.id)) return;
       setRide(function (current) { return Object.assign({}, current || {}, item, { status: 'IN_PROGRESS' }); });
-      setMessage('Passageiro embarcou. Rota até o destino ativada.');
+      setMessage('✅ Corrida iniciada. Rota interna até o destino ativada.');
     }
 
     function onEnded(data) {
@@ -229,12 +238,18 @@ export default function DriverDashboardMapPro() {
       var isOnline = !!(driver && driver.status === 'approved' && driver.isOnline === true);
       onlineRef.current = isOnline;
       setOnline(isOnline);
+      var recoveredLocation = locationOf(driver && (driver.currentLocation || driver.location));
+      if (recoveredLocation) setDriverLocation(recoveredLocation);
       if (activeRide && String(activeRide.driverId) === String(uid)) {
         setRide(activeRide);
         setPassengerLocation(ridePickup(activeRide));
         startLocation();
         WebSocketService.connect();
         WebSocketService.joinRideRoom(activeRide.id);
+        setTimeout(function () {
+          var map = document.querySelector('.driver-map-shell');
+          if (map && typeof map.scrollIntoView === 'function') map.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 150);
       } else if (isOnline) {
         WebSocketService.connect();
         WebSocketService.joinDriversRoom();
@@ -331,7 +346,11 @@ export default function DriverDashboardMapPro() {
       startLocation();
       WebSocketService.connect();
       WebSocketService.joinRideRoom(accepted.id);
-      setMessage('Corrida aceita. Rota até o passageiro aberta automaticamente.');
+      setMessage('Corrida aceita. Navegação interna até o passageiro ativada.');
+      setTimeout(function () {
+        var map = document.querySelector('.driver-map-shell');
+        if (map && typeof map.scrollIntoView === 'function') map.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 100);
     } catch (error) {
       setMessage(errorMessage(error, 'Não foi possível aceitar a corrida.'));
     } finally { setBusy(false); }
@@ -341,7 +360,7 @@ export default function DriverDashboardMapPro() {
     var currentRide = rideRef.current;
     if (!currentRide || !currentRide.id || busy) return;
     setBusy(true);
-    setMessage(nextStatus === 'IN_PROGRESS' ? 'Atualizando sua localização e iniciando a corrida…' : 'Finalizando corrida…');
+    setMessage(nextStatus === 'IN_PROGRESS' ? 'Atualizando GPS e iniciando a corrida…' : 'Finalizando corrida…');
     try {
       var loc = await getFreshLocation();
       await syncDriverLocationToServer(loc);
@@ -349,10 +368,9 @@ export default function DriverDashboardMapPro() {
       var updated = response.data && response.data.ride ? response.data.ride : Object.assign({}, currentRide, { status: nextStatus });
       if (nextStatus === 'IN_PROGRESS') {
         setRide(updated);
-        WebSocketService.startRide(currentRide.id, uid);
-        setMessage('✅ Corrida iniciada. Rota até o destino ativada.');
+        WebSocketService.joinRideRoom(currentRide.id);
+        setMessage('✅ Corrida iniciada. O mapa interno agora mostra o destino.');
       } else if (nextStatus === 'COMPLETED') {
-        WebSocketService.endRide(currentRide.id, uid);
         finishLocal(updated);
       }
     } catch (error) {
@@ -365,7 +383,6 @@ export default function DriverDashboardMapPro() {
     setBusy(true);
     try {
       await axios.patch(BACKEND_URL + '/api/rides/' + rideRef.current.id + '/status', { status: 'CANCELLED', cancellationReason: 'Cancelada pelo motorista' }, { headers: headers, timeout: 12000 });
-      WebSocketService.cancelRide(rideRef.current.id);
       clearRide('Corrida cancelada.');
     } catch (error) {
       setMessage(errorMessage(error, 'Erro ao cancelar a corrida.'));
@@ -376,6 +393,8 @@ export default function DriverDashboardMapPro() {
 
   var pickupDistance = distanceKm(driverLocation, ridePickup(ride));
   var destinationDistance = distanceKm(driverLocation, rideDestination(ride));
+  var nearPickup = Number.isFinite(pickupDistance) && pickupDistance <= ARRIVAL_RADIUS_KM;
+  var nearDestination = Number.isFinite(destinationDistance) && destinationDistance <= ARRIVAL_RADIUS_KM;
 
   return <div className="driver-pro">
     <style>{'.driver-pro{min-height:100vh;background:#f3f4f6;padding:18px;font-family:Arial,sans-serif}.driver-box{max-width:920px;margin:0 auto 15px;background:#fff;border-radius:18px;padding:18px;box-shadow:0 4px 18px rgba(0,0,0,.08)}.driver-row{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap}.driver-btn{border:0;border-radius:12px;padding:12px 16px;font-weight:800;cursor:pointer}.driver-btn:disabled{opacity:.55;cursor:not-allowed}.driver-on{background:#16a34a;color:#fff}.driver-off,.driver-danger{background:#dc2626;color:#fff}.driver-accent{background:#ff6a00;color:#fff}.driver-muted{color:#69717b;font-size:13px;line-height:1.45}.driver-avatar{width:52px;height:52px;border-radius:50%;background:#111;color:#fff;display:flex;align-items:center;justify-content:center;overflow:hidden;font-weight:800}.driver-avatar img{width:100%;height:100%;object-fit:cover}.driver-person{display:flex;gap:10px;align-items:center}.driver-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.driver-info{background:#f5f6f7;border-radius:12px;padding:11px}.driver-info b{display:block;color:#6b7280;font-size:12px;margin-bottom:4px}.driver-request{border:1px solid #e1e5e9;border-radius:15px;padding:14px;margin-top:10px}.driver-arrival{margin-top:12px;border-radius:14px;padding:12px;background:#fff7ed;border:1px solid #fed7aa}.driver-success{background:#ecfdf5;border:1px solid #a7f3d0;border-radius:16px;padding:16px}@media(max-width:640px){.driver-pro{padding:10px}.driver-grid{grid-template-columns:1fr}.driver-btn{width:100%}}'}</style>
@@ -385,6 +404,6 @@ export default function DriverDashboardMapPro() {
 
     {!ride && !completed && requests.length > 0 && <div className="driver-box"><h2 style={{ marginTop: 0 }}>🚕 Corridas disponíveis</h2>{requests.map(function (request) { return <div className="driver-request" key={request.id}><div className="driver-row"><div><b>{request.passengerName || 'Passageiro'}</b><div className="driver-muted">{request.origin && request.origin.address ? request.origin.address : 'Embarque'} → {request.destination && request.destination.address ? request.destination.address : 'Destino'}</div></div><b>R$ {Number(request.price || 0).toFixed(2)}</b></div><button className="driver-btn driver-accent" style={{ marginTop: 10, width: '100%' }} disabled={busy} onClick={function () { acceptRide(request); }}>Aceitar corrida</button></div>; })}</div>}
 
-    {ride && <div className="driver-box"><div className="driver-row"><h2 style={{ margin: 0 }}>📍 Corrida atual</h2><b>{ride.status === 'ACCEPTED' ? 'A CAMINHO DO PASSAGEIRO' : 'EM CORRIDA'}</b></div><div className="driver-person" style={{ marginTop: 12 }}><Avatar photo={ride.passengerProfilePhoto} name={ride.passengerName} /><div><b>{ride.passengerName || 'Passageiro'}</b><div className="driver-muted">{ride.status === 'ACCEPTED' ? 'Dirija até o embarque.' : 'Passageiro embarcado. Siga a rota até o destino.'}</div></div></div><div className="driver-grid" style={{ marginTop: 12 }}><div className="driver-info"><b>Embarque</b>{(ride.origin && ride.origin.address) || '—'}{Number.isFinite(pickupDistance) && <div className="driver-muted">{pickupDistance.toFixed(2)} km</div>}</div><div className="driver-info"><b>Destino</b>{(ride.destination && ride.destination.address) || '—'}{ride.status === 'IN_PROGRESS' && Number.isFinite(destinationDistance) && <div className="driver-muted">{destinationDistance.toFixed(2)} km</div>}</div><div className="driver-info"><b>Valor</b>R$ {Number(ride.price || 0).toFixed(2)}</div><div className="driver-info"><b>Distância</b>{Number(ride.distance || 0).toFixed(2)} km</div></div><DriverRideMap driverLocation={driverLocation} passengerLocation={passengerLocation || (ride.origin && ride.origin.location) || null} destinationLocation={ride.destination && ride.destination.location} status={ride.status} />{ride.status === 'ACCEPTED' && <div className="driver-arrival"><b>🚘 A caminho do passageiro</b><div className="driver-muted">Ao tocar em iniciar, o PreçoFixo17 atualiza seu GPS e solicita a abertura da corrida ao servidor.</div></div>}{ride.status === 'IN_PROGRESS' && <div className="driver-arrival"><b>🧭 Rota até o destino ativa</b><div className="driver-muted">A posição é atualizada continuamente pelo GPS.</div></div>}<div className="driver-row" style={{ marginTop: 14 }}>{ride.status === 'ACCEPTED' && <button className="driver-btn driver-accent" disabled={busy} onClick={function () { updateStatus('IN_PROGRESS'); }}>{busy ? 'Iniciando…' : '👤 Passageiro embarcou • Iniciar corrida'}</button>}{ride.status === 'IN_PROGRESS' && <button className="driver-btn driver-on" disabled={busy} onClick={function () { updateStatus('COMPLETED'); }}>{busy ? 'Finalizando…' : '✅ Finalizar corrida'}</button>}{ACTIVE.indexOf(ride.status) !== -1 && <button className="driver-btn driver-danger" disabled={busy} onClick={cancelRide}>Cancelar corrida</button>}</div></div>}
+    {ride && <div className="driver-box"><div className="driver-row"><h2 style={{ margin: 0 }}>📍 Corrida atual</h2><b>{ride.status === 'ACCEPTED' ? 'A CAMINHO DO PASSAGEIRO' : 'EM CORRIDA'}</b></div><div className="driver-person" style={{ marginTop: 12 }}><Avatar photo={ride.passengerProfilePhoto} name={ride.passengerName} /><div><b>{ride.passengerName || 'Passageiro'}</b><div className="driver-muted">{ride.status === 'ACCEPTED' ? 'Dirija até o embarque.' : 'Passageiro embarcado. Siga a rota até o destino.'}</div></div></div><div className="driver-grid" style={{ marginTop: 12 }}><div className="driver-info"><b>Embarque</b>{(ride.origin && ride.origin.address) || '—'}{Number.isFinite(pickupDistance) && <div className="driver-muted">{pickupDistance.toFixed(2)} km</div>}</div><div className="driver-info"><b>Destino</b>{(ride.destination && ride.destination.address) || '—'}{ride.status === 'IN_PROGRESS' && Number.isFinite(destinationDistance) && <div className="driver-muted">{destinationDistance.toFixed(2)} km</div>}</div><div className="driver-info"><b>Valor</b>R$ {Number(ride.price || 0).toFixed(2)}</div><div className="driver-info"><b>Distância</b>{Number(ride.distance || 0).toFixed(2)} km</div></div><div style={{ marginTop: 12, display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}><b>🧭 Navegação interna PreçoFixo17</b><span className="driver-muted">Sem abrir outro aplicativo.</span></div><DriverRideMap driverLocation={driverLocation} passengerLocation={passengerLocation || (ride.origin && ride.origin.location) || null} destinationLocation={ride.destination && ride.destination.location} status={ride.status} />{ride.status === 'ACCEPTED' && <div className="driver-arrival"><b>{nearPickup ? '✅ Você está no embarque' : '🚘 Rota até o passageiro ativa'}</b><div className="driver-muted">{nearPickup ? 'Toque em “Passageiro embarcou • Iniciar corrida” para iniciar.' : 'O mapa permanece dentro do PreçoFixo17 enquanto você se aproxima.'}</div></div>}{ride.status === 'IN_PROGRESS' && <div className="driver-arrival"><b>{nearDestination ? '✅ Você chegou ao destino.' : '🧭 Rota até o destino ativa.'}</b><div className="driver-muted">A posição é atualizada continuamente pelo GPS.</div></div>}<div className="driver-row" style={{ marginTop: 14 }}>{ride.status === 'ACCEPTED' && <button className="driver-btn driver-accent" disabled={busy} onClick={function () { updateStatus('IN_PROGRESS'); }}>{busy ? 'Iniciando…' : '👤 Passageiro embarcou • Iniciar corrida'}</button>}{ride.status === 'IN_PROGRESS' && <button className="driver-btn driver-on" disabled={busy} onClick={function () { updateStatus('COMPLETED'); }}>{busy ? 'Finalizando…' : '✅ Finalizar corrida'}</button>}{ACTIVE.indexOf(ride.status) !== -1 && <button className="driver-btn driver-danger" disabled={busy} onClick={cancelRide}>Cancelar corrida</button>}</div></div>}
   </div>;
 }
