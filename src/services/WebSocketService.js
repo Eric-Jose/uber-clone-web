@@ -60,9 +60,11 @@ class WebSocketService {
     return Boolean(rideId && driverId);
   }
 
-  startRide(rideId, driverId) { this.ensureSocket()?.emit('start-ride', { rideId, driverId }); }
-  endRide(rideId, driverId) { this.ensureSocket()?.emit('end-ride', { rideId, driverId }); }
-  cancelRide(rideId) { if (rideId) this.ensureSocket()?.emit('ride-cancelled', { rideId }); }
+  // Alterações de estado são feitas pela API HTTP. O Socket.IO apenas
+  // distribui as notificações emitidas pelo backend após a alteração.
+  startRide(rideId, driverId) { return Boolean(rideId && driverId); }
+  endRide(rideId, driverId) { return Boolean(rideId && driverId); }
+  cancelRide(rideId) { return Boolean(rideId); }
 
   onDriverLocationUpdate(callback) { return this.ensureSocket()?.on('update-driver-location', callback); }
   onPassengerLocationUpdate(callback) { return this.ensureSocket()?.on('passenger-location-update', callback); }
