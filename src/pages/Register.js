@@ -3,7 +3,7 @@ import '../styles/Auth.css';
 import { syncFirebaseRegistration } from '../firebase';
 import { BACKEND_URL } from '../config';
 
-function Register({ onRegisterSuccess }) {
+function Register({ onRegisterSuccess, onBackToLogin }) {
   const [formData, setFormData] = useState({ name: '', email: '', phone: '', password: '', confirmPassword: '', userType: 'passenger' });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -25,9 +25,11 @@ function Register({ onRegisterSuccess }) {
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || 'Erro ao registrar');
+      if (!data.token || !data.user) throw new Error('Resposta de cadastro incompleta.');
 
-      // Cria/vincula a mesma conta no Firebase sem remover o registro do MongoDB.
-      await syncFirebaseRegistration(normalizedEmail, formData.password);
+      // Firebase é sincronização auxiliar; o cadastro principal já foi criado
+      // pelo backend com Firebase Admin e a sessão JWT abaixo é persistida.
+      try { await syncFirebaseRegistration(normalizedEmail, formData.password); } catch (_) {}
       localStorage.setItem('token', data.token);
       localStorage.setItem('user', JSON.stringify(data.user));
       setSuccess('✅ Cadastro realizado com sucesso!');
@@ -52,7 +54,7 @@ function Register({ onRegisterSuccess }) {
           <div className="form-group"><label htmlFor="confirmPassword">🔐 Confirmar Senha</label><input id="confirmPassword" type="password" name="confirmPassword" placeholder="Repita a senha" value={formData.confirmPassword} onChange={handleChange} required /></div>
           <button type="submit" className="btn-primary" disabled={loading}>{loading ? '⏳ Cadastrando...' : '✨ Criar Conta'}</button>
         </form>
-        <div className="auth-footer"><p>Já tem conta? <a href="#login">Faça login aqui</a></p></div>
+        <div className="auth-footer"><p>Já tem conta? <button type="button" onClick={() => onBackToLogin?.()} style={{ border: 0, background: 'none', padding: 0, font: 'inherit', cursor: 'pointer', textDecoration: 'underline' }}>Faça login aqui</button></p></div>
       </div>
     </div>
   );
