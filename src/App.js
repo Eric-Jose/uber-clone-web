@@ -26,6 +26,7 @@ import './styles/VisualPolish.css';
 import './styles/UnifiedVisual.css';
 import './styles/RideMapFinal.css';
 import './styles/FinalDarkTheme.css';
+import './styles/PrecoFixo17Mobile.css';
 
 const getStored = (key) => { try { return JSON.parse(localStorage.getItem(key) || 'null'); } catch (_) { return null; } };
 const resolveUserPage = (user) => { if (!user) return 'home'; if (user.userType !== 'driver') return 'ride'; if (user.driverApprovalStatus === 'approved') return 'driver-dashboard'; if (user.driverApprovalStatus === 'pending') return 'driver-pending'; return 'driver-registration'; };
