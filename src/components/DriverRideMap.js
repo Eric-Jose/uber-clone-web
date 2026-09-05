@@ -27,35 +27,95 @@ export default function DriverRideMap({ driverLocation, passengerLocation, desti
 
   useEffect(() => {
     if (!mapRef.current || mapInstanceRef.current) return undefined;
-    const map = L.map(mapRef.current, { zoomControl: true, attributionControl: true });
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap contributors' }).addTo(map);
+    const map = L.map(mapRef.current, {
+      zoomControl: true,
+      attributionControl: true,
+      zoomSnap: 0.5,
+      zoomDelta: 0.5,
+      preferCanvas: true,
+    });
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; OpenStreetMap contributors',
+      crossOrigin: true,
+    }).addTo(map);
     map.setView([-14.235, -51.925], 5);
     mapInstanceRef.current = map;
-    const resizeTimer = setTimeout(() => map.invalidateSize(), 120);
-    return () => { clearTimeout(resizeTimer); if (mapInstanceRef.current) { mapInstanceRef.current.remove(); mapInstanceRef.current = null; } driverMarkerRef.current = null; targetMarkerRef.current = null; routeLayerRef.current = null; };
+    const resizeTimer = setTimeout(() => map.invalidateSize(), 160);
+    return () => {
+      clearTimeout(resizeTimer);
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.remove();
+        mapInstanceRef.current = null;
+      }
+      driverMarkerRef.current = null;
+      targetMarkerRef.current = null;
+      routeLayerRef.current = null;
+    };
   }, []);
 
   useEffect(() => {
     const map = mapInstanceRef.current;
     if (!map) return;
     map.invalidateSize();
-    const markerIcon = (className, label) => L.divIcon({ className: 'driver-map-pin-wrapper', html: `<div class="driver-map-pin ${className}">${label}</div>`, iconSize: [40, 40], iconAnchor: [20, 20] });
+
+    const markerIcon = (className, label) => L.divIcon({
+      className: 'driver-map-pin-wrapper',
+      html: `<div class="driver-map-pin ${className}"><span>${label}</span></div>`,
+      iconSize: [48, 48],
+      iconAnchor: [24, 24],
+    });
+
     if (driver) {
-      if (!driverMarkerRef.current) driverMarkerRef.current = L.marker([driver.lat, driver.lng], { icon: markerIcon('driver-pin', '🚙') }).addTo(map);
-      else driverMarkerRef.current.setLatLng([driver.lat, driver.lng]);
-      driverMarkerRef.current.bindTooltip('Você', { direction: 'top', offset: [0, -18] });
+      if (!driverMarkerRef.current) {
+        driverMarkerRef.current = L.marker([driver.lat, driver.lng], {
+          icon: markerIcon('driver-pin', '🚙'),
+          zIndexOffset: 1000,
+        }).addTo(map);
+      } else {
+        driverMarkerRef.current.setLatLng([driver.lat, driver.lng]);
+      }
+      driverMarkerRef.current.bindTooltip('Você', {
+        direction: 'top',
+        offset: [0, -22],
+        opacity: 0.96,
+        className: 'driver-map-tooltip',
+      });
     }
+
     if (target) {
-      const label = status === 'IN_PROGRESS' ? '🏁' : '👤';
-      const title = status === 'IN_PROGRESS' ? 'Destino' : 'Passageiro';
-      if (!targetMarkerRef.current) targetMarkerRef.current = L.marker([target.lat, target.lng], { icon: markerIcon(status === 'IN_PROGRESS' ? 'destination-pin' : 'passenger-pin', label) }).addTo(map);
-      else { targetMarkerRef.current.setLatLng([target.lat, target.lng]); targetMarkerRef.current.setIcon(markerIcon(status === 'IN_PROGRESS' ? 'destination-pin' : 'passenger-pin', label)); }
-      targetMarkerRef.current.bindTooltip(title, { direction: 'top', offset: [0, -18] });
+      const isDestination = status === 'IN_PROGRESS';
+      const label = isDestination ? '🏁' : '👤';
+      const title = isDestination ? 'Destino' : 'Passageiro';
+      const pinClass = isDestination ? 'destination-pin' : 'passenger-pin';
+      if (!targetMarkerRef.current) {
+        targetMarkerRef.current = L.marker([target.lat, target.lng], {
+          icon: markerIcon(pinClass, label),
+          zIndexOffset: 900,
+        }).addTo(map);
+      } else {
+        targetMarkerRef.current.setLatLng([target.lat, target.lng]);
+        targetMarkerRef.current.setIcon(markerIcon(pinClass, label));
+      }
+      targetMarkerRef.current.bindTooltip(title, {
+        direction: 'top',
+        offset: [0, -22],
+        opacity: 0.96,
+        className: 'driver-map-tooltip',
+      });
+    } else if (targetMarkerRef.current) {
+      targetMarkerRef.current.remove();
+      targetMarkerRef.current = null;
     }
+
     const points = [driver, target].filter(Boolean).map((item) => [item.lat, item.lng]);
-    if (points.length === 2) map.fitBounds(L.latLngBounds(points).pad(0.25), { animate: true, maxZoom: 16 });
-    else if (driver) map.setView([driver.lat, driver.lng], Math.max(map.getZoom(), 15), { animate: true });
-    else if (target) map.setView([target.lat, target.lng], 15, { animate: true });
+    if (points.length === 2) {
+      map.fitBounds(L.latLngBounds(points).pad(0.25), { animate: true, maxZoom: 16 });
+    } else if (driver) {
+      map.setView([driver.lat, driver.lng], Math.max(map.getZoom(), 15), { animate: true });
+    } else if (target) {
+      map.setView([target.lat, target.lng], 15, { animate: true });
+    }
   }, [driverLocation, passengerLocation, destinationLocation, status]);
 
   useEffect(() => {
@@ -63,25 +123,83 @@ export default function DriverRideMap({ driverLocation, passengerLocation, desti
     if (!map || !driver || !target) return undefined;
     const requestId = ++routeRequestRef.current;
     const controller = new AbortController();
-    const fallback = () => {
+
+    const drawRoute = (latLngs, fallback = false) => {
       if (requestId !== routeRequestRef.current) return;
       if (routeLayerRef.current) routeLayerRef.current.remove();
-      routeLayerRef.current = L.polyline([[driver.lat, driver.lng], [target.lat, target.lng]], { color: '#ff5a00', weight: 6, opacity: 0.9, dashArray: '10 8', lineCap: 'round', lineJoin: 'round' }).addTo(map);
+      const group = L.layerGroup();
+      group.addLayer(L.polyline(latLngs, {
+        color: '#090c0f',
+        weight: 11,
+        opacity: 0.72,
+        lineCap: 'round',
+        lineJoin: 'round',
+      }));
+      group.addLayer(L.polyline(latLngs, {
+        color: '#ff6b00',
+        weight: fallback ? 5 : 6,
+        opacity: 0.98,
+        dashArray: fallback ? '10 8' : undefined,
+        lineCap: 'round',
+        lineJoin: 'round',
+      }));
+      group.addTo(map);
+      routeLayerRef.current = group;
     };
+
+    const fallback = () => drawRoute([[driver.lat, driver.lng], [target.lat, target.lng]], true);
     const url = `${ROUTE_URL}${driver.lng},${driver.lat};${target.lng},${target.lat}?overview=full&geometries=geojson&steps=false`;
+
     fetch(url, { signal: controller.signal })
       .then((response) => response.ok ? response.json() : Promise.reject(new Error('Rota indisponível')))
       .then((data) => {
-        if (requestId !== routeRequestRef.current || !data.routes || !data.routes[0]) { fallback(); return; }
-        const coordinates = data.routes[0].geometry?.coordinates || [];
-        const latLngs = coordinates.map(([lng, lat]) => [lat, lng]).filter(([lat, lng]) => Number.isFinite(lat) && Number.isFinite(lng));
-        if (!latLngs.length) { fallback(); return; }
-        if (routeLayerRef.current) routeLayerRef.current.remove();
-        routeLayerRef.current = L.polyline(latLngs, { color: '#ff5a00', weight: 6, opacity: 0.9, lineCap: 'round', lineJoin: 'round' }).addTo(map);
+        if (requestId !== routeRequestRef.current) return;
+        const coordinates = data.routes?.[0]?.geometry?.coordinates || [];
+        const latLngs = coordinates
+          .map(([lng, lat]) => [Number(lat), Number(lng)])
+          .filter(([lat, lng]) => Number.isFinite(lat) && Number.isFinite(lng));
+        if (!latLngs.length) {
+          fallback();
+          return;
+        }
+        drawRoute(latLngs, false);
       })
-      .catch(() => fallback());
+      .catch((error) => {
+        if (error?.name !== 'AbortError') fallback();
+      });
+
     return () => controller.abort();
   }, [driverLocation, passengerLocation, destinationLocation, status]);
 
-  return <div className="driver-map-shell"><div ref={mapRef} className="driver-ride-map" /><div className="driver-map-caption">{status === 'IN_PROGRESS' ? 'Rota até o destino' : 'Rota até o passageiro'}</div><style>{`.driver-map-shell{position:relative;margin-top:14px;border-radius:18px;overflow:hidden;border:1px solid #303030;background:#101010;box-shadow:0 12px 34px rgba(0,0,0,.32)}.driver-ride-map{height:390px;width:100%;z-index:1}.driver-map-caption{position:absolute;left:12px;bottom:12px;z-index:500;background:#101010;color:#fff;border:1px solid #ff5a00;border-radius:999px;padding:9px 13px;font:800 12px/1 Arial,sans-serif;box-shadow:0 5px 18px rgba(0,0,0,.35)}.driver-map-pin-wrapper{background:transparent;border:0}.driver-map-pin{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:3px solid #fff;box-shadow:0 3px 12px rgba(0,0,0,.3);font-size:19px}.driver-pin{background:#111}.passenger-pin{background:#ff5a00}.destination-pin{background:#ff5a00}@media(max-width:640px){.driver-ride-map{height:320px}.driver-map-caption{font-size:11px}}`}</style></div>;
+  const caption = status === 'IN_PROGRESS' ? 'Rota até o destino' : 'Rota até o passageiro';
+  const subcaption = status === 'IN_PROGRESS' ? 'Corrida em andamento' : 'A caminho do embarque';
+
+  return (
+    <div className="driver-map-shell">
+      <div className="driver-map-topbar">
+        <span className="driver-map-live-dot" />
+        <strong>{status === 'IN_PROGRESS' ? 'EM VIAGEM' : 'A CAMINHO'}</strong>
+        <span>{subcaption}</span>
+      </div>
+      <div ref={mapRef} className="driver-ride-map" />
+      <div className="driver-map-caption">
+        <b>{caption}</b>
+        <span>{status === 'IN_PROGRESS' ? 'Siga a rota destacada' : 'Chegue ao ponto de embarque'}</span>
+      </div>
+      <style>{`
+        .driver-map-shell{position:relative;margin-top:14px;border-radius:22px;overflow:hidden;border:1px solid #303a41;background:#080b0d;box-shadow:0 20px 55px rgba(0,0,0,.56),inset 0 0 0 1px rgba(255,255,255,.025)}
+        .driver-ride-map{height:420px;width:100%;z-index:1;background:#0b1014}
+        .driver-map-topbar{position:absolute;left:12px;right:12px;top:12px;z-index:500;display:flex;align-items:center;gap:8px;padding:10px 12px;border:1px solid rgba(255,255,255,.09);border-radius:14px;background:rgba(3,6,8,.82);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);box-shadow:0 10px 28px rgba(0,0,0,.38);font:800 10px/1 Arial,sans-serif;color:#fff;letter-spacing:.04em;text-transform:uppercase}
+        .driver-map-topbar span:last-child{margin-left:auto;color:#aab4ba;font-weight:700;letter-spacing:0;text-transform:none}
+        .driver-map-live-dot{width:8px;height:8px;border-radius:50%;background:#27c96f;box-shadow:0 0 0 5px rgba(39,201,111,.12),0 0 14px rgba(39,201,111,.42)}
+        .driver-map-caption{position:absolute;left:12px;right:12px;bottom:12px;z-index:500;display:flex;align-items:center;gap:8px;background:rgba(3,6,8,.91);color:#fff;border:1px solid rgba(255,107,0,.74);border-radius:15px;padding:10px 12px;box-shadow:0 8px 25px rgba(0,0,0,.42);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);font:800 12px/1.15 Arial,sans-serif}
+        .driver-map-caption b{font-size:12px}.driver-map-caption span{margin-left:auto;color:#c0c8cd;font-size:10px;font-weight:700}
+        .driver-map-pin-wrapper{background:transparent;border:0}.driver-map-pin{position:relative;width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:3px solid #fff;box-shadow:0 7px 22px rgba(0,0,0,.48),0 0 0 6px rgba(255,255,255,.08);font-size:20px}.driver-map-pin span{transform:translateY(-1px)}.driver-pin{background:#111820}.driver-pin::after{content:"";position:absolute;inset:-10px;border:1px solid rgba(255,107,0,.34);border-radius:50%}.passenger-pin,.destination-pin{background:#ff6b00;box-shadow:0 7px 22px rgba(255,107,0,.34),0 0 0 6px rgba(255,107,0,.10)}
+        .driver-map-tooltip{background:#05080a!important;color:#fff!important;border:1px solid #303a41!important;border-radius:9px!important;box-shadow:0 8px 20px rgba(0,0,0,.45)!important;font:800 11px/1 Arial,sans-serif!important;padding:6px 8px!important}.driver-map-tooltip:before{border-top-color:#05080a!important}
+        .driver-map-shell .leaflet-control-zoom{border:1px solid #303a41!important;border-radius:12px!important;overflow:hidden;box-shadow:0 10px 25px rgba(0,0,0,.46)!important;margin-top:74px!important;margin-right:12px!important}.driver-map-shell .leaflet-control-zoom a{width:40px!important;height:40px!important;line-height:38px!important;background:rgba(5,8,10,.92)!important;color:#fff!important;border:0!important;border-bottom:1px solid #303a41!important;font-weight:900!important}.driver-map-shell .leaflet-control-zoom a:last-child{border-bottom:0!important}.driver-map-shell .leaflet-control-zoom a:hover{background:#ff6b00!important;color:#fff!important}
+        .driver-map-shell .leaflet-control-attribution{background:rgba(3,6,8,.70)!important;color:#7f8b93!important;font-size:9px!important}.driver-map-shell .leaflet-control-attribution a{color:#ff8b1f!important}
+        @media(max-width:640px){.driver-ride-map{height:335px}.driver-map-topbar{top:10px;left:10px;right:10px}.driver-map-caption{left:10px;right:10px;bottom:10px}.driver-map-caption span{display:none}.driver-map-shell .leaflet-control-zoom{margin-top:68px!important;margin-right:9px!important}}
+      `}</style>
+    </div>
+  );
 }
