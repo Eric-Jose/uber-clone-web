@@ -62,7 +62,14 @@ class WebSocketService {
   requestRide(rideData) {
     return Boolean(rideData?.rideId);
   }
-  acceptRide(rideId, driverId) { this.ensureSocket()?.emit('accept-ride', { rideId, driverId }); }
+
+  // A aceitação é feita de forma atômica pelo POST /api/rides/accept.
+  // Este método permanece por compatibilidade com telas antigas, mas não
+  // envia uma segunda aceitação pelo Socket.IO, evitando eventos duplicados.
+  acceptRide(rideId, driverId) {
+    return Boolean(rideId && driverId);
+  }
+
   startRide(rideId, driverId) { this.ensureSocket()?.emit('start-ride', { rideId, driverId }); }
   endRide(rideId, driverId) { this.ensureSocket()?.emit('end-ride', { rideId, driverId }); }
   cancelRide(rideId) { if (rideId) this.ensureSocket()?.emit('ride-cancelled', { rideId }); }
