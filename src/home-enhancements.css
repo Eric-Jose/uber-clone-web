@@ -86,3 +86,29 @@
   .home-price-card b { font-size: 58px; }
   .home-visual-caption { left: 14px; right: 14px; bottom: 14px; }
 }
+
+/* Camada final: o fluxo do passageiro usa o mesmo padrão Preto + Laranja do PreçoFixo17. */
+.rp,
+.rp .rm { background: #050505 !important; color: #fff !important; }
+.rp .panel > .card { background: #101010 !important; color: #fff !important; border: 1px solid #303030 !important; box-shadow: 0 18px 48px rgba(0,0,0,.42) !important; }
+.rp .panel .input { background: #151515 !important; color: #fff !important; border-color: #3b3b3b !important; }
+.rp .panel .input::placeholder { color: #777 !important; }
+.rp .panel .suggest { background: #171717 !important; color: #fff !important; border-color: #303030 !important; }
+.rp .panel .suggest button { background: #171717 !important; color: #fff !important; border-bottom-color: #303030 !important; }
+.rp .panel .suggest button:hover,
+.rp .panel .suggest button:focus { background: #242424 !important; }
+.rp .panel .info { background: #171717 !important; color: #fff !important; border-color: #303030 !important; }
+.rp .panel .info b { color: #999 !important; }
+.rp .panel .light { background: #242424 !important; color: #fff !important; border: 1px solid #383838 !important; }
+.rp .panel .primary { background: #ff5a00 !important; color: #fff !important; }
+.rp .panel .primary:hover:not(:disabled) { background: #ff6a16 !important; }
+.rp .panel .err { background: rgba(220,38,38,.14) !important; color: #ffb0aa !important; border: 1px solid rgba(220,38,38,.35) !important; }
+.rp .panel .ok { background: rgba(22,163,74,.12) !important; color: #8cf0ab !important; border: 1px solid rgba(22,163,74,.30) !important; }
+.rp .panel .bar { background: #2b2b2b !important; }
+.rp .panel .bar i { background: #ff5a00 !important; }
+.rp .panel .avatar { background: #ff5a00 !important; color: #fff !important; border: 2px solid rgba(255,90,0,.45) !important; }
+.rp .panel .muted { color: #aaa !important; }
+.rp .panel .status strong { color: #fff !important; }
+@media (max-width: 640px) {
+  .rp .panel > .card { border-radius: 22px !important; }
+}
