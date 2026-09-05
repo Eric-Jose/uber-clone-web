@@ -30,15 +30,7 @@ const getInitialPage = () => { const params = new URLSearchParams(window.locatio
 function AccountPanel({ account, currentPage, onNavigate, children }) {
   const isDriver = account?.userType === 'driver' && account?.driverApprovalStatus === 'approved';
   const items = isDriver ? [{ page: 'driver-dashboard', icon: '⌂', label: 'Início' }, { page: 'ride-history', icon: '▤', label: 'Histórico' }, { page: 'profile', icon: '◯', label: 'Perfil' }] : [{ page: 'ride', icon: '⌖', label: 'Procurar corrida' }, { page: 'ride-history', icon: '▤', label: 'Histórico' }, { page: 'profile', icon: '◯', label: 'Perfil' }];
-  return <div className="account-shell">
-    <div className="account-topbar">
-      <div className="account-brand"><span>Preço</span><strong>Fixo17</strong></div>
-      <button type="button" className="account-profile-trigger" onClick={() => onNavigate('profile')} aria-label="Abrir perfil"><ProfilePhoto account={account} compact /></button>
-    </div>
-    <main className="account-content">{children}</main>
-    <RideRatingPanel account={account} />
-    <nav className="app-bottom-nav" aria-label="Navegação principal">{items.map(item => <button key={item.page} type="button" className={`app-nav-item ${currentPage === item.page ? 'active' : ''}`} onClick={() => onNavigate(item.page)}><span className="app-nav-icon">{item.icon}</span><span>{item.label}</span></button>)}</nav>
-  </div>;
+  return <div className="account-shell"><div className="account-topbar"><div className="account-brand"><span>Preço</span><strong>Fixo17</strong></div><button type="button" className="account-profile-trigger" onClick={() => onNavigate('profile')} aria-label="Abrir perfil"><ProfilePhoto account={account} compact /></button></div><main className="account-content">{children}</main><RideRatingPanel account={account} /><nav className="app-bottom-nav" aria-label="Navegação principal">{items.map(item => <button key={item.page} type="button" className={`app-nav-item ${currentPage === item.page ? 'active' : ''}`} onClick={() => onNavigate(item.page)}><span className="app-nav-icon">{item.icon}</span><span>{item.label}</span></button>)}</nav></div>;
 }
 
 function DriverPending({ user, onLogout }) { return <div style={{ minHeight: '100vh', background: '#090909', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, fontFamily: 'Arial' }}><div style={{ maxWidth: 520, width: '100%', background: '#151515', border: '1px solid #ff5a00', borderRadius: 16, padding: 28, textAlign: 'center' }}><ProfilePhoto account={user} compact /><div style={{ fontSize: 54 }}>⏳</div><h1>Cadastro em análise</h1><p style={{ color: '#ccc', lineHeight: 1.6 }}>{user?.name ? `${user.name}, ` : ''}seu cadastro de motorista foi enviado e aguarda aprovação.</p><p style={{ color: '#999', fontSize: 13 }}>Esta tela será atualizada automaticamente quando o administrador revisar o cadastro.</p><button type="button" onClick={onLogout} style={{ border: 0, borderRadius: 10, padding: '12px 20px', background: '#ff5a00', color: '#fff', fontWeight: 700 }}>Sair</button></div></div>; }
@@ -66,7 +58,7 @@ function App() {
     case 'ride': return user ? <AccountPanel account={user} currentPage="ride" onNavigate={navigate}><LiveStatsBar userType="passenger" /><MapRidePro onRideCreate={handleRideCreate} onBack={() => setCurrentPage('ride')} /></AccountPanel> : <Login onLoginSuccess={handleUserLogin} />;
     case 'ride-history': return user ? <AccountPanel account={user} currentPage="ride-history" onNavigate={navigate}><RideHistoryPro user={user} onBack={() => setCurrentPage(user.userType === 'driver' ? 'driver-dashboard' : 'ride')} /></AccountPanel> : <Login onLoginSuccess={handleUserLogin} />;
     case 'driver-registration': return <DriverRegistration onRegistrationSubmit={handleDriverRegistration} />;
-    case 'driver-pending': return <DriverPending user={user} onLogout={handleLogout />;
+    case 'driver-pending': return <DriverPending user={user} onLogout={handleLogout} />;
     case 'driver-dashboard': return user ? <AccountPanel account={user} currentPage="driver-dashboard" onNavigate={navigate}><LiveStatsBar userType="driver" /><DriverDashboardPro /></AccountPanel> : <Login onLoginSuccess={handleUserLogin} />;
     case 'profile': return user ? <AccountPanel account={user} currentPage="profile" onNavigate={navigate}><UserProfile user={user} onLogout={handleLogout} onRequestRide={() => setCurrentPage('ride')} onHistory={() => setCurrentPage('ride-history')} /></AccountPanel> : <Login onLoginSuccess={handleUserLogin} />;
     case 'admin-panel': return <AdminPanel />;
