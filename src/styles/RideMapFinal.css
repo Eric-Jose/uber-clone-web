@@ -1,44 +1,91 @@
-/* PreçoFixo17 — acabamento final do mapa de corridas. Prioridade máxima sobre estilos legados. */
-.rp{position:relative!important;min-height:calc(100svh - 66px)!important;background:#eef1f4!important;color:#17181a!important;overflow:hidden!important}
-.rp .rm{position:absolute!important;inset:0!important;z-index:0!important;background:#dfe4e8!important}
-.rp .leaflet-container{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif!important;background:#dfe4e8!important}
-.rp .leaflet-tile-pane{filter:saturate(.88) contrast(1.03) brightness(1.03)!important}
-.rp .leaflet-control-zoom{border:0!important;box-shadow:0 12px 30px rgba(0,0,0,.16)!important;border-radius:14px!important;overflow:hidden!important}
-.rp .leaflet-control-zoom a{width:42px!important;height:42px!important;line-height:42px!important;border:0!important;background:rgba(255,255,255,.95)!important;color:#17181a!important;font-weight:800!important}
-.rp .leaflet-control-zoom a:hover{background:#fff7f2!important;color:#ff5a00!important}
-.rp .leaflet-control-attribution{border-radius:10px 0 0 0!important;background:rgba(255,255,255,.86)!important;color:#6b7280!important;font-size:9px!important}
-.rp .leaflet-control-attribution a{color:#6b7280!important}
-.rp .panel{position:absolute!important;z-index:4000!important;top:22px!important;left:50%!important;right:auto!important;bottom:auto!important;width:min(460px,calc(100% - 32px))!important;max-width:none!important;margin:0!important;padding:0!important;transform:translateX(-50%)!important;pointer-events:none!important}
-.rp .panel>.card{position:relative!important;z-index:4001!important;width:100%!important;box-sizing:border-box!important;pointer-events:auto!important;background:rgba(255,255,255,.965)!important;color:#17181a!important;border:1px solid rgba(255,255,255,.9)!important;border-radius:26px!important;padding:18px!important;box-shadow:0 24px 70px rgba(0,0,0,.20),0 8px 22px rgba(0,0,0,.10)!important;backdrop-filter:blur(18px) saturate(1.06)!important;-webkit-backdrop-filter:blur(18px) saturate(1.06)!important}
-.rp .panel>.card:before{content:''!important;display:block!important;width:46px!important;height:4px!important;border-radius:99px!important;margin:0 auto 13px!important;background:#d7d9dc!important}
-.rp .panel h2{color:#111214!important;text-align:center!important;font-weight:800!important;letter-spacing:-.03em!important;margin-bottom:6px!important}
-.rp .panel .muted{text-align:center!important;color:#68717d!important}
+/* PreçoFixo17 — mapa oficial: preto/grafite + laranja, inspirado na referência visual da biblioteca. */
+:root{--pf17-map-bg:#0b0b0c;--pf17-map-card:#151618;--pf17-map-card2:#1d1f22;--pf17-map-line:#2d3034;--pf17-map-text:#fff;--pf17-map-muted:#9da3aa;--pf17-map-orange:#ff5a00;--pf17-map-orange2:#ff741f;}
+
+/* Página inteira do mapa */
+.rp{position:relative!important;min-height:calc(100svh - 66px)!important;background:var(--pf17-map-bg)!important;color:var(--pf17-map-text)!important;overflow:hidden!important;border-top:1px solid rgba(255,90,0,.08)!important}
+.rp .rm{position:absolute!important;inset:0!important;z-index:0!important;background:#0f1113!important}
+.rp .leaflet-container{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif!important;background:#0f1113!important}
+.rp .leaflet-tile-pane{filter:invert(1) hue-rotate(180deg) brightness(.66) contrast(1.08) saturate(.72)!important}
+.rp .leaflet-overlay-pane svg{filter:drop-shadow(0 2px 4px rgba(255,90,0,.42))!important}
+
+/* Área autenticada ao redor do mapa também acompanha o visual novo. */
+.account-content:has(.rp){background:var(--pf17-map-bg)!important;color:var(--pf17-map-text)!important;padding:0 0 94px!important}
+.account-content:has(.rp)>div[aria-hidden="true"]{background:rgba(10,10,11,.92)!important;color:#fff!important;border-color:rgba(255,90,0,.24)!important}
+
+/* Controles Leaflet */
+.rp .leaflet-control-zoom{border:0!important;box-shadow:0 16px 35px rgba(0,0,0,.42)!important;border-radius:14px!important;overflow:hidden!important;background:transparent!important}
+.rp .leaflet-control-zoom a{width:44px!important;height:44px!important;line-height:44px!important;border:1px solid #2b2e32!important;background:rgba(17,18,20,.94)!important;color:#fff!important;font-size:20px!important;font-weight:800!important}
+.rp .leaflet-control-zoom a:hover{background:#26282b!important;color:var(--pf17-map-orange)!important}
+.rp .leaflet-control-zoom a:first-child{border-radius:14px 14px 0 0!important}
+.rp .leaflet-control-zoom a:last-child{border-radius:0 0 14px 14px!important}
+.rp .leaflet-control-attribution{border-radius:10px 0 0 0!important;background:rgba(11,11,12,.78)!important;color:#9da3aa!important;font-size:9px!important;border-top:1px solid rgba(255,255,255,.06)!important}
+.rp .leaflet-control-attribution a{color:#c7cbd0!important}
+
+/* Pesquisa centralizada */
+.rp .panel{position:absolute!important;z-index:4000!important;top:20px!important;left:50%!important;right:auto!important;bottom:auto!important;width:min(560px,calc(100% - 32px))!important;max-width:none!important;margin:0!important;padding:0!important;transform:translateX(-50%)!important;pointer-events:none!important}
+.rp .panel>.card{position:relative!important;z-index:4001!important;width:100%!important;box-sizing:border-box!important;pointer-events:auto!important;background:rgba(21,22,24,.97)!important;color:var(--pf17-map-text)!important;border:1px solid rgba(255,255,255,.08)!important;border-top:2px solid rgba(255,90,0,.85)!important;border-radius:24px!important;padding:18px!important;box-shadow:0 24px 80px rgba(0,0,0,.48),0 5px 25px rgba(255,90,0,.08)!important;backdrop-filter:blur(18px) saturate(1.05)!important;-webkit-backdrop-filter:blur(18px) saturate(1.05)!important}
+.rp .panel>.card:before{content:''!important;display:block!important;width:48px!important;height:4px!important;border-radius:99px!important;margin:0 auto 13px!important;background:#3a3d41!important}
+.rp .panel h2{color:#fff!important;text-align:center!important;font-weight:850!important;letter-spacing:-.035em!important;margin-bottom:6px!important}
+.rp .panel .muted{color:var(--pf17-map-muted)!important;text-align:center!important}
 .rp .panel .row{justify-content:center!important;text-align:center!important}
 .rp .panel .row>div:first-child{width:100%!important}
-.rp .panel .row>.light{position:absolute!important;top:14px!important;right:14px!important}
-.rp .panel .input{width:100%!important;min-height:56px!important;box-sizing:border-box!important;background:#f7f8f9!important;color:#17181a!important;border:1px solid #e3e6e9!important;border-radius:18px!important;padding:16px 18px 16px 48px!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.9)!important}
-.rp .panel .input:focus{background:#fff!important;border-color:#ff5a00!important;box-shadow:0 0 0 4px rgba(255,90,0,.10)!important;outline:0!important}
-.rp .panel .suggest{width:100%!important;box-sizing:border-box!important;background:#fff!important;border:1px solid #eceef0!important;border-radius:18px!important;box-shadow:0 18px 35px rgba(0,0,0,.13)!important;overflow:hidden!important}
-.rp .panel .suggest button{min-height:60px!important;background:#fff!important;color:#17181a!important;border-bottom:1px solid #eef0f2!important;padding:13px 16px!important;text-align:left!important}
-.rp .panel .suggest button:hover{background:#fff7f2!important}
+.rp .panel .row>.light{position:absolute!important;top:13px!important;right:13px!important;background:#222427!important;color:#fff!important;border:1px solid #303338!important}
+.rp .panel .row>.light:hover{color:var(--pf17-map-orange)!important}
+
+/* Campos de origem/destino */
+.rp .panel .input{width:100%!important;min-height:56px!important;box-sizing:border-box!important;background:#1b1d20!important;color:#fff!important;border:1px solid #303338!important;border-radius:17px!important;padding:16px 18px 16px 48px!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.03)!important}
+.rp .panel .input::placeholder{color:#8d949c!important}
+.rp .panel .input:focus{background:#202226!important;color:#fff!important;border-color:rgba(255,90,0,.9)!important;box-shadow:0 0 0 4px rgba(255,90,0,.12)!important;outline:0!important}
+.rp .panel .suggest{width:100%!important;box-sizing:border-box!important;background:#151618!important;border:1px solid #303338!important;border-radius:17px!important;box-shadow:0 22px 45px rgba(0,0,0,.44)!important;overflow:hidden!important}
+.rp .panel .suggest button{min-height:60px!important;background:#151618!important;color:#fff!important;border-bottom:1px solid #272a2e!important;padding:13px 16px!important;text-align:left!important}
+.rp .panel .suggest button:hover{background:#232528!important;color:#fff!important}
+.rp .panel .suggest button b{color:#fff!important}
+
+/* Cards e dados */
 .rp .panel .grid{gap:9px!important}
-.rp .panel .info{background:#f7f8f9!important;border:1px solid #e8eaed!important;border-radius:16px!important;color:#17181a!important}
-.rp .panel .info b{color:#7a828c!important}
+.rp .panel .info{background:var(--pf17-map-card2)!important;border:1px solid #303338!important;border-radius:16px!important;color:#fff!important}
+.rp .panel .info b{color:#969da5!important}
+.rp .panel .info strong,.rp .panel .info span{color:#fff!important}
 .rp .panel .actions{gap:9px!important}
-.rp .panel .btn{min-height:52px!important;border-radius:16px!important;font-weight:800!important}
-.rp .panel .primary{background:linear-gradient(135deg,#ff6b12,#ff5a00)!important;color:#fff!important;box-shadow:0 14px 32px rgba(255,90,0,.25)!important}
-.rp .panel .light{background:#eef0f2!important;color:#17181a!important}
-.rp .panel .danger{background:#17181a!important;color:#fff!important}
-.rp .panel .status{background:#f7f8f9!important;border:1px solid #e8eaed!important;border-radius:16px!important}
-.rp .panel .bar{background:#eceff1!important;border-radius:99px!important}
-.rp .panel .bar i{background:linear-gradient(90deg,#ff6a10,#ff5a00)!important}
-.rp .panel:after{content:'PREÇO FIXO17  •  MAPA AO VIVO'!important;display:block!important;width:max-content!important;max-width:100%!important;margin:10px auto 0!important;padding:8px 12px!important;border-radius:999px!important;background:rgba(17,18,20,.90)!important;color:#fff!important;font-size:10px!important;font-weight:800!important;letter-spacing:.08em!important;box-shadow:0 10px 26px rgba(0,0,0,.18)!important}
+.rp .panel .btn{min-height:52px!important;border-radius:15px!important;font-weight:850!important;border:1px solid transparent!important}
+.rp .panel .primary{background:linear-gradient(135deg,var(--pf17-map-orange2),var(--pf17-map-orange))!important;color:#fff!important;box-shadow:0 14px 32px rgba(255,90,0,.30)!important}
+.rp .panel .primary:hover{filter:brightness(1.06)!important;box-shadow:0 18px 38px rgba(255,90,0,.36)!important}
+.rp .panel .light{background:#25272a!important;color:#fff!important;border-color:#35383d!important}
+.rp .panel .danger{background:#242629!important;color:#fff!important;border-color:#3b3e43!important}
+
+/* Status da corrida / motorista */
+.rp .panel .status{background:#1b1d20!important;border:1px solid #303338!important;border-left:4px solid var(--pf17-map-orange)!important;border-radius:17px!important;color:#fff!important}
+.rp .panel .status *{color:inherit!important}
+.rp .panel .bar{height:8px!important;background:#303338!important;border-radius:99px!important;overflow:hidden!important}
+.rp .panel .bar i{background:linear-gradient(90deg,#ff7b2b,#ff5a00)!important;box-shadow:0 0 12px rgba(255,90,0,.45)!important}
+.rp .panel .avatar{width:50px!important;height:50px!important;background:#26282b!important;border:2px solid var(--pf17-map-orange)!important;box-shadow:0 6px 16px rgba(0,0,0,.35)!important}
+.rp .panel .ok{margin-top:10px!important;background:#162019!important;color:#9be6ad!important;border:1px solid #24472d!important;border-radius:14px!important}
+.rp .panel .err{margin-top:10px!important;background:#261817!important;color:#ffb0a8!important;border:1px solid #53302d!important;border-radius:14px!important}
+
+/* Selo visual oficial */
+.rp .panel:after{content:'PREÇO FIXO 17  •  NA CIDADE  •  CORRIDA PARTICULAR'!important;display:block!important;width:max-content!important;max-width:100%!important;margin:10px auto 0!important;padding:8px 12px!important;border-radius:999px!important;background:rgba(9,10,11,.92)!important;border:1px solid rgba(255,90,0,.38)!important;color:#fff!important;font-size:9px!important;font-weight:850!important;letter-spacing:.10em!important;box-shadow:0 10px 26px rgba(0,0,0,.34)!important}
+
+/* Em desktop, quando a tela mostra informações de corrida, o cartão assume posição lateral direita. */
+@media(min-width:1000px){
+  .rp:has(.panel .status) .panel{left:auto!important;right:24px!important;transform:none!important;width:min(440px,calc(100% - 48px))!important;top:24px!important}
+  .rp:has(.panel .status) .panel h2{text-align:left!important}
+  .rp:has(.panel .status) .panel .muted{text-align:left!important}
+  .rp:has(.panel .status) .panel .row{justify-content:flex-start!important;text-align:left!important}
+  .rp:has(.panel .status) .panel:after{margin-left:0!important}
+}
+
 @media(max-width:760px){
   .rp{min-height:calc(100svh - 66px)!important}
   .rp .panel{top:auto!important;bottom:max(10px,env(safe-area-inset-bottom))!important;left:50%!important;width:calc(100% - 16px)!important;max-width:520px!important;transform:translateX(-50%)!important;padding:0!important}
   .rp .panel>.card{border-radius:24px!important;padding:14px!important;max-height:58svh!important;overflow-y:auto!important;-webkit-overflow-scrolling:touch!important}
-  .rp .panel h2{font-size:22px!important}
+  .rp .panel h2{font-size:22px!important;text-align:center!important}
   .rp .panel .input{min-height:54px!important}
-  .rp .panel:after{margin-top:7px!important}
+  .rp .panel .muted{text-align:center!important}
+  .rp .panel:after{margin-top:7px!important;font-size:8px!important}
 }
 @media(max-height:700px) and (max-width:760px){.rp .panel{bottom:82px!important}.rp .panel>.card{max-height:53svh!important}}
+
+/* Navegação inferior: continuidade visual preta. */
+.app-bottom-nav{background:rgba(13,14,15,.96)!important;border:1px solid rgba(255,255,255,.07)!important;color:#fff!important}
+.app-nav-item{color:#aeb4bb!important}
+.app-nav-item.active{color:#fff!important;background:var(--pf17-map-orange)!important}
