@@ -21,9 +21,11 @@ class WebSocketService {
       this.disconnect();
     }
 
-    if (this.socket?.connected) return this.socket;
+    // Se o socket existe, mas perdeu a conexão, força a reconexão em vez de
+    // simplesmente devolver uma instância desconectada.
     if (this.socket) {
       this.authToken = token;
+      if (!this.socket.connected && !this.socket.active) this.socket.connect();
       return this.socket;
     }
 
@@ -31,10 +33,12 @@ class WebSocketService {
     this.socket = io(BACKEND_URL, {
       auth: { token },
       transports: ['websocket', 'polling'],
+      timeout: 10000,
       reconnection: true,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
-      reconnectionAttempts: 10
+      reconnectionAttempts: 15,
+      closeOnBeforeunload: true
     });
 
     this.socket.on('connect', () => {
