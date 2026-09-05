@@ -1,0 +1,63 @@
+/* PreçoFixo17 — tema final baseado na referência visual completa da biblioteca. */
+:root{--pf17-final-bg:#030608;--pf17-final-panel:#070b0e;--pf17-final-card:#0b1115;--pf17-final-card2:#10171c;--pf17-final-line:#28333b;--pf17-final-text:#f7f9fb;--pf17-final-muted:#9ba7b1;--pf17-final-orange:#ff6b00;--pf17-final-orange2:#ff8a1d;--pf17-final-green:#27c96f;--pf17-final-red:#ef3d20}
+
+/* Shell autenticado */
+.account-shell{background:var(--pf17-final-bg)!important;color:var(--pf17-final-text)!important}
+.account-content{background:var(--pf17-final-bg)!important;color:var(--pf17-final-text)!important;padding:0!important}
+.account-topbar{background:linear-gradient(180deg,#030506,#060a0d)!important;border-bottom:2px solid var(--pf17-final-orange)!important;color:#fff!important;box-shadow:0 8px 30px rgba(0,0,0,.45)!important}
+.account-brand{color:#fff!important;font-weight:900!important}
+.account-brand span{color:#fff!important}
+.account-brand strong{color:var(--pf17-final-orange)!important}
+.account-profile-trigger{background:#11191e!important;border:2px solid #2a3942!important}
+.app-bottom-nav{background:rgba(3,5,7,.96)!important;border:1px solid #26323a!important;color:#fff!important;box-shadow:0 18px 45px rgba(0,0,0,.55)!important}
+.app-nav-item{color:#a9b4bd!important}
+.app-nav-item.active{background:linear-gradient(135deg,#ff7a0a,#ff5b00)!important;color:#fff!important;box-shadow:0 8px 22px rgba(255,107,0,.35)!important}
+.app-nav-icon{color:inherit!important}
+
+/* Home/login/register e telas fora do shell */
+.auth-container,.driver-registration-container,.payment-container,.admin-login-container,.admin-live,.admin-dashboard{background:var(--pf17-final-bg)!important;color:var(--pf17-final-text)!important}
+.auth-card,.registration-card,.payment-card,.admin-login-card,.admin-live .box,.admin-dashboard .stat-card,.admin-dashboard .drivers-section,.admin-dashboard .finance-section,.admin-dashboard .settings-section,.admin-dashboard .setting-card,.admin-dashboard .banner-item{background:var(--pf17-final-card)!important;color:var(--pf17-final-text)!important;border-color:var(--pf17-final-line)!important;box-shadow:0 20px 55px rgba(0,0,0,.40)!important}
+.auth-card h1,.auth-card h2,.auth-card label,.registration-card h1,.registration-card h2,.payment-card h2,.payment-card h3,.admin-live h1,.admin-live h2,.admin-dashboard h1,.admin-dashboard h2{color:var(--pf17-final-text)!important}
+.auth-card input,.registration-card input,.registration-card select,.payment-card input,.admin-live input{background:#0d1419!important;color:#fff!important;border-color:#2b3740!important}
+.auth-card button,.registration-card .btn-primary,.payment-card .btn-pay,.admin-dashboard .btn-action,.admin-dashboard .btn-submit{background:var(--pf17-final-orange)!important;color:#fff!important}
+
+/* Histórico / perfil / notificações */
+.hp,.user-profile-container,.notification-center{background:var(--pf17-final-bg)!important;color:var(--pf17-final-text)!important}
+.hp .hc,.user-profile-container .profile-header,.user-profile-container .profile-card,.notification-center .notification-item{background:var(--pf17-final-card)!important;color:var(--pf17-final-text)!important;border-color:var(--pf17-final-line)!important;box-shadow:0 16px 40px rgba(0,0,0,.35)!important}
+.hp h1,.user-profile-container .profile-info h1,.user-profile-container .profile-card h2,.notification-center .notification-content h3{color:var(--pf17-final-text)!important}
+.hp .muted,.user-profile-container .profile-info p,.user-profile-container .user-type,.user-profile-container .profile-card p,.notification-center .notification-content p,.notification-center .timestamp{color:var(--pf17-final-muted)!important}
+.hp .ride,.user-profile-container .stat-item{background:var(--pf17-final-card2)!important;color:var(--pf17-final-text)!important;border-color:var(--pf17-final-line)!important;border-left-color:var(--pf17-final-orange)!important}
+.hp .pill,.notification-center .unread-badge,.notification-center .filter-btn.active{background:var(--pf17-final-orange)!important;color:#fff!important;border-color:var(--pf17-final-orange)!important}
+.user-profile-container .info-edit input{background:#0d1419!important;color:#fff!important;border-color:#2b3740!important}
+.user-profile-container .stat-number,.user-profile-container .rating{color:var(--pf17-final-orange)!important}
+.user-profile-container .btn-edit,.user-profile-container .btn-save,.notification-center .filter-btn.active{background:var(--pf17-final-orange)!important;color:#fff!important}
+.user-profile-container .btn-cancel,.user-profile-container .btn-option{background:#131a1f!important;color:#fff!important;border-color:var(--pf17-final-line)!important}
+.user-profile-container .btn-logout{background:#111!important;color:#fff!important}
+
+/* Cadastro motorista */
+.driver-registration-container .registration-header{background:linear-gradient(135deg,#06090c,#121a20)!important;border-top-color:var(--pf17-final-orange)!important}
+.driver-registration-container .form-step h2,.driver-registration-container .form-group label{color:#fff!important}
+.driver-registration-container .info-text,.driver-registration-container .documents-list,.driver-registration-container .uploaded-files .file-item{background:#0e151a!important;color:var(--pf17-final-text)!important;border-color:var(--pf17-final-line)!important}
+.driver-registration-container .step span{background:#202b33!important;color:#d8e0e5!important}
+.driver-registration-container .step.active span{background:var(--pf17-final-orange)!important;color:#fff!important}
+.driver-registration-container .file-upload{background:#15100b!important;border-color:rgba(255,107,0,.7)!important}
+
+/* Admin */
+.admin-live .card,.admin-dashboard .dashboard-nav{background:#0b1115!important;color:#fff!important;border-color:var(--pf17-final-line)!important}
+.admin-live .card span,.admin-live .muted,.admin-dashboard .stat-label,.admin-dashboard .section-description{color:var(--pf17-final-muted)!important}
+.admin-live .card strong,.admin-dashboard .stat-value,.admin-dashboard .banner-details h4,.admin-dashboard .setting-card h3,.admin-dashboard .overview-section h2,.admin-dashboard .drivers-section h2,.admin-dashboard .finance-section h2,.admin-dashboard .settings-section h2{color:#fff!important}
+.admin-live table,.admin-live th,.admin-live td{background:#070c10!important;color:#fff!important;border-color:var(--pf17-final-line)!important}
+.admin-dashboard .nav-btn{color:#aab4bc!important}
+.admin-dashboard .nav-btn.active{background:var(--pf17-final-orange)!important;color:#fff!important}
+
+@media(min-width:761px){
+  .app-bottom-nav{display:none!important}
+  .account-shell:before{content:'';position:fixed;left:0;top:66px;bottom:0;width:224px;background:linear-gradient(180deg,#020507,#070b0e)!important;border-right:1px solid #233038;z-index:9000;pointer-events:none}
+  .account-content{margin-left:224px!important;min-height:calc(100vh - 66px)!important}
+  .account-topbar{padding-left:250px!important}
+  .account-content:before{content:'⌂   Início\A\A  🚗   Solicitar corrida\A\A  ◷   Minhas corridas\A\A  ▣   Pagamentos\A\A  ◯   Perfil\A\A  ♧   Notificações\A\A  ?   Ajuda';white-space:pre;position:fixed;left:28px;top:108px;width:180px;color:#e8edf1;font-size:14px;font-weight:700;line-height:1.15;z-index:9001;pointer-events:none}
+}
+
+@media(max-width:760px){
+  .account-content{padding-bottom:86px!important}
+}
