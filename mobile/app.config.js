@@ -18,7 +18,11 @@ export default ({ config }) => ({
   android: {
     ...(config.android || {}),
     package: 'com.precofixo17.app',
-    permissions: ['ACCESS_COARSE_LOCATION', 'ACCESS_FINE_LOCATION']
+    permissions: ['ACCESS_COARSE_LOCATION', 'ACCESS_FINE_LOCATION'],
+    splash: {
+      ...(config.android?.splash || {}),
+      backgroundColor: '#000000'
+    }
   },
   plugins: ['expo-location'],
   extra: {
