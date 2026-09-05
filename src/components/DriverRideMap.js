@@ -66,7 +66,7 @@ export default function DriverRideMap({ driverLocation, passengerLocation, desti
     const fallback = () => {
       if (requestId !== routeRequestRef.current) return;
       if (routeLayerRef.current) routeLayerRef.current.remove();
-      routeLayerRef.current = L.polyline([[driver.lat, driver.lng], [target.lat, target.lng]], { color: '#ff6a00', weight: 6, opacity: 0.9, dashArray: '10 8', lineCap: 'round', lineJoin: 'round' }).addTo(map);
+      routeLayerRef.current = L.polyline([[driver.lat, driver.lng], [target.lat, target.lng]], { color: '#ff5a00', weight: 6, opacity: 0.9, dashArray: '10 8', lineCap: 'round', lineJoin: 'round' }).addTo(map);
     };
     const url = `${ROUTE_URL}${driver.lng},${driver.lat};${target.lng},${target.lat}?overview=full&geometries=geojson&steps=false`;
     fetch(url, { signal: controller.signal })
@@ -77,11 +77,11 @@ export default function DriverRideMap({ driverLocation, passengerLocation, desti
         const latLngs = coordinates.map(([lng, lat]) => [lat, lng]).filter(([lat, lng]) => Number.isFinite(lat) && Number.isFinite(lng));
         if (!latLngs.length) { fallback(); return; }
         if (routeLayerRef.current) routeLayerRef.current.remove();
-        routeLayerRef.current = L.polyline(latLngs, { color: '#ff6a00', weight: 6, opacity: 0.9, lineCap: 'round', lineJoin: 'round' }).addTo(map);
+        routeLayerRef.current = L.polyline(latLngs, { color: '#ff5a00', weight: 6, opacity: 0.9, lineCap: 'round', lineJoin: 'round' }).addTo(map);
       })
       .catch(() => fallback());
     return () => controller.abort();
   }, [driverLocation, passengerLocation, destinationLocation, status]);
 
-  return <div className="driver-map-shell"><div ref={mapRef} className="driver-ride-map" /><div className="driver-map-caption">{status === 'IN_PROGRESS' ? 'Rota até o destino' : 'Rota até o passageiro'}</div><style>{`.driver-map-shell{position:relative;margin-top:14px;border-radius:18px;overflow:hidden;border:1px solid #e5e7eb;background:#eef2f7;box-shadow:0 8px 24px rgba(0,0,0,.08)}.driver-ride-map{height:390px;width:100%;z-index:1}.driver-map-caption{position:absolute;left:12px;bottom:12px;z-index:500;background:#111827;color:#fff;border-radius:999px;padding:9px 13px;font:800 12px/1 Arial,sans-serif;box-shadow:0 4px 16px rgba(0,0,0,.2)}.driver-map-pin-wrapper{background:transparent;border:0}.driver-map-pin{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:3px solid #fff;box-shadow:0 3px 12px rgba(0,0,0,.3);font-size:19px}.driver-pin{background:#111827}.passenger-pin{background:#ff6a00}.destination-pin{background:#dc2626}@media(max-width:640px){.driver-ride-map{height:320px}.driver-map-caption{font-size:11px}}`}</style></div>;
+  return <div className="driver-map-shell"><div ref={mapRef} className="driver-ride-map" /><div className="driver-map-caption">{status === 'IN_PROGRESS' ? 'Rota até o destino' : 'Rota até o passageiro'}</div><style>{`.driver-map-shell{position:relative;margin-top:14px;border-radius:18px;overflow:hidden;border:1px solid #303030;background:#101010;box-shadow:0 12px 34px rgba(0,0,0,.32)}.driver-ride-map{height:390px;width:100%;z-index:1}.driver-map-caption{position:absolute;left:12px;bottom:12px;z-index:500;background:#101010;color:#fff;border:1px solid #ff5a00;border-radius:999px;padding:9px 13px;font:800 12px/1 Arial,sans-serif;box-shadow:0 5px 18px rgba(0,0,0,.35)}.driver-map-pin-wrapper{background:transparent;border:0}.driver-map-pin{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:3px solid #fff;box-shadow:0 3px 12px rgba(0,0,0,.3);font-size:19px}.driver-pin{background:#111}.passenger-pin{background:#ff5a00}.destination-pin{background:#ff5a00}@media(max-width:640px){.driver-ride-map{height:320px}.driver-map-caption{font-size:11px}}`}</style></div>;
 }
