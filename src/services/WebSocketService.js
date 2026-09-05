@@ -21,7 +21,9 @@ class WebSocketService {
         reconnectionAttempts: 10
       });
       this.socket.on('connect', () => {
-        this.joinDriversRoom();
+        // A inscrição na sala de motoristas é feita pelo DriverDashboardPro
+        // quando o motorista está realmente online. Fazer aqui também causava
+        // duas leituras simultâneas de users/{uid} no Firebase RTDB.
         if (this.activeRideId) this.socket.emit('join-ride-room', this.activeRideId);
       });
       this.socket.on('connect_error', (error) => console.warn('Socket.IO:', error?.message || 'falha de conexão'));
