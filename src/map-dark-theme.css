@@ -1,5 +1,10 @@
 /* PreçoFixo17 — base cartográfica escura premium compartilhada por passageiro + motorista. */
-.rp .leaflet-tile-pane,
+/* O mapa do passageiro usa tiles OSM claros; escurecemos apenas essa camada.
+   O mapa do motorista já usa Carto Dark e não recebe filtro adicional. */
+.rp .leaflet-tile-pane {
+  filter: brightness(.48) saturate(.72) contrast(1.08) !important;
+}
+
 .driver-ride-map .leaflet-tile-pane {
   filter: none !important;
 }
