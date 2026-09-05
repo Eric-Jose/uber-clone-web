@@ -3,6 +3,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
 const ROUTE_URL = 'https://router.project-osrm.org/route/v1/driving/';
+const CARTO_DARK_TILES = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
 
 function normalizeLocation(value) {
   if (!value) return null;
@@ -34,9 +35,10 @@ export default function DriverRideMap({ driverLocation, passengerLocation, desti
       zoomDelta: 0.5,
       preferCanvas: true,
     });
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19,
-      attribution: '&copy; OpenStreetMap contributors',
+    L.tileLayer(CARTO_DARK_TILES, {
+      maxZoom: 20,
+      subdomains: 'abcd',
+      attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
       crossOrigin: true,
     }).addTo(map);
     map.setView([-14.235, -51.925], 5);
@@ -198,6 +200,7 @@ export default function DriverRideMap({ driverLocation, passengerLocation, desti
         .driver-map-tooltip{background:#05080a!important;color:#fff!important;border:1px solid #303a41!important;border-radius:9px!important;box-shadow:0 8px 20px rgba(0,0,0,.45)!important;font:800 11px/1 Arial,sans-serif!important;padding:6px 8px!important}.driver-map-tooltip:before{border-top-color:#05080a!important}
         .driver-map-shell .leaflet-control-zoom{border:1px solid #303a41!important;border-radius:12px!important;overflow:hidden;box-shadow:0 10px 25px rgba(0,0,0,.46)!important;margin-top:74px!important;margin-right:12px!important}.driver-map-shell .leaflet-control-zoom a{width:40px!important;height:40px!important;line-height:38px!important;background:rgba(5,8,10,.92)!important;color:#fff!important;border:0!important;border-bottom:1px solid #303a41!important;font-weight:900!important}.driver-map-shell .leaflet-control-zoom a:last-child{border-bottom:0!important}.driver-map-shell .leaflet-control-zoom a:hover{background:#ff6b00!important;color:#fff!important}
         .driver-map-shell .leaflet-control-attribution{background:rgba(3,6,8,.70)!important;color:#7f8b93!important;font-size:9px!important}.driver-map-shell .leaflet-control-attribution a{color:#ff8b1f!important}
+        .driver-map-shell .leaflet-tile-pane{filter:none!important}
         @media(max-width:640px){.driver-ride-map{height:335px}.driver-map-topbar{top:10px;left:10px;right:10px}.driver-map-caption{left:10px;right:10px;bottom:10px}.driver-map-caption span{display:none}.driver-map-shell .leaflet-control-zoom{margin-top:68px!important;margin-right:9px!important}}
       `}</style>
     </div>
