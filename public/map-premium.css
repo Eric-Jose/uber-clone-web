@@ -1,54 +1,21 @@
 /* PreçoFixo17 — camada cartográfica premium para o mapa de passageiro e motorista. */
-.leaflet-container {
-  background: #081015 !important;
-}
+.leaflet-container { background: #081015 !important; }
+.leaflet-tile-pane { filter: grayscale(.62) brightness(.46) contrast(1.24) saturate(.82) !important; }
+.rp .rm::after,.driver-map-shell .driver-ride-map::after { content:""; position:absolute; inset:0; z-index:250; pointer-events:none; background:radial-gradient(circle at 50% 48%,rgba(255,107,0,.075),transparent 37%),linear-gradient(180deg,rgba(3,8,11,.08),rgba(3,8,11,.18)); mix-blend-mode:multiply; }
+.rp .rm,.driver-map-shell .driver-ride-map { position:relative !important; overflow:hidden; }
+.leaflet-control-zoom,.leaflet-control-attribution { filter:none !important; }
+.rp .rm .leaflet-control-zoom a,.driver-map-shell .driver-ride-map .leaflet-control-zoom a { background:rgba(6,12,16,.92) !important; color:#fff !important; border-color:rgba(255,107,0,.46) !important; box-shadow:0 6px 18px rgba(0,0,0,.34) !important; }
+.rp .rm .leaflet-control-attribution,.driver-map-shell .driver-ride-map .leaflet-control-attribution { background:rgba(3,7,9,.78) !important; color:#a8b3ba !important; }
+.rp .rm .leaflet-control-attribution a,.driver-map-shell .driver-ride-map .leaflet-control-attribution a { color:#ff8b1f !important; }
 
-/* Reestiliza visualmente os tiles do provedor sem esconder ruas, nomes ou POIs. */
-.leaflet-tile-pane {
-  filter: grayscale(.62) brightness(.46) contrast(1.24) saturate(.82) !important;
+/* Ajuste mobile: deixa a busca mais baixa e com espaço livre no topo do mapa. */
+.rp .panel { top:18vh !important; left:12px !important; right:12px !important; max-width:620px !important; }
+.rp .panel>.card { max-height:46svh !important; overflow-y:auto !important; }
+.rp .panel .input { min-height:52px !important; font-size:16px !important; }
+.rp .panel .suggest { max-height:34svh !important; }
+@media (max-width:640px) {
+  .rp .panel { top:19vh !important; left:10px !important; right:10px !important; }
+  .rp .panel>.card { padding:13px !important; max-height:45svh !important; border-radius:18px !important; }
+  .rp .panel .suggest { max-height:30svh !important; }
 }
-
-/* Acabamento frio/escuro sobre a base cartográfica, mantendo rotas e marcadores legíveis. */
-.rp .rm::after,
-.driver-map-shell .driver-ride-map::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: 250;
-  pointer-events: none;
-  background:
-    radial-gradient(circle at 50% 48%, rgba(255,107,0,.075), transparent 37%),
-    linear-gradient(180deg, rgba(3,8,11,.08), rgba(3,8,11,.18));
-  mix-blend-mode: multiply;
-}
-
-.rp .rm,
-.driver-map-shell .driver-ride-map {
-  position: relative !important;
-  overflow: hidden;
-}
-
-/* Controles cartográficos também entram no sistema visual do app. */
-.leaflet-control-zoom,
-.leaflet-control-attribution {
-  filter: none !important;
-}
-
-.rp .rm .leaflet-control-zoom a,
-.driver-map-shell .driver-ride-map .leaflet-control-zoom a {
-  background: rgba(6,12,16,.92) !important;
-  color: #fff !important;
-  border-color: rgba(255,107,0,.46) !important;
-  box-shadow: 0 6px 18px rgba(0,0,0,.34) !important;
-}
-
-.rp .rm .leaflet-control-attribution,
-.driver-map-shell .driver-ride-map .leaflet-control-attribution {
-  background: rgba(3,7,9,.78) !important;
-  color: #a8b3ba !important;
-}
-
-.rp .rm .leaflet-control-attribution a,
-.driver-map-shell .driver-ride-map .leaflet-control-attribution a {
-  color: #ff8b1f !important;
-}
+@media (min-width:641px) { .rp .panel { top:15vh !important; } }
