@@ -61,3 +61,42 @@
 @media(max-width:760px){
   .account-content{padding-bottom:86px!important}
 }
+
+/* BLOQUEIO VISUAL OFICIAL — a referência escolhida é mobile-first. */
+@media(min-width:761px){
+  .account-shell{max-width:680px!important;margin-left:auto!important;margin-right:auto!important}
+  .account-shell:before,.account-content:before{display:none!important}
+  .account-content{margin-left:0!important;min-height:100svh!important}
+  .account-topbar{padding-left:16px!important}
+}
+
+/* Sistema visual único em todas as páginas: preto profundo, grafite, branco e laranja. */
+.home-page,.auth-container,.driver-registration-container,.payment-container,.admin-login-container,.admin-live,.admin-dashboard,.hp,.user-profile-container,.notification-center{background:var(--pf17-final-bg)!important;color:var(--pf17-final-text)!important}
+.home-hero,.auth-card,.registration-card,.payment-card,.admin-login-card,.hp .hc,.user-profile-container .profile-card,.user-profile-container .profile-header,.notification-center .notification-item,.admin-live .box,.admin-dashboard .stat-card,.admin-dashboard .drivers-section,.admin-dashboard .finance-section,.admin-dashboard .settings-section,.admin-dashboard .setting-card{border-radius:22px!important;border:1px solid var(--pf17-final-line)!important;background:linear-gradient(160deg,#080d11,#0d1419)!important;box-shadow:0 18px 50px rgba(0,0,0,.45)!important}
+.home-hero h1,.home-hero h2,.auth-card h1,.auth-card h2,.registration-card h1,.registration-card h2,.payment-card h2,.hp h1,.user-profile-container h1,.user-profile-container h2,.notification-center h2,.admin-live h1,.admin-dashboard h1{color:#fff!important}
+button{font-weight:800!important}
+.btn-home,.auth-card button,.registration-card .btn-primary,.payment-card .btn-pay,.admin-dashboard .btn-action,.admin-dashboard .btn-submit,.user-profile-container .btn-edit,.user-profile-container .btn-save{background:linear-gradient(135deg,#ff8a1d,#ff5b00)!important;color:#fff!important;border-radius:15px!important}
+
+/* Mapa: o painel acompanha o mesmo desenho dos cards da referência. */
+.rp{background:#020506!important;color:#fff!important}
+.rp .panel>.card{border-radius:24px!important;background:linear-gradient(160deg,#070b0e,#10171c)!important;border:1px solid #28333b!important;color:#fff!important;box-shadow:0 22px 60px rgba(0,0,0,.62)!important}
+.rp .panel .input{background:#0b1217!important;color:#fff!important;border:1px solid #2b3942!important;border-radius:15px!important}
+.rp .panel .info,.rp .panel .status{background:#10171c!important;color:#fff!important;border:1px solid #2b3740!important;border-left-color:#ff6b00!important;border-radius:16px!important}
+.rp .panel .primary{background:linear-gradient(135deg,#ff8a1d,#ff5b00)!important;color:#fff!important;border-radius:15px!important}
+.rp .panel .light,.rp .panel .danger{background:#1b2227!important;color:#fff!important;border:1px solid #303b43!important;border-radius:15px!important}
+.rp .panel h2,.rp .panel strong,.rp .panel b{color:#fff!important}
+.rp .panel .muted{color:#9ba7b1!important}
+.rp .panel .bar{background:#28333b!important}
+.rp .panel .bar i{background:linear-gradient(90deg,#ff8a1d,#ff5b00)!important}
+.rp .rm{background:#0b1115!important}
+.rp .rm .leaflet-tile-pane{filter:brightness(.52) saturate(.62) contrast(1.05)!important}
+.rp .rm .leaflet-overlay-pane path{stroke:#ff6b00!important}
+
+/* Espaçamento e toque confortáveis para iPhone/Android. */
+@media(max-width:760px){
+  .account-topbar{height:64px!important;padding:10px 16px!important}
+  .account-content{padding-top:64px!important;padding-bottom:86px!important}
+  .app-bottom-nav{left:50%!important;width:calc(100% - 18px)!important;border-radius:22px!important}
+  .app-nav-item{min-height:54px!important;border-radius:16px!important}
+  .auth-card,.registration-card,.payment-card,.admin-login-card{padding:18px!important}
+}
