@@ -41,20 +41,10 @@ function AccountPanel({ account, currentPage, onNavigate, onLogout, children }) 
   const menuItems = isDriver ? [{ page: 'driver-dashboard', icon: '⌂', label: 'Início' }, { page: 'ride-history', icon: '▤', label: 'Minhas corridas' }, { page: 'notifications', icon: '🔔', label: 'Notificações' }, { page: 'profile', icon: '◯', label: 'Perfil' }, { page: 'profile', icon: '⚙', label: 'Configurações' }, { page: 'profile', icon: '?', label: 'Ajuda' }] : [{ page: 'ride', icon: '⌖', label: 'Solicitar corrida' }, { page: 'ride-history', icon: '▤', label: 'Minhas corridas' }, { page: 'payment', icon: '▣', label: 'Pagamentos' }, { page: 'notifications', icon: '🔔', label: 'Notificações' }, { page: 'payment', icon: '▤', label: 'Formas de pagamento' }, { page: 'profile', icon: '⚙', label: 'Configurações' }, { page: 'profile', icon: '?', label: 'Ajuda' }];
   const go = (page) => { setMenuOpen(false); onNavigate(page); };
   return <div className="account-shell">
-    <div className="account-topbar">
-      <button type="button" className="pf17-menu-button" onClick={() => setMenuOpen(true)} aria-label="Abrir menu">☰</button>
-      <div className="account-brand"><span>Preço</span><strong>Fixo17</strong></div>
-      <button type="button" className="account-profile-trigger" onClick={() => go('profile')} aria-label="Abrir perfil"><ProfilePhoto account={account} compact /></button>
-    </div>
-    <main className="account-content">{children}</main>
-    <RideRatingPanel account={account} />
+    <div className="account-topbar"><button type="button" className="pf17-menu-button" onClick={() => setMenuOpen(true)} aria-label="Abrir menu">☰</button><div className="account-brand"><span>Preço</span><strong>Fixo17</strong></div><button type="button" className="account-profile-trigger" onClick={() => go('profile')} aria-label="Abrir perfil"><ProfilePhoto account={account} compact /></button></div>
+    <main className="account-content">{children}</main><RideRatingPanel account={account} />
     <nav className="app-bottom-nav" aria-label="Navegação principal">{items.map(item => <button key={item.page} type="button" className={`app-nav-item ${currentPage === item.page ? 'active' : ''}`} onClick={() => onNavigate(item.page)}><span className="app-nav-icon">{item.icon}</span><span>{item.label}</span></button>)}</nav>
-    {menuOpen && <><div className="pf17-menu-backdrop" onClick={() => setMenuOpen(false)} aria-hidden="true" /><aside className="pf17-menu-drawer" aria-label="Menu principal">
-      <div className="pf17-menu-head"><div className="pf17-menu-logo">Preço<b>Fixo17</b></div><button type="button" className="pf17-menu-close" onClick={() => setMenuOpen(false)} aria-label="Fechar menu">×</button></div>
-      {menuItems.map((item, index) => <button type="button" className="pf17-menu-item" key={`${item.label}-${index}`} onClick={() => go(item.page)}><span className="pf17-menu-icon">{item.icon}</span><span>{item.label}</span></button>)}
-      {!isDriver && <button type="button" className="pf17-menu-item" onClick={() => go('ride')}><span className="pf17-menu-icon">🏷️</span><span>Promoções</span></button>}
-      <button type="button" className="pf17-menu-item danger" onClick={() => { setMenuOpen(false); onLogout?.(); }}><span className="pf17-menu-icon">↪</span><span>Sair</span></button>
-    </aside></>}
+    {menuOpen && <><div className="pf17-menu-backdrop" onClick={() => setMenuOpen(false)} aria-hidden="true" /><aside className="pf17-menu-drawer" aria-label="Menu principal"><div className="pf17-menu-head"><div className="pf17-menu-logo">Preço<b>Fixo17</b></div><button type="button" className="pf17-menu-close" onClick={() => setMenuOpen(false)} aria-label="Fechar menu">×</button></div>{menuItems.map((item, index) => <button type="button" className="pf17-menu-item" key={`${item.label}-${index}`} onClick={() => go(item.page)}><span className="pf17-menu-icon">{item.icon}</span><span>{item.label}</span></button>)}{!isDriver && <button type="button" className="pf17-menu-item" onClick={() => go('ride')}><span className="pf17-menu-icon">🏷️</span><span>Promoções</span></button>}<button type="button" className="pf17-menu-item danger" onClick={() => { setMenuOpen(false); onLogout?.(); }}><span className="pf17-menu-icon">↪</span><span>Sair</span></button></aside></>}
   </div>;
 }
 
@@ -64,39 +54,7 @@ function App() {
   const [currentPage, setCurrentPage] = useState(getInitialPage);
   const [user, setUser] = useState(() => getStored('user'));
   const [admin, setAdmin] = useState(() => getStored('admin'));
-
-  useEffect(() => {
-    if (admin && localStorage.getItem('adminToken')) return undefined;
-    const token = localStorage.getItem('token');
-    const storedUser = getStored('user');
-    if (!token || !storedUser) return undefined;
-    let cancelled = false;
-    const verifySession = async () => {
-      try {
-        const response = await fetch(`${BACKEND_URL}/api/auth/verify`, { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' });
-        const data = await response.json().catch(() => ({}));
-        if (cancelled) return;
-        if (response.ok && data.valid && data.user) {
-          localStorage.setItem('user', JSON.stringify(data.user));
-          setUser(data.user);
-          setCurrentPage((page) => isUserPage(page, data.user) ? page : resolveUserPage(data.user));
-        } else if (response.status === 401) {
-          localStorage.removeItem('token');
-          localStorage.removeItem('user');
-          setUser(null);
-          setCurrentPage('login');
-        }
-      } catch (_) {}
-    };
-    verifySession();
-    const interval = window.setInterval(verifySession, currentPage === 'driver-pending' ? 5000 : 30000);
-    const onFocus = () => verifySession();
-    const onVisibility = () => { if (document.visibilityState === 'visible') verifySession(); };
-    window.addEventListener('focus', onFocus);
-    document.addEventListener('visibilitychange', onVisibility);
-    return () => { cancelled = true; window.clearInterval(interval); window.removeEventListener('focus', onFocus); document.removeEventListener('visibilitychange', onVisibility); };
-  }, [admin, currentPage]);
-
+  useEffect(() => { if (admin && localStorage.getItem('adminToken')) return undefined; const token = localStorage.getItem('token'); const storedUser = getStored('user'); if (!token || !storedUser) return undefined; let cancelled = false; const verifySession = async () => { try { const response = await fetch(`${BACKEND_URL}/api/auth/verify`, { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' }); const data = await response.json().catch(() => ({})); if (cancelled) return; if (response.ok && data.valid && data.user) { localStorage.setItem('user', JSON.stringify(data.user)); setUser(data.user); setCurrentPage((page) => isUserPage(page, data.user) ? page : resolveUserPage(data.user)); } else if (response.status === 401) { localStorage.removeItem('token'); localStorage.removeItem('user'); setUser(null); setCurrentPage('login'); } } catch (_) {} }; verifySession(); const interval = window.setInterval(verifySession, currentPage === 'driver-pending' ? 5000 : 30000); const onFocus = () => verifySession(); const onVisibility = () => { if (document.visibilityState === 'visible') verifySession(); }; window.addEventListener('focus', onFocus); document.addEventListener('visibilitychange', onVisibility); return () => { cancelled = true; window.clearInterval(interval); window.removeEventListener('focus', onFocus); window.removeEventListener('visibilitychange', onVisibility); }; }, [admin, currentPage]);
   useEffect(() => { const onPhoto = (event) => { const uid = event.detail?.uid; const storedUser = getStored('user'); const storedAdmin = getStored('admin'); if (storedUser && (!uid || storedUser.uid === uid)) setUser({ ...storedUser, profilePhoto: event.detail.photo || null }); if (storedAdmin && (!uid || storedAdmin.uid === uid)) setAdmin({ ...storedAdmin, profilePhoto: event.detail.photo || null }); }; window.addEventListener('profile-photo-updated', onPhoto); return () => window.removeEventListener('profile-photo-updated', onPhoto); }, []);
   const handleUserLogin = (userData) => { setUser(userData); setAdmin(null); localStorage.setItem('user', JSON.stringify(userData)); localStorage.removeItem('admin'); localStorage.removeItem('adminToken'); setCurrentPage(resolveUserPage(userData)); };
   const handleLogout = async () => { await logoutFirebase(); setUser(null); localStorage.removeItem('token'); localStorage.removeItem('user'); setCurrentPage('home'); };
@@ -118,7 +76,7 @@ function App() {
     case 'driver-dashboard': return user ? <AccountPanel account={user} currentPage="driver-dashboard" onNavigate={navigate} onLogout={handleLogout}><LiveStatsBar userType="driver" /><DriverDashboardMapPro /></AccountPanel> : <Login onLoginSuccess={handleUserLogin} />;
     case 'profile': return user ? <AccountPanel account={user} currentPage="profile" onNavigate={navigate} onLogout={handleLogout}><UserProfile user={user} onLogout={handleLogout} onRequestRide={() => setCurrentPage('ride')} onHistory={() => setCurrentPage('ride-history')} /></AccountPanel> : <Login onLoginSuccess={handleUserLogin} />;
     case 'admin-panel': return <AdminPanel />;
-    case 'payment': return user ? <AccountPanel account={user} currentPage="payment" onNavigate={navigate} onLogout={handleLogout}><Payment rideId="RIDE001" amount={32.5} onPaymentSuccess={() => {}} /></AccountPanel> : <Login onLoginSuccess={handleUserLogin} />;
+    case 'payment': return user ? <AccountPanel account={user} currentPage="payment" onNavigate={navigate} onLogout={handleLogout}><Payment rideId={null} amount={17} onPaymentSuccess={() => {}} /></AccountPanel> : <Login onLoginSuccess={handleUserLogin} />;
     case 'notifications': return user ? <AccountPanel account={user} currentPage="notifications" onNavigate={navigate} onLogout={handleLogout}><NotificationCenter /></AccountPanel> : <Login onLoginSuccess={handleUserLogin} />;
     default: return <div className="home-page"><div className="home-hero"><div className="home-copy"><div className="home-brand-lockup"><span>PREÇO</span><strong>FIXO</strong><em>17</em></div><div className="home-tagline">📍 NA CIDADE • CORRIDA PARTICULAR</div><h1>Preço justo.<br /><strong>Sem surpresa.</strong></h1><p>Corridas particulares com preço justo, segurança, conforto e atendimento para você chegar ao seu destino.</p><div className="home-feature-row"><span>💰 Preço justo</span><span>🛡️ Segurança</span><span>⏱️ Pontualidade</span></div><div className="home-buttons"><button type="button" onClick={() => setCurrentPage('login')} className="btn-home">👤 ENTRAR</button><button type="button" onClick={() => setCurrentPage('register')} className="btn-home secondary">CRIAR MINHA CONTA</button></div><button type="button" onClick={() => setCurrentPage('admin-login')} className="home-admin-link">🔐 Acesso administrativo</button></div><div className="home-visual"><div className="home-price-card"><small>R$</small><b>17</b><span>PREÇO FIXO</span></div><div className="home-car"><div className="home-car-glow" /><img className="home-car-real" src={precoFixo17Car} alt="Carro branco oficial PreçoFixo17 com identidade visual R$17" style={{ width: '100%', maxWidth: 520, height: 'auto', objectFit: 'contain', borderRadius: 14, position: 'relative', zIndex: 3, boxShadow: '0 18px 35px rgba(0,0,0,.5)' }} /></div><div className="home-visual-caption"><b>RÁPIDO. SEGURO.</b><span>E SEM COMPLICAÇÃO.</span></div></div></div></div>;
   }
