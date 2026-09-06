@@ -3,32 +3,34 @@ import '../styles/Notifications.css';
 
 function NotificationCenter() {
   const [notifications, setNotifications] = useState([
-    { id: 1, type: 'ride_request', title: '🚗 Nova Corrida Disponível', message: 'Corrida de R$ 25,00 a 2km de você', timestamp: new Date(Date.now() - 5 * 60000), read: false },
-    { id: 2, type: 'driver_approved', title: '✅ Cadastro Aprovado', message: 'Seu cadastro como motorista foi aprovado!', timestamp: new Date(Date.now() - 30 * 60000), read: false },
-    { id: 3, type: 'payment_success', title: '💳 Pagamento Recebido', message: 'Pagamento de R$ 32,50 processado com sucesso', timestamp: new Date(Date.now() - 2 * 60 * 60000), read: true },
-    { id: 4, type: 'rating', title: '⭐ Nova Avaliação', message: 'Você recebeu uma avaliação de 5 estrelas', timestamp: new Date(Date.now() - 24 * 60 * 60000), read: true }
+    { id: 1, type: 'ride_request', title: 'Corrida aceita!', message: 'Seu motorista está a caminho.', timestamp: new Date(Date.now() - 5 * 60000), read: false },
+    { id: 2, type: 'ride_progress', title: 'Corrida em andamento', message: 'Sua corrida está acontecendo normalmente.', timestamp: new Date(Date.now() - 30 * 60000), read: false },
+    { id: 3, type: 'arrival', title: 'Chegada ao destino', message: 'Sua corrida foi concluída. Obrigado por viajar com o PreçoFixo17.', timestamp: new Date(Date.now() - 2 * 60 * 60000), read: true },
+    { id: 4, type: 'rating', title: 'Avaliação', message: 'Avalie sua última corrida e ajude a melhorar o serviço.', timestamp: new Date(Date.now() - 24 * 60 * 60000), read: true },
+    { id: 5, type: 'promo', title: 'Promoções', message: 'Confira novidades e ofertas do PreçoFixo17.', timestamp: new Date(Date.now() - 2 * 24 * 60 * 60000), read: true }
   ]);
   const [filter, setFilter] = useState('all');
-  const markAsRead = (id) => setNotifications(prev => prev.map(notif => notif.id === id ? { ...notif, read: true } : notif));
-  const deleteNotification = (id) => setNotifications(prev => prev.filter(notif => notif.id !== id));
-  const filteredNotifications = filter === 'unread' ? notifications.filter(n => !n.read) : notifications;
+  const markAsRead = (id) => setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+  const markAllAsRead = () => setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+  const deleteNotification = (id) => setNotifications(prev => prev.filter(n => n.id !== id));
+  const filtered = filter === 'unread' ? notifications.filter(n => !n.read) : notifications;
   const unreadCount = notifications.filter(n => !n.read).length;
-  const getNotificationIcon = (type) => { switch(type) { case 'ride_request': return '🚗'; case 'driver_approved': return '✅'; case 'payment_success': return '💳'; case 'rating': return '⭐'; case 'message': return '💬'; default: return '🔔'; } };
+  const icon = (type) => ({ ride_request: '🚗', ride_progress: '📍', arrival: '🏁', rating: '⭐', promo: '🎁', driver_approved: '✓', payment_success: 'R$', message: '💬' }[type] || '🔔');
+
   return (
     <div className="notification-center">
-      <div className="notification-header"><h2>🔔 Notificações</h2>{unreadCount > 0 && <span className="unread-badge">{unreadCount}</span>}</div>
-      <div className="notification-filters"><button className={`filter-btn ${filter === 'all' ? 'active' : ''}`} onClick={() => setFilter('all')}>Todas ({notifications.length})</button><button className={`filter-btn ${filter === 'unread' ? 'active' : ''}`} onClick={() => setFilter('unread')}>Não Lidas ({unreadCount})</button></div>
+      <div className="notification-header">
+        <div><span className="notification-kicker">PREÇO FIXO 17</span><h2>Notificações</h2></div>
+        {unreadCount > 0 && <span className="unread-badge">{unreadCount} nova{unreadCount > 1 ? 's' : ''}</span>}
+      </div>
+      <div className="notification-actions"><div className="notification-filters"><button className={`filter-btn ${filter === 'all' ? 'active' : ''}`} onClick={() => setFilter('all')}>Todas ({notifications.length})</button><button className={`filter-btn ${filter === 'unread' ? 'active' : ''}`} onClick={() => setFilter('unread')}>Não lidas ({unreadCount})</button></div>{unreadCount > 0 && <button className="mark-all-btn" onClick={markAllAsRead}>Marcar todas como lidas</button>}</div>
       <div className="notifications-list">
-        {filteredNotifications.length > 0 ? filteredNotifications.map(notification => (
-          <div key={notification.id} className={`notification-item ${notification.read ? 'read' : 'unread'}`} onClick={() => markAsRead(notification.id)}>
-            <div className="notification-icon">{getNotificationIcon(notification.type)}</div>
-            <div className="notification-content"><h3>{notification.title}</h3><p>{notification.message}</p><span className="timestamp">{formatTimeAgo(notification.timestamp)}</span></div>
-            <button className="btn-close-notification" onClick={(e) => { e.stopPropagation(); deleteNotification(notification.id); }}>✕</button>
-          </div>
-        )) : <div className="empty-state"><p>📭 Nenhuma notificação</p></div>}
+        {filtered.length ? filtered.map(n => <div key={n.id} className={`notification-item ${n.read ? 'read' : 'unread'}`} onClick={() => markAsRead(n.id)}>
+          <div className="notification-icon">{icon(n.type)}</div><div className="notification-content"><h3>{n.title}</h3><p>{n.message}</p><span className="timestamp">{formatTimeAgo(n.timestamp)}</span></div><button aria-label="Excluir notificação" className="btn-close-notification" onClick={e => { e.stopPropagation(); deleteNotification(n.id); }}>✕</button>
+        </div>) : <div className="empty-state"><div>🔔</div><p>Nenhuma notificação</p></div>}
       </div>
     </div>
   );
 }
-function formatTimeAgo(date) { const now = new Date(); const seconds = Math.floor((now - date) / 1000); const minutes = Math.floor(seconds / 60); const hours = Math.floor(minutes / 60); const days = Math.floor(hours / 24); if (seconds < 60) return 'agora'; if (minutes < 60) return `há ${minutes}m`; if (hours < 24) return `há ${hours}h`; return `há ${days}d`; }
+function formatTimeAgo(date) { const seconds = Math.max(0, Math.floor((Date.now() - date) / 1000)); const minutes = Math.floor(seconds / 60); const hours = Math.floor(minutes / 60); const days = Math.floor(hours / 24); if (seconds < 60) return 'agora'; if (minutes < 60) return `há ${minutes} min`; if (hours < 24) return `há ${hours} h`; return `há ${days} d`; }
 export default NotificationCenter;
