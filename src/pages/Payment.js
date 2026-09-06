@@ -1,79 +1,15 @@
-import React, { useState } from 'react';
+import React,{useState}from'react';
 import '../styles/Payment.css';
 
-const FIXED_RIDE_PRICE = 17;
+const FIXED_RIDE_PRICE=17;
 
-function Payment({ rideId, onPaymentSuccess }) {
-  const [paymentMethod, setPaymentMethod] = useState('pix');
-  const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState('');
-
-  const total = FIXED_RIDE_PRICE;
-
-  const handlePayment = async (e) => {
-    e?.preventDefault();
-    setMessage('');
-    setLoading(true);
-    // O app ainda não possui um provedor de pagamentos conectado.
-    // Não coletamos nem enviamos número de cartão, CVV ou validade.
-    setTimeout(() => {
-      setLoading(false);
-      setMessage('Pagamento real ainda não está conectado. Nenhuma cobrança foi realizada.');
-      if (typeof onPaymentSuccess === 'function') onPaymentSuccess({ pending: true, rideId, amount: total, paymentMethod });
-    }, 500);
-  };
-
-  return (
-    <div className="payment-container">
-      <div className="payment-card">
-        <div className="payment-header">
-          <h2>💳 Pagamento da corrida</h2>
-          <p>Corrida: {rideId || '—'}</p>
-        </div>
-
-        <div className="price-section">
-          <div className="price-breakdown">
-            <div className="price-item total"><span>Preço fixo:</span><span>R$ {total.toFixed(2)}</span></div>
-          </div>
-        </div>
-
-        <div className="payment-methods">
-          <h3>Escolha o método</h3>
-          <div className="methods-grid">
-            {[
-              ['pix', '🔲 PIX'],
-              ['card', '💳 Cartão'],
-              ['wallet', '👛 Carteira']
-            ].map(([value, label]) => (
-              <label key={value} className={`method-option ${paymentMethod === value ? 'active' : ''}`}>
-                <input type="radio" name="paymentMethod" value={value} checked={paymentMethod === value} onChange={(e) => setPaymentMethod(e.target.value)} />
-                <span>{label}</span>
-              </label>
-            ))}
-          </div>
-        </div>
-
-        <div className="payment-info">
-          {paymentMethod === 'pix' && <>
-            <p>🔒 O PIX será integrado a um provedor de pagamento seguro.</p>
-            <p>Nenhum QR Code falso será exibido e nenhuma cobrança será simulada.</p>
-          </>}
-          {paymentMethod === 'card' && <>
-            <p>🔒 Pagamento com cartão será feito por checkout/tokenização de um provedor.</p>
-            <p>Por segurança, este aplicativo não coleta número do cartão ou CVV diretamente.</p>
-          </>}
-          {paymentMethod === 'wallet' && <>
-            <p>👛 A carteira digital será habilitada quando o sistema financeiro for conectado.</p>
-            <p>O saldo exibido anteriormente era apenas demonstrativo.</p>
-          </>}
-          {message && <div className="error-message" role="status">{message}</div>}
-          <button className="btn-pay" onClick={handlePayment} disabled={loading}>
-            {loading ? '⏳ Verificando...' : 'Continuar pagamento • R$ 17,00'}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
+function Payment({rideId,onPaymentSuccess}){
+ const[paymentMethod,setPaymentMethod]=useState('cash');
+ const[loading,setLoading]=useState(false);
+ const[message,setMessage]=useState('');
+ const total=FIXED_RIDE_PRICE;
+ const methods=[['cash','💵','Dinheiro'],['card','💳','Cartão'],['pix','▣','PIX']];
+ const handlePayment=async e=>{e?.preventDefault();setMessage('');setLoading(true);setTimeout(()=>{setLoading(false);setMessage('O provedor de pagamento ainda não está conectado. Nenhuma cobrança foi realizada.');if(typeof onPaymentSuccess==='function')onPaymentSuccess({pending:true,rideId,amount:total,paymentMethod})},500)};
+ return <div className="pf-payment"><style>{`.pf-payment{min-height:100vh;background:#030608;color:#f7f9fb;font-family:Arial,sans-serif;padding:18px 14px 40px}.pf-pay-wrap{max-width:680px;margin:auto}.pf-pay-head{padding:8px 2px 20px}.pf-pay-kicker{color:#ff6b00;font-size:11px;font-weight:900;letter-spacing:.16em}.pf-pay-title{font-size:28px;margin:5px 0 0;font-weight:900;letter-spacing:-.04em}.pf-pay-sub{color:#9ba7b1;font-size:13px;margin-top:6px}.pf-price{background:linear-gradient(145deg,#11181d,#070b0e);border:1px solid #28333b;border-radius:20px;padding:20px;margin-bottom:14px}.pf-price-label{color:#9ba7b1;font-size:13px}.pf-price-value{font-size:42px;font-weight:900;margin-top:5px;color:#fff}.pf-fixed{display:inline-block;margin-top:10px;background:rgba(255,107,0,.13);border:1px solid rgba(255,107,0,.3);color:#ff8a1d;border-radius:999px;padding:6px 10px;font-size:11px;font-weight:900}.pf-method-box{background:#070b0e;border:1px solid #28333b;border-radius:18px;padding:16px}.pf-method-title{font-size:15px;font-weight:900;margin:0 0 11px}.pf-methods{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.pf-method{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;min-height:76px;border:1px solid #28333b;border-radius:14px;background:#0b1115;color:#9ba7b1;font-weight:800;font-size:12px;cursor:pointer}.pf-method input{position:absolute;opacity:0}.pf-method.active{border-color:#ff6b00;background:rgba(255,107,0,.12);color:#fff;box-shadow:inset 0 0 0 1px #ff6b00}.pf-method-icon{font-size:22px}.pf-change{margin-top:10px;background:#0b1115;border:1px solid #28333b;border-radius:13px;padding:12px;color:#9ba7b1;font-size:13px}.pf-info{margin-top:12px;background:#0b1115;border:1px solid #28333b;border-radius:15px;padding:13px;color:#9ba7b1;font-size:12px;line-height:1.5}.pf-msg{margin-top:10px;color:#ffb26e}.pf-confirm{width:100%;margin-top:12px;border:0;border-radius:14px;padding:15px;background:#ff6b00;color:#fff;font-weight:900;font-size:15px;cursor:pointer}.pf-confirm:disabled{opacity:.6}.pf-safe{margin-top:10px;text-align:center;color:#65717a;font-size:11px}@media(max-width:420px){.pf-methods{grid-template-columns:1fr}.pf-method{min-height:58px;flex-direction:row;justify-content:flex-start;padding:0 15px}.pf-price-value{font-size:38px}}`}</style><div className="pf-pay-wrap"><header className="pf-pay-head"><div className="pf-pay-kicker">PREÇO FIXO 17 • CORRIDA PARTICULAR</div><h1 className="pf-pay-title">Pagamento</h1><div className="pf-pay-sub">Corrida {rideId||'—'}</div></header><section className="pf-price"><div className="pf-price-label">Valor da corrida</div><div className="pf-price-value">R$ {total.toFixed(2).replace('.',',')}</div><span className="pf-fixed">PREÇO FIXO</span></section><section className="pf-method-box"><h2 className="pf-method-title">Forma de pagamento</h2><div className="pf-methods">{methods.map(([value,icon,label])=><label key={value} className={'pf-method '+(paymentMethod===value?'active':'')}><input type="radio" name="paymentMethod" value={value} checked={paymentMethod===value} onChange={e=>setPaymentMethod(e.target.value)}/><span className="pf-method-icon">{icon}</span><span>{label}</span></label>)}</div>{paymentMethod==='cash'&&<div className="pf-change">💵 Pagamento em dinheiro. Combine o troco com o motorista.</div>}{paymentMethod==='pix'&&<div className="pf-info">PIX seguro: o aplicativo ainda não possui provedor conectado, então nenhum QR Code ou cobrança fictícia será criado.</div>}{paymentMethod==='card'&&<div className="pf-info">Cartão seguro: o pagamento deverá usar checkout/tokenização de um provedor. O app não coleta número do cartão ou CVV diretamente.</div>}{message&&<div className="pf-info pf-msg" role="status">{message}</div>}<button className="pf-confirm" onClick={handlePayment} disabled={loading}>{loading?'Verificando…':'Confirmar pagamento • R$ 17,00'}</button><div className="pf-safe">Nenhuma cobrança é realizada enquanto o provedor financeiro não estiver conectado.</div></section></div></div>;
 }
-
 export default Payment;
