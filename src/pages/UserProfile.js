@@ -8,6 +8,12 @@ function UserProfile({ user, onLogout, onRequestRide, onHistory }) {
   const [userData, setUserData] = useState(user || {});
   const [stats, setStats] = useState({ total: 0, completed: 0, cancelled: 0, distance: 0, ongoing: 0, rating: 5.0 });
   const [statsLoading, setStatsLoading] = useState(false);
+  const [passwordOpen, setPasswordOpen] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordLoading, setPasswordLoading] = useState(false);
+  const [passwordError, setPasswordError] = useState('');
 
   const handleLogout = () => { localStorage.removeItem('token'); localStorage.removeItem('user'); onLogout(); };
   const handleRequestRide = () => { if (typeof onRequestRide === 'function') onRequestRide(); };
@@ -15,6 +21,39 @@ function UserProfile({ user, onLogout, onRequestRide, onHistory }) {
   const handleSave = () => {
     localStorage.setItem('user', JSON.stringify(userData));
     setEditMode(false);
+  };
+
+  const openPassword = () => {
+    setPasswordError('');
+    setCurrentPassword('');
+    setNewPassword('');
+    setConfirmPassword('');
+    setPasswordOpen(true);
+  };
+
+  const handleChangePassword = async (event) => {
+    event.preventDefault();
+    setPasswordError('');
+    if (newPassword.length < 6) return setPasswordError('A nova senha deve ter pelo menos 6 caracteres.');
+    if (newPassword !== confirmPassword) return setPasswordError('As novas senhas não são iguais.');
+    setPasswordLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${BACKEND_URL}/api/auth/change-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ currentPassword, newPassword })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || 'Não foi possível alterar a senha.');
+      setPasswordOpen(false);
+      alert('Senha alterada com sucesso. Entre novamente com a nova senha.');
+      handleLogout();
+    } catch (error) {
+      setPasswordError(error.message || 'Não foi possível alterar a senha.');
+    } finally {
+      setPasswordLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -85,7 +124,7 @@ function UserProfile({ user, onLogout, onRequestRide, onHistory }) {
       </div>
 
       <div className="profile-card">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}><h2 style={{ margin: 0 }}>Estatísticas</h2><span style={{ color: '#666', fontSize: 12 }}>{statsLoading ? 'Atualizando…' : '● Atualizado automaticamente'}</span></div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}><h2 style={{ margin: 0 }}>Estatísticas</h2><span style={{ color: '#aeb8c0', fontSize: 12 }}>{statsLoading ? 'Atualizando…' : '● Atualizado automaticamente'}</span></div>
         <div className="stats-grid">
           <div className="stat-item"><span className="stat-number">{stats.total}</span><span className="stat-label">Corridas</span></div>
           <div className="stat-item"><span className="stat-number">{stats.rating.toFixed(1)}</span><span className="stat-label">Avaliação</span></div>
@@ -96,7 +135,16 @@ function UserProfile({ user, onLogout, onRequestRide, onHistory }) {
         </div>
       </div>
 
-      <div className="profile-card"><h2>Segurança</h2><div className="security-options"><button type="button" className="btn-option">🔐 Alterar Senha</button><button type="button" className="btn-option">🔑 Autenticação 2FA</button></div></div>
+      <div className="profile-card">
+        <h2>Segurança</h2>
+        <div className="security-options">
+          <button type="button" className="btn-option" onClick={openPassword}>🔐 Alterar Senha</button>
+          <button type="button" className="btn-option" onClick={() => alert('A autenticação 2FA ainda não está disponível nesta versão.')}>🔑 Autenticação 2FA</button>
+        </div>
+      </div>
+
+      {passwordOpen && <div className="pf17-modal-backdrop" role="presentation" onClick={() => !passwordLoading && setPasswordOpen(false)}><div className="pf17-password-modal" role="dialog" aria-modal="true" aria-labelledby="password-title" onClick={e => e.stopPropagation()}><div className="pf17-modal-head"><h2 id="password-title">🔐 Alterar senha</h2><button type="button" onClick={() => !passwordLoading && setPasswordOpen(false)} aria-label="Fechar">×</button></div><p>Confirme sua senha atual e escolha uma nova.</p>{passwordError && <div className="error-message">❌ {passwordError}</div>}<form onSubmit={handleChangePassword}><div className="form-group"><label>Senha atual</label><input type="password" value={currentPassword} onChange={e => setCurrentPassword(e.target.value)} autoComplete="current-password" required /></div><div className="form-group"><label>Nova senha</label><input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} minLength="6" autoComplete="new-password" required /></div><div className="form-group"><label>Confirmar nova senha</label><input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} minLength="6" autoComplete="new-password" required /></div><div className="profile-actions"><button type="submit" className="btn-save" disabled={passwordLoading}>{passwordLoading ? '⏳ Alterando...' : 'Salvar nova senha'}</button><button type="button" className="btn-cancel" disabled={passwordLoading} onClick={() => setPasswordOpen(false)}>Cancelar</button></div></form></div></div>}
+
       <div className="profile-actions-bottom"><button type="button" className="btn-logout" onClick={handleLogout}>🚪 Sair da Conta</button></div>
     </div>
   );
