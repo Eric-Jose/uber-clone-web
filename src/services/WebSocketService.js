@@ -6,6 +6,8 @@ class WebSocketService {
     this.socket = null;
     this.activeRideId = null;
     this.driverRoomRequested = false;
+    this.driverRoomRetryTimer = null;
+    this.driverRoomRetryCount = 0;
     this.cancelRefreshBound = false;
     this.authToken = null;
   }
@@ -17,13 +19,8 @@ class WebSocketService {
       return null;
     }
 
-    // Nunca reutilizar um socket autenticado com o JWT de outra sessão.
-    if (this.socket && this.authToken && this.authToken !== token) {
-      this.disconnect();
-    }
+    if (this.socket && this.authToken && this.authToken !== token) this.disconnect();
 
-    // Se o socket existe, mas perdeu a conexão, força a reconexão em vez de
-    // simplesmente devolver uma instância desconectada.
     if (this.socket) {
       this.authToken = token;
       if (!this.socket.connected && !this.socket.active) this.socket.connect();
@@ -43,15 +40,40 @@ class WebSocketService {
     });
 
     this.socket.on('connect', () => {
-      // Toda reconexão cria um novo socket e, portanto, perde as salas antigas.
-      // Reentra automaticamente na corrida e na sala de motoristas quando
-      // essas salas foram solicitadas pela tela atual.
       if (this.activeRideId) this.socket.emit('join-ride-room', this.activeRideId);
-      if (this.driverRoomRequested) this.socket.emit('join-drivers-room');
+      if (this.driverRoomRequested) this.requestDriverRoom();
     });
     this.socket.on('connect_error', (error) => console.warn('Socket.IO:', error?.message || 'falha de conexão'));
     this.bindPassengerCancellationRefresh();
     return this.socket;
+  }
+
+  requestDriverRoom() {
+    const socket = this.socket;
+    if (!socket || !socket.connected || !this.driverRoomRequested) return;
+    socket.emit('join-drivers-room', (result) => {
+      if (result?.ok) {
+        this.driverRoomRetryCount = 0;
+        if (this.driverRoomRetryTimer) {
+          clearTimeout(this.driverRoomRetryTimer);
+          this.driverRoomRetryTimer = null;
+        }
+        return;
+      }
+      // O status HTTP pode ter acabado de mudar para online enquanto o
+      // socket ainda estava sincronizando. Tente novamente sem perder a
+      // corrida por uma condição de corrida entre HTTP e Socket.IO.
+      this.scheduleDriverRoomRetry();
+    });
+  }
+
+  scheduleDriverRoomRetry() {
+    if (!this.driverRoomRequested || this.driverRoomRetryTimer || this.driverRoomRetryCount >= 10) return;
+    this.driverRoomRetryCount += 1;
+    this.driverRoomRetryTimer = window.setTimeout(() => {
+      this.driverRoomRetryTimer = null;
+      if (this.driverRoomRequested) this.requestDriverRoom();
+    }, Math.min(1000 * this.driverRoomRetryCount, 5000));
   }
 
   bindPassengerCancellationRefresh() {
@@ -68,6 +90,9 @@ class WebSocketService {
   }
 
   disconnect() {
+    if (this.driverRoomRetryTimer) clearTimeout(this.driverRoomRetryTimer);
+    this.driverRoomRetryTimer = null;
+    this.driverRoomRetryCount = 0;
     if (this.socket) {
       this.socket.removeAllListeners();
       this.socket.disconnect();
@@ -94,11 +119,17 @@ class WebSocketService {
   }
   joinDriversRoom() {
     this.driverRoomRequested = true;
+    this.driverRoomRetryCount = 0;
+    if (this.driverRoomRetryTimer) clearTimeout(this.driverRoomRetryTimer);
+    this.driverRoomRetryTimer = null;
     const socket = this.ensureSocket();
-    if (socket) socket.emit('join-drivers-room');
+    if (socket?.connected) this.requestDriverRoom();
   }
   leaveDriversRoom() {
     this.driverRoomRequested = false;
+    this.driverRoomRetryCount = 0;
+    if (this.driverRoomRetryTimer) clearTimeout(this.driverRoomRetryTimer);
+    this.driverRoomRetryTimer = null;
   }
   joinDriverRoom() { this.joinDriversRoom(); }
 
@@ -108,9 +139,6 @@ class WebSocketService {
 
   requestRide(rideData) { return Boolean(rideData?.rideId); }
   acceptRide(rideId, driverId) { return Boolean(rideId && driverId); }
-
-  // Alterações de estado são feitas pela API HTTP. O Socket.IO apenas
-  // distribui as notificações emitidas pelo backend após a alteração.
   startRide(rideId, driverId) { return Boolean(rideId && driverId); }
   endRide(rideId, driverId) { return Boolean(rideId && driverId); }
   cancelRide(rideId) { return Boolean(rideId); }
