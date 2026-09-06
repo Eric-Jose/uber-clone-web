@@ -5,6 +5,7 @@ class WebSocketService {
   constructor() {
     this.socket = null;
     this.activeRideId = null;
+    this.driverRoomRequested = false;
     this.cancelRefreshBound = false;
     this.authToken = null;
   }
@@ -42,7 +43,11 @@ class WebSocketService {
     });
 
     this.socket.on('connect', () => {
+      // Toda reconexão cria um novo socket e, portanto, perde as salas antigas.
+      // Reentra automaticamente na corrida e na sala de motoristas quando
+      // essas salas foram solicitadas pela tela atual.
       if (this.activeRideId) this.socket.emit('join-ride-room', this.activeRideId);
+      if (this.driverRoomRequested) this.socket.emit('join-drivers-room');
     });
     this.socket.on('connect_error', (error) => console.warn('Socket.IO:', error?.message || 'falha de conexão'));
     this.bindPassengerCancellationRefresh();
@@ -69,6 +74,8 @@ class WebSocketService {
       this.socket = null;
     }
     this.authToken = null;
+    this.activeRideId = null;
+    this.driverRoomRequested = false;
     this.cancelRefreshBound = false;
   }
 
@@ -85,7 +92,14 @@ class WebSocketService {
     if (rideId && this.activeRideId === rideId) this.activeRideId = null;
     if (rideId) this.ensureSocket()?.emit('leave-ride-room', rideId);
   }
-  joinDriversRoom() { const socket = this.ensureSocket(); if (socket) socket.emit('join-drivers-room'); }
+  joinDriversRoom() {
+    this.driverRoomRequested = true;
+    const socket = this.ensureSocket();
+    if (socket) socket.emit('join-drivers-room');
+  }
+  leaveDriversRoom() {
+    this.driverRoomRequested = false;
+  }
   joinDriverRoom() { this.joinDriversRoom(); }
 
   sendPresenceLocation(latitude, longitude) { this.ensureSocket()?.emit('driver-presence-location', { latitude, longitude, timestamp: new Date().toISOString() }); }
