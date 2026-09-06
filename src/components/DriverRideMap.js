@@ -7,8 +7,9 @@ const CARTO_DARK_TILES = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}
 
 function normalizeLocation(value) {
   if (!value) return null;
-  const lat = Number(value.lat ?? value.latitude);
-  const lng = Number(value.lng ?? value.longitude);
+  const source = value.location || value.currentLocation || value;
+  const lat = Number(source.lat ?? source.latitude);
+  const lng = Number(source.lng ?? source.longitude);
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
   return { lat, lng };
 }
@@ -206,3 +207,175 @@ export default function DriverRideMap({ driverLocation, passengerLocation, desti
     </div>
   );
 }
+
+// O painel do motorista precisa ter um mapa mesmo antes de existir uma corrida.
+// Este mapa leve é montado no fluxo do painel e desaparece quando o mapa da corrida
+// já está presente. Assim o motorista vê sua posição/GPS e, ao aceitar, a rota passa
+// automaticamente para o componente completo acima.
+let idleDriverMapStarted = false;
+
+function startIdleDriverMap() {
+  if (idleDriverMapStarted || typeof window === 'undefined' || typeof document === 'undefined') return;
+  idleDriverMapStarted = true;
+
+  let map = null;
+  let marker = null;
+  let targetMarker = null;
+  let routeLayer = null;
+  let watchId = null;
+  let lastDriver = null;
+  let activeRideId = null;
+  let routeSeq = 0;
+  let pollTimer = null;
+  let observer = null;
+
+  const getUser = () => {
+    try { return JSON.parse(localStorage.getItem('user') || 'null'); } catch (_) { return null; }
+  };
+  const getToken = () => localStorage.getItem('token');
+  const isDriverPanel = () => !!document.querySelector('.driver-pro');
+  const realRideMapExists = () => !!document.querySelector('.driver-pro .driver-map-shell');
+
+  const ensureHost = () => {
+    if (!isDriverPanel() || realRideMapExists()) return null;
+    let host = document.getElementById('pf17-driver-live-map');
+    if (!host) {
+      const panel = document.querySelector('.driver-pro');
+      const firstBox = panel && panel.querySelector('.driver-box');
+      if (!panel) return null;
+      host = document.createElement('div');
+      host.id = 'pf17-driver-live-map';
+      host.className = 'driver-idle-map-shell';
+      host.innerHTML = '<div class="driver-idle-map-head"><span><i></i> MAPA DO MOTORISTA</span><b>GPS EM TEMPO REAL</b></div><div class="driver-idle-map-canvas"></div><div class="driver-idle-map-foot"><strong>🚘 Sua posição</strong><span>Fique online para receber corridas próximas</span></div>';
+      if (firstBox && firstBox.parentNode) firstBox.parentNode.insertBefore(host, firstBox.nextSibling);
+      else panel.appendChild(host);
+    }
+    return host;
+  };
+
+  const clearRoute = () => {
+    if (routeLayer && map) map.removeLayer(routeLayer);
+    routeLayer = null;
+  };
+
+  const drawRoute = async (driver, target) => {
+    if (!map || !driver || !target) return;
+    const seq = ++routeSeq;
+    clearRoute();
+    const controller = new AbortController();
+    try {
+      const url = `${ROUTE_URL}${driver.lng},${driver.lat};${target.lng},${target.lat}?overview=full&geometries=geojson&steps=false`;
+      const response = await fetch(url, { signal: controller.signal });
+      if (!response.ok) throw new Error('route');
+      const data = await response.json();
+      if (seq !== routeSeq) return;
+      const coords = data.routes?.[0]?.geometry?.coordinates || [];
+      const points = coords.map(([lng, lat]) => [Number(lat), Number(lng)]).filter(([lat, lng]) => Number.isFinite(lat) && Number.isFinite(lng));
+      const finalPoints = points.length > 1 ? points : [[driver.lat, driver.lng], [target.lat, target.lng]];
+      routeLayer = L.layerGroup([
+        L.polyline(finalPoints, { color:'#05080a', weight:10, opacity:.78, lineCap:'round', lineJoin:'round' }),
+        L.polyline(finalPoints, { color:'#ff6b00', weight:5, opacity:.98, lineCap:'round', lineJoin:'round' })
+      ]).addTo(map);
+      map.fitBounds(L.latLngBounds(finalPoints).pad(.22), { animate:true, maxZoom:16 });
+    } catch (_) {
+      if (seq !== routeSeq) return;
+      const points = [[driver.lat, driver.lng], [target.lat, target.lng]];
+      routeLayer = L.polyline(points, { color:'#ff6b00', weight:5, dashArray:'10 8', lineCap:'round' }).addTo(map);
+      map.fitBounds(L.latLngBounds(points).pad(.22), { animate:true, maxZoom:16 });
+    }
+  };
+
+  const updateTarget = (ride) => {
+    if (!map) return;
+    const status = ride && ride.status;
+    const source = status === 'IN_PROGRESS' ? ride?.destination?.location : (ride?.passengerLocation || ride?.origin?.location);
+    const target = normalizeLocation(source);
+    if (!target) {
+      if (targetMarker) { map.removeLayer(targetMarker); targetMarker = null; }
+      clearRoute();
+      return;
+    }
+    if (!targetMarker) {
+      targetMarker = L.circleMarker([target.lat,target.lng], { radius:10, color:'#fff', weight:3, fillColor:status === 'IN_PROGRESS' ? '#27c96f' : '#ff6b00', fillOpacity:1 }).addTo(map);
+    } else {
+      targetMarker.setLatLng([target.lat,target.lng]);
+      targetMarker.setStyle({ fillColor:status === 'IN_PROGRESS' ? '#27c96f' : '#ff6b00' });
+    }
+    if (lastDriver) drawRoute(lastDriver, target);
+  };
+
+  const updateDriver = (loc) => {
+    if (!map || !loc) return;
+    lastDriver = loc;
+    if (!marker) {
+      marker = L.circleMarker([loc.lat,loc.lng], { radius:10, color:'#fff', weight:3, fillColor:'#ff6b00', fillOpacity:1 }).addTo(map);
+      marker.bindTooltip('Você', { direction:'top', opacity:.95 });
+    } else marker.setLatLng([loc.lat,loc.lng]);
+    if (!targetMarker) map.setView([loc.lat,loc.lng], 16, { animate:true });
+  };
+
+  const initMap = () => {
+    const host = ensureHost();
+    if (!host || map) return;
+    const canvas = host.querySelector('.driver-idle-map-canvas');
+    if (!canvas) return;
+    map = L.map(canvas, { zoomControl:true, attributionControl:true, preferCanvas:true, zoomControl:false }).setView([-14.235,-51.925],5);
+    L.tileLayer(CARTO_DARK_TILES, { maxZoom:20, subdomains:'abcd', attribution:'&copy; OpenStreetMap contributors &copy; CARTO' }).addTo(map);
+    L.control.zoom({ position:'topright' }).addTo(map);
+    setTimeout(() => map && map.invalidateSize(), 100);
+  };
+
+  const pollRide = async () => {
+    if (!isDriverPanel() || realRideMapExists()) return;
+    const token = getToken();
+    if (!token) return;
+    try {
+      const response = await fetch(`${window.__PF17_BACKEND_URL__ || ''}/api/rides/active`, { headers:{ Authorization:`Bearer ${token}` } });
+      if (!response.ok) return;
+      const data = await response.json();
+      const ride = data && data.ride;
+      if (!ride) {
+        activeRideId = null;
+        if (targetMarker && map) { map.removeLayer(targetMarker); targetMarker=null; }
+        clearRoute();
+        return;
+      }
+      activeRideId = ride.id;
+      updateTarget(ride);
+    } catch (_) {}
+  };
+
+  const startGps = () => {
+    if (watchId !== null || !navigator.geolocation) return;
+    watchId = navigator.geolocation.watchPosition((position) => {
+      const loc = { lat:Number(position.coords.latitude), lng:Number(position.coords.longitude) };
+      if (!Number.isFinite(loc.lat) || !Number.isFinite(loc.lng)) return;
+      updateDriver(loc);
+      if (activeRideId) pollRide();
+    }, () => {}, { enableHighAccuracy:true, maximumAge:1500, timeout:10000 });
+  };
+
+  const refresh = () => {
+    const host = ensureHost();
+    if (!host) return;
+    if (realRideMapExists()) { host.style.display='none'; return; }
+    host.style.display='block';
+    initMap();
+    if (map) map.invalidateSize();
+    startGps();
+  };
+
+  const boot = () => {
+    const user = getUser();
+    if (!user || user.userType !== 'driver') return;
+    refresh();
+    if (!pollTimer) pollTimer = window.setInterval(refresh, 1500);
+    window.setInterval(pollRide, 2500);
+    observer = new MutationObserver(refresh);
+    observer.observe(document.body, { childList:true, subtree:true });
+  };
+
+  window.setTimeout(boot, 500);
+}
+
+startIdleDriverMap();
