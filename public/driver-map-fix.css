@@ -1,0 +1,98 @@
+/* PreçoFixo17 — mapa permanente do motorista */
+#pf17-driver-live-map.driver-idle-map-shell {
+  display: block;
+  position: relative;
+  width: min(920px, 100%);
+  min-height: 420px;
+  margin: 0 auto 15px;
+  overflow: hidden;
+  border: 1px solid #303a41;
+  border-radius: 22px;
+  background: #080b0d;
+  box-shadow: 0 20px 55px rgba(0,0,0,.56), inset 0 0 0 1px rgba(255,255,255,.025);
+  color: #fff;
+}
+#pf17-driver-live-map .driver-idle-map-head {
+  position: absolute;
+  z-index: 1000;
+  top: 12px;
+  left: 12px;
+  right: 12px;
+  min-height: 42px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 13px;
+  border: 1px solid rgba(255,255,255,.10);
+  border-radius: 14px;
+  background: rgba(3,6,8,.86);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 10px 28px rgba(0,0,0,.40);
+  font: 800 11px/1 Arial,sans-serif;
+  letter-spacing: .04em;
+}
+#pf17-driver-live-map .driver-idle-map-head span { display:flex; align-items:center; gap:8px; }
+#pf17-driver-live-map .driver-idle-map-head i {
+  display:block;
+  width:8px;
+  height:8px;
+  border-radius:50%;
+  background:#27c96f;
+  box-shadow:0 0 0 5px rgba(39,201,111,.12),0 0 14px rgba(39,201,111,.42);
+}
+#pf17-driver-live-map .driver-idle-map-head b { margin-left:auto; color:#9ba7b1; font-size:9px; }
+#pf17-driver-live-map .driver-idle-map-canvas {
+  width:100%;
+  height:420px;
+  min-height:420px;
+  background:#0b1014;
+}
+#pf17-driver-live-map .driver-idle-map-foot {
+  position:absolute;
+  z-index:1000;
+  left:12px;
+  right:12px;
+  bottom:12px;
+  display:flex;
+  align-items:center;
+  gap:8px;
+  padding:10px 12px;
+  border:1px solid rgba(255,107,0,.74);
+  border-radius:15px;
+  background:rgba(3,6,8,.91);
+  box-shadow:0 8px 25px rgba(0,0,0,.42);
+  backdrop-filter:blur(12px);
+  -webkit-backdrop-filter:blur(12px);
+  font:800 12px/1.15 Arial,sans-serif;
+}
+#pf17-driver-live-map .driver-idle-map-foot span { margin-left:auto; color:#aeb8be; font-size:10px; font-weight:700; }
+#pf17-driver-live-map .leaflet-control-zoom {
+  border:1px solid #303a41!important;
+  border-radius:12px!important;
+  overflow:hidden;
+  box-shadow:0 10px 25px rgba(0,0,0,.46)!important;
+  margin-top:70px!important;
+  margin-right:12px!important;
+}
+#pf17-driver-live-map .leaflet-control-zoom a {
+  width:40px!important;
+  height:40px!important;
+  line-height:38px!important;
+  background:rgba(5,8,10,.92)!important;
+  color:#fff!important;
+  border:0!important;
+  border-bottom:1px solid #303a41!important;
+  font-weight:900!important;
+}
+#pf17-driver-live-map .leaflet-control-zoom a:last-child { border-bottom:0!important; }
+#pf17-driver-live-map .leaflet-control-attribution { background:rgba(3,6,8,.72)!important; color:#7f8b93!important; font-size:9px!important; }
+#pf17-driver-live-map .leaflet-control-attribution a { color:#ff8b1f!important; }
+@media (max-width:640px) {
+  #pf17-driver-live-map.driver-idle-map-shell { min-height:335px; border-radius:20px; }
+  #pf17-driver-live-map .driver-idle-map-canvas { height:335px; min-height:335px; }
+  #pf17-driver-live-map .driver-idle-map-head { top:10px; left:10px; right:10px; }
+  #pf17-driver-live-map .driver-idle-map-foot { left:10px; right:10px; bottom:10px; }
+  #pf17-driver-live-map .driver-idle-map-foot span { display:none; }
+}
