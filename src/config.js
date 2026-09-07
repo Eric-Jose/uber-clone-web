@@ -1,12 +1,11 @@
-// URL central da API.
-// Em produção no Vercel, o frontend chama o backend pela mesma origem (/api).
-// Em desenvolvimento, mantém o Railway como fallback para não quebrar o fluxo local.
+// URL central da API do PreçoFixo17.
+// Em produção, o frontend usa o backend público do Railway.
+// Em desenvolvimento, também usa o mesmo backend para manter o fluxo consistente.
 const configuredBackend = process.env.REACT_APP_BACKEND_URL;
-const isProduction = process.env.NODE_ENV === 'production';
 
 export const BACKEND_URL = (
   configuredBackend ||
-  (isProduction ? '' : 'https://uber-clone-backend-production.up.railway.app')
+  'https://precofixo17-backend-production.up.railway.app'
 ).replace(/\/+$/, '');
 
 export default BACKEND_URL;
