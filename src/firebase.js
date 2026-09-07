@@ -13,13 +13,17 @@ import {
 } from 'firebase/auth';
 import { BACKEND_URL } from './config';
 
+// A configuração Web do Firebase não contém a chave privada do Admin SDK.
+// Mantemos as variáveis REACT_APP_* como prioridade e usamos os valores do
+// aplicativo Web PreçoFixo17 como fallback para builds em que o Vercel não
+// injeta essas variáveis no frontend.
 const firebaseConfig = {
-  apiKey: process.env.REACT_APP_FIREBASE_API_KEY,
-  authDomain: process.env.REACT_APP_FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.REACT_APP_FIREBASE_PROJECT_ID,
-  storageBucket: process.env.REACT_APP_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.REACT_APP_FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.REACT_APP_FIREBASE_APP_ID,
+  apiKey: process.env.REACT_APP_FIREBASE_API_KEY || 'AIzaSyC8QSrdP6teQDygalF0Ah2ymPWI35w6pVg',
+  authDomain: process.env.REACT_APP_FIREBASE_AUTH_DOMAIN || 'uber-clone-eric-f4327.firebaseapp.com',
+  projectId: process.env.REACT_APP_FIREBASE_PROJECT_ID || 'uber-clone-eric-f4327',
+  storageBucket: process.env.REACT_APP_FIREBASE_STORAGE_BUCKET || 'uber-clone-eric-f4327.firebasestorage.app',
+  messagingSenderId: process.env.REACT_APP_FIREBASE_MESSAGING_SENDER_ID || '565195026004',
+  appId: process.env.REACT_APP_FIREBASE_APP_ID || '1:565195026004:web:6b03e62032d742d64387c1',
 };
 
 export const isFirebaseConfigured = Object.values(firebaseConfig).every(Boolean);
