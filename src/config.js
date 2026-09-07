@@ -3,6 +3,8 @@
 // Portanto, o frontend NUNCA usa uma URL externa configurada por variável
 // REACT_APP_BACKEND_URL em produção; isso evita CORS, endpoints antigos e
 // o erro genérico "Failed to fetch" no login e nas demais chamadas.
+import './styles/PassengerTouchFix.css';
+
 const configuredBackend = process.env.REACT_APP_BACKEND_URL;
 const isProduction = process.env.NODE_ENV === 'production';
 
