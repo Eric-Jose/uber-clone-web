@@ -21,6 +21,18 @@
     "bcryptjs": "^2.4.3",
     "socket.io": "^4.7.2"
   },
+  "overrides": {
+    "react-scripts": {
+      "schema-utils": "3.3.0",
+      "ajv": "6.12.6",
+      "ajv-keywords": "3.5.2"
+    },
+    "terser-webpack-plugin": {
+      "schema-utils": "3.3.0",
+      "ajv": "6.12.6",
+      "ajv-keywords": "3.5.2"
+    }
+  },
   "scripts": {
     "start": "react-scripts start",
     "prebuild": "node scripts/fix-admin-logout.js",
