@@ -67,6 +67,7 @@ export default function DriverDashboardMapPro() {
   var rideRef = useRef(null);
   var onlineRef = useRef(false);
   var watchRef = useRef(null);
+  var locationSyncAtRef = useRef(0);
   var completionTimerRef = useRef(null);
 
   useEffect(function () { rideRef.current = ride; }, [ride]);
@@ -77,12 +78,21 @@ export default function DriverDashboardMapPro() {
     watchRef.current = null;
   }
 
+  function syncLocationThrottled(current) {
+    if (!current || !uid) return;
+    var now = Date.now();
+    if (now - locationSyncAtRef.current < 5000) return;
+    locationSyncAtRef.current = now;
+    void syncDriverLocationToServer(current).catch(function () {});
+  }
+
   function startLocation() {
     if (!navigator.geolocation || watchRef.current !== null) return;
     watchRef.current = navigator.geolocation.watchPosition(function (position) {
       var current = { lat: Number(position.coords.latitude), lng: Number(position.coords.longitude) };
       if (!Number.isFinite(current.lat) || !Number.isFinite(current.lng)) return;
       setDriverLocation(current);
+      syncLocationThrottled(current);
       if (rideRef.current && rideRef.current.id) WebSocketService.sendLocation(rideRef.current.id, uid, current.lat, current.lng);
       else if (onlineRef.current) WebSocketService.sendPresenceLocation(current.lat, current.lng);
     }, function () {}, { enableHighAccuracy: true, maximumAge: 1500, timeout: 10000 });
@@ -100,6 +110,7 @@ export default function DriverDashboardMapPro() {
       var loc = { lat: Number(position.coords.latitude), lng: Number(position.coords.longitude) };
       if (!Number.isFinite(loc.lat) || !Number.isFinite(loc.lng)) throw new Error('Localização inválida.');
       setDriverLocation(loc);
+      await syncDriverLocationToServer(loc);
       if (rideRef.current && rideRef.current.id) WebSocketService.sendLocation(rideRef.current.id, uid, loc.lat, loc.lng);
       return loc;
     } catch (gpsError) {
