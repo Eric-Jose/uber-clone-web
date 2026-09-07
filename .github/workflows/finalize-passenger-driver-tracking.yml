@@ -1,0 +1,53 @@
+name: Finalize passenger driver tracking
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Patch source
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const path = 'src/pages/MapRidePro.js';
+          let s = fs.readFileSync(path, 'utf8');
+          function ensure(from, to, label) {
+            if (s.includes(to.trim())) return;
+            if (!s.includes(from)) throw new Error('Anchor not found: ' + label);
+            s = s.replace(from, to);
+          }
+          ensure("  const [elapsedSeconds, setElapsedSeconds] = useState(0);\n", "  const [elapsedSeconds, setElapsedSeconds] = useState(0);\n  const [driverLocation, setDriverLocation] = useState(null);\n", 'driver location state');
+          ensure("      setDriver(data.driver || data);\n", "      setDriver(data.driver || data);\n      const loc = data.driver?.currentLocation || data.currentLocation;\n      if (loc) setDriverLocation({ lat: Number(loc.lat ?? loc.latitude), lng: Number(loc.lng ?? loc.longitude) });\n", 'driver profile location');
+          ensure("    if (nextRide.driverId) void fetchDriver(nextRide.driverId);\n", "    if (nextRide.driverId) void fetchDriver(nextRide.driverId);\n    if (nextRide.driverLocation) setDriverLocation({ lat: Number(nextRide.driverLocation.lat ?? nextRide.driverLocation.latitude), lng: Number(nextRide.driverLocation.lng ?? nextRide.driverLocation.longitude) });\n", 'ride location');
+          ensure("  useEffect(() => {\n    if (!token || !currentRideId || !ride || ride.status !== 'IN_PROGRESS') {\n", "  useEffect(() => {\n    if (!map.current || !driverLocation || !Number.isFinite(Number(driverLocation.lat)) || !Number.isFinite(Number(driverLocation.lng))) return;\n    const loc = { lat: Number(driverLocation.lat), lng: Number(driverLocation.lng) };\n    const driverIcon = L.divIcon({ className: 'pf-driver-live-icon', html: '<div style=\"width:34px;height:34px;border-radius:50%;background:#ff5a00;border:3px solid #fff;box-shadow:0 0 18px rgba(255,90,0,.75);display:grid;place-items:center;font-size:17px\">🚗</div>', iconSize: [34, 34], iconAnchor: [17, 17] });\n    if (!driverMarker.current) driverMarker.current = L.marker([loc.lat, loc.lng], { icon: driverIcon, zIndexOffset: 1200 }).addTo(map.current);\n    else driverMarker.current.setLatLng([loc.lat, loc.lng]);\n  }, [driverLocation]);\n\n  useEffect(() => {\n    if (!token || !currentRideId || !ride || ride.status !== 'IN_PROGRESS') {\n", 'driver marker effect');
+          ensure("        const onCancelled = (data) => {\n", "        const onDriverLocation = (data) => {\n          if (!data?.driverId && !data?.rideId) return;\n          if (data?.rideId && (!currentRideId || String(data.rideId) !== String(currentRideId))) return;\n          const loc = data?.location || { lat: data?.lat ?? data?.latitude, lng: data?.lng ?? data?.longitude };\n          const lat = Number(loc?.lat ?? loc?.latitude), lng = Number(loc?.lng ?? loc?.longitude);\n          if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;\n          setDriverLocation({ lat, lng });\n        };\n        const onCancelled = (data) => {\n", 'driver event');
+          ensure("        WebSocketService.onRideAccepted(onAccepted);\n", "        WebSocketService.onRideAccepted(onAccepted);\n        WebSocketService.onDriverLocationUpdate(onDriverLocation);\n", 'driver event bind');
+          ensure("        cleanup.push(() => WebSocketService.off('ride-accepted', onAccepted));\n", "        cleanup.push(() => WebSocketService.off('ride-accepted', onAccepted));\n        cleanup.push(() => WebSocketService.off('update-driver-location', onDriverLocation));\n", 'driver event cleanup');
+          fs.writeFileSync(path, s);
+          NODE
+      - name: Build frontend
+        env:
+          CI: 'false'
+        run: npm install --no-audit --no-fund && npm run build
+      - name: Commit and remove workflow
+        shell: bash
+        run: |
+          rm -f .github/workflows/finalize-passenger-driver-tracking.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/pages/MapRidePro.js .github/workflows/finalize-passenger-driver-tracking.yml
+          git diff --cached --quiet || git commit -m "fix(passenger): show live driver location on map"
+          git push origin HEAD:main
