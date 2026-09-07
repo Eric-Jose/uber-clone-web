@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import '../styles/Auth.css';
 import { BACKEND_URL } from '../config';
+import { syncFirebaseRegistration } from '../firebase';
 
 function Register({ onRegisterSuccess, onBackToLogin }) {
   const [formData, setFormData] = useState({ name: '', email: '', phone: '', password: '', confirmPassword: '', userType: 'passenger' });
@@ -26,11 +27,11 @@ function Register({ onRegisterSuccess, onBackToLogin }) {
       if (!response.ok) throw new Error(data.error || 'Erro ao registrar');
       if (!data.token || !data.user) throw new Error('Resposta de cadastro incompleta.');
 
-      // O backend é a autoridade da conta e da sessão. Persistimos o JWT
-      // imediatamente para que o cadastro não dependa do Firebase Auth
-      // nem provoque troca de sessão/deslogamento após concluir.
+      // Mantém as duas sessões apontando para a mesma conta Firebase:
+      // o backend emite o JWT do app e o Firebase Web mantém a sessão local.
       localStorage.setItem('token', data.token);
       localStorage.setItem('user', JSON.stringify(data.user));
+      await syncFirebaseRegistration(normalizedEmail, formData.password);
       setSuccess('✅ Cadastro realizado com sucesso!');
       setTimeout(() => onRegisterSuccess(data.user), 300);
     } catch (err) {
