@@ -1,3 +1,3 @@
 PreçoFixo17 Vercel redeploy trigger
-2026-09-07 18:30 UTC
-refresh production environment after Firebase Web API key configuration
+2026-09-07 18:45 UTC
+force production build after admin logout fix
