@@ -1,6 +1,4 @@
 // Vercel Function entrypoint for the unified PreçoFixo17 backend.
-// Keep the health endpoint dependency-free so it can prove the Function itself
-// is alive even when a backend dependency/configuration has a problem.
 let app = null;
 let bootstrapError = null;
 
@@ -15,22 +13,29 @@ function health(req, res) {
   });
 }
 
-function stripWrappingQuotes(value) {
-  const text = String(value ?? '').trim();
-  if (text.length >= 2) {
-    const first = text[0];
-    const last = text[text.length - 1];
-    if ((first === '"' && last === '"') || (first === "'" && last === "'")) return text.slice(1, -1);
+function cleanEnv(value) {
+  return String(value ?? '')
+    .trim()
+    .replace(/^['"]|['"]$/g, '')
+    .replace(/\\n/g, '\n')
+    .replace(/\\r/g, '\r');
+}
+
+function normalizeDatabaseUrl(projectId) {
+  const configured = cleanEnv(process.env.FIREBASE_DATABASE_URL).replace(/\/+$/, '');
+  try {
+    const parsed = new URL(configured);
+    if (!/^https?:$/.test(parsed.protocol) || !parsed.hostname) throw new Error('Invalid protocol');
+    return `${parsed.protocol}//${parsed.host}${parsed.pathname.replace(/\/+$/, '')}/`;
+  } catch (_) {
+    return `https://${projectId}-default-rtdb.firebaseio.com/`;
   }
-  return text;
 }
 
 function bootstrap() {
   if (app || bootstrapError) return;
 
   try {
-    // Lazy-load every backend dependency. A Vercel health probe must not fail
-    // because one package or Firebase credential has an issue.
     const express = require('express');
     const cors = require('cors');
     const dotenv = require('dotenv');
@@ -41,25 +46,22 @@ function bootstrap() {
       'FIREBASE_PROJECT_ID',
       'FIREBASE_CLIENT_EMAIL',
       'FIREBASE_PRIVATE_KEY',
-      'FIREBASE_DATABASE_URL',
       'JWT_SECRET',
     ];
     const missing = required.filter((name) => !process.env[name]);
     if (missing.length) throw new Error(`Variáveis ausentes: ${missing.join(', ')}`);
 
+    const projectId = cleanEnv(process.env.FIREBASE_PROJECT_ID);
+    const clientEmail = cleanEnv(process.env.FIREBASE_CLIENT_EMAIL);
+    const privateKey = cleanEnv(process.env.FIREBASE_PRIVATE_KEY);
+    const databaseURL = normalizeDatabaseUrl(projectId);
+
     if (!admin.apps.length) {
-      const privateKey = stripWrappingQuotes(process.env.FIREBASE_PRIVATE_KEY)
-        .replace(/\\n/g, '\n')
-        .replace(/\\r/g, '\r');
       admin.initializeApp({
-        credential: admin.credential.cert({
-          projectId: stripWrappingQuotes(process.env.FIREBASE_PROJECT_ID),
-          clientEmail: stripWrappingQuotes(process.env.FIREBASE_CLIENT_EMAIL),
-          privateKey,
-        }),
-        databaseURL: stripWrappingQuotes(process.env.FIREBASE_DATABASE_URL),
+        credential: admin.credential.cert({ projectId, clientEmail, privateKey }),
+        databaseURL,
         storageBucket: process.env.FIREBASE_STORAGE_BUCKET
-          ? stripWrappingQuotes(process.env.FIREBASE_STORAGE_BUCKET)
+          ? cleanEnv(process.env.FIREBASE_STORAGE_BUCKET)
           : undefined,
       });
     }
@@ -84,6 +86,7 @@ function bootstrap() {
       credentials: true,
     };
     application.use(cors(corsOptions));
+    application.options('*', cors(corsOptions));
     application.use(express.json({ limit: '1mb' }));
 
     const { authenticate } = require('../backend/middleware/auth');
@@ -99,27 +102,14 @@ function bootstrap() {
 
     rideRoutes.setSocketIo(null);
 
-    application.get('/health', (req, res) => res.status(200).json({
-      status: 'ok',
-      service: 'precofixo17-backend',
-      platform: 'vercel',
-      backendInitialized: true,
-      firebaseInitialized: admin.apps.length > 0,
-      timestamp: new Date().toISOString(),
-    }));
-    application.get('/api/health', (req, res) => res.status(200).json({
-      status: 'ok',
-      service: 'precofixo17-backend',
-      platform: 'vercel',
-      backendInitialized: true,
-      firebaseInitialized: admin.apps.length > 0,
-      timestamp: new Date().toISOString(),
-    }));
+    application.get('/health', health);
+    application.get('/api/health', health);
     application.get('/api/backend-check', (req, res) => res.status(200).json({
       status: 'ok',
       backendInitialized: true,
       firebaseInitialized: admin.apps.length > 0,
-      databaseConfigured: Boolean(process.env.FIREBASE_DATABASE_URL),
+      databaseConfigured: Boolean(admin.app().options.databaseURL),
+      databaseURLValid: Boolean(admin.app().options.databaseURL),
       timestamp: new Date().toISOString(),
     }));
 
@@ -186,9 +176,7 @@ function bootstrap() {
 
 module.exports = (req, res) => {
   const path = String(req.url || '').split('?')[0];
-  // Health must remain dependency-free and independent from backend bootstrap.
   if (path === '/health' || path === '/api/health') return health(req, res);
-
   bootstrap();
   if (bootstrapError) {
     return res.status(500).json({
