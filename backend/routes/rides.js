@@ -65,13 +65,15 @@ async function dispatchRide(ride) {
   dispatchingRideIds.add(ride.id);
   try {
     const ageMs = Math.max(0, Date.now() - Number(ride.createdAt || Date.now())), radiusKm = dispatchRadiusKm(ageMs), drivers = await findEligibleDrivers(ride.origin, radiusKm);
+    if (!io || !io.sockets?.adapter?.rooms) {
+      await notifyDriversHttpFallback(ride);
+      return;
+    }
     for (const driver of drivers.slice(0, 10)) {
       const current = (await db.ref(`rides/${ride.id}`).get()).val();
       if (!current || current.status !== 'SEARCHING' || current.driverId) break;
-      if (io) {
-        const room = io.sockets?.adapter?.rooms?.get(`driver_${driver.uid}`);
-        if (room?.size) io.to(`driver_${driver.uid}`).emit('new-ride-request', { ...current, rideId: ride.id, passengerLocation: current.passengerLocation || current.origin?.location || null, estimatedDistanceKm: Number(driver.distance.toFixed(2)), dispatchRadiusKm: radiusKm, source: 'backend-dispatch' });
-      }
+      const room = io.sockets.adapter.rooms.get(`driver_${driver.uid}`);
+      if (room?.size) io.to(`driver_${driver.uid}`).emit('new-ride-request', { ...current, rideId: ride.id, passengerLocation: current.passengerLocation || current.origin?.location || null, estimatedDistanceKm: Number(driver.distance.toFixed(2)), dispatchRadiusKm: radiusKm, source: 'backend-dispatch' });
       await new Promise((resolve) => setTimeout(resolve, 8000));
       const after = (await db.ref(`rides/${ride.id}`).get()).val();
       if (!after || after.status !== 'SEARCHING' || after.driverId) break;
