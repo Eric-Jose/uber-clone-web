@@ -21,6 +21,10 @@
     "bcryptjs": "^2.4.3",
     "socket.io": "^4.7.2"
   },
+  "overrides": {
+    "ajv": "8.17.1",
+    "ajv-keywords": "5.1.0"
+  },
   "scripts": {
     "start": "react-scripts start",
     "prebuild": "node scripts/fix-admin-logout.js",
