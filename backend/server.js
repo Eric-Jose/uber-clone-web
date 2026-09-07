@@ -100,7 +100,7 @@ app.use((error, req, res, next) => { console.error('Erro não tratado na API:', 
 
 io.use((socket, next) => {
   try {
-    const token = socket.handshake.auth?.token || socket.handshake.headers?.authorization?.replace(/^Bearer\s+/i, '');
+    const token = socket.handshake.auth?.token || socket.handshake.headers?.authorization?.replace(/^Bearer\\s+/i, '');
     if (!token) return next(new Error('Não autenticado'));
     socket.user = jwt.verify(token, process.env.JWT_SECRET);
     next();
@@ -240,9 +240,11 @@ io.on('connection', async (socket) => {
 });
 
 const PORT = Number(process.env.PORT || 5000);
-server.listen(PORT, () => {
-  console.log(`Socket.IO ativo na porta ${PORT}`);
-  console.log(`Servidor rodando na porta ${PORT}`);
-});
+if (!process.env.VERCEL) {
+  server.listen(PORT, () => {
+    console.log(`Socket.IO ativo na porta ${PORT}`);
+    console.log(`Servidor rodando na porta ${PORT}`);
+  });
+}
 
-module.exports = { app, io, db, auth };
+module.exports = { app, io, db, auth, server }; 
