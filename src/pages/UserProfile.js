@@ -10,8 +10,7 @@ function UserProfile({ user, onLogout, onBack, onNavigate }) {
     rating: '4.9'
   });
 
-  const [activeModal, setActiveModal] = useState(null); // 'info' | 'address' | 'saved'
-  const [savedAddresses, setSavedAddresses] = useState([
+  const [savedAddresses] = useState([
     { id: 1, label: 'Casa', address: 'Av. das Palmeiras, 123 - Centro' },
     { id: 2, label: 'Trabalho', address: 'Rua dos Ipês, 456 - Jardim das Flores' }
   ]);
@@ -252,7 +251,12 @@ function UserProfile({ user, onLogout, onBack, onNavigate }) {
             onClick={() => {
               const newName = window.prompt('Editar seu nome:', userData.name);
               if (newName && newName.trim()) {
-                setUserData((prev) => ({ ...prev, name: newName.trim() }));
+                const nextName = newName.trim();
+                setUserData((prev) => ({ ...prev, name: nextName }));
+                try {
+                  const stored = JSON.parse(localStorage.getItem('user') || '{}');
+                  localStorage.setItem('user', JSON.stringify({ ...stored, name: nextName }));
+                } catch (_) {}
               }
             }}
           >
@@ -316,7 +320,7 @@ function UserProfile({ user, onLogout, onBack, onNavigate }) {
           <button
             type="button"
             className="pf-prof-item"
-            onClick={() => alert('Central de Ajuda PreçoFixo17: suporte disponível 24h pelo WhatsApp.')}
+            onClick={() => onNavigate?.('help')}
           >
             <div className="pf-prof-item-left">
               <span className="pf-prof-item-icon">❓</span>

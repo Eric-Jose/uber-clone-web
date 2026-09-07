@@ -33,7 +33,7 @@ export default function MapRidePro({ onRideCreate, onBack, onNavigate, onOpenMen
   const [distanceKm, setDistanceKm] = useState(3.5);
   const [durationMin, setDurationMin] = useState(8);
   const [paymentMethod, setPaymentMethod] = useState('Dinheiro');
-  const [promoCode, setPromoCode] = useState('Nenhuma');
+  const [promoCode, setPromoCode] = useState(() => { try { return localStorage.getItem('pf_selected_promo') || 'Nenhuma'; } catch (_) { return 'Nenhuma'; } });
   const [passengerCount, setPassengerCount] = useState(1);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');

@@ -172,10 +172,22 @@ function App() {
   const handleLogout = async () => { await logoutFirebase(); setUser(null); localStorage.removeItem('token'); localStorage.removeItem('user'); setCurrentPage('home'); };
   const handleDriverRegistration = (registration) => { const currentUser = getStored('user') || user || {}; const updatedUser = { ...currentUser, userType: 'driver', driverApprovalStatus: registration?.status || 'pending' }; setUser(updatedUser); localStorage.setItem('user', JSON.stringify(updatedUser)); setCurrentPage(resolveUserPage(updatedUser)); };
   const handleAdminLogin = (adminData) => { setUser(null); setAdmin(adminData); localStorage.removeItem('token'); localStorage.removeItem('user'); localStorage.setItem('admin', JSON.stringify(adminData)); setCurrentPage('admin-dashboard'); };
-  const handleAdminLogout = async () => { await logoutFirebase(); setAdmin(null); localStorage.removeItem('adminToken'); localStorage.removeItem('admin'); setCurrentPage('home'); };
+  const handleAdminLogout = () => {
+    try {
+      localStorage.removeItem('adminToken');
+      localStorage.removeItem('admin');
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      sessionStorage.clear();
+    } catch (_) {}
+    setAdmin(null);
+    setUser(null);
+    setCurrentPage('home');
+    window.location.assign('/?loggedOut=1');
+  };
   const navigate = (page) => setCurrentPage(page);
   const handleRideCreate = (ride) => { const rideId = ride?.id; const token = localStorage.getItem('token'); if (!rideId || !token) return; void dispatchRideSearch(rideId, token); };
-  if (admin) return <AdminDashboardLive admin={admin} onLogout={handleAdminLogout} />;
+  if (admin && localStorage.getItem('adminToken')) return <AdminDashboardLive admin={admin} onLogout={handleAdminLogout} />;
   if (currentPage === 'admin-login' || currentPage === 'admin-dashboard') return <AdminLogin onAdminLogin={handleAdminLogin} />;
   switch (currentPage) {
     case 'login': return <Login onLoginSuccess={handleUserLogin} />;
@@ -186,12 +198,12 @@ function App() {
     case 'driver-registration': return <DriverRegistration onRegistrationSubmit={handleDriverRegistration} />;
     case 'driver-pending': return <DriverPending user={user} onLogout={handleLogout} />;
     case 'driver-dashboard': return user ? <AccountPanel account={user} currentPage="driver-dashboard" onNavigate={navigate} onLogout={handleLogout}><LiveStatsBar userType="driver" /><DriverDashboardMapPro /></AccountPanel> : <Login onLoginSuccess={handleUserLogin} />;
-    case 'profile': return user ? <AccountPanel account={user} currentPage="profile" onNavigate={navigate} onLogout={handleLogout}><UserProfile user={user} onLogout={handleLogout} onRequestRide={() => setCurrentPage('ride')} onHistory={() => setCurrentPage('ride-history')} /></AccountPanel> : <Login onLoginSuccess={handleUserLogin} />;
+    case 'profile': return user ? <AccountPanel account={user} currentPage="profile" onNavigate={navigate} onLogout={handleLogout}><UserProfile user={user} onLogout={handleLogout} onBack={() => setCurrentPage('ride')} onNavigate={navigate} onRequestRide={() => setCurrentPage('ride')} onHistory={() => setCurrentPage('ride-history')} /></AccountPanel> : <Login onLoginSuccess={handleUserLogin} />;
     case 'admin-panel': return <AdminPanel />;
     case 'payment': return user ? <AccountPanel account={user} currentPage="payment" onNavigate={navigate} onLogout={handleLogout}><Payment rideId={null} amount={17} onBack={() => setCurrentPage('ride')} onPaymentSuccess={() => setCurrentPage('ride-history')} /></AccountPanel> : <Login onLoginSuccess={handleUserLogin} />;
-    case 'promos': return user ? <AccountPanel account={user} currentPage="promos" onNavigate={navigate} onLogout={handleLogout}><Promotions userId={user?.uid || user?.id} onApplyCode={() => {}} /></AccountPanel> : <Login onLoginSuccess={handleUserLogin} />;
+    case 'promos': return user ? <AccountPanel account={user} currentPage="promos" onNavigate={navigate} onLogout={handleLogout}><Promotions userId={user?.uid || user?.id} onApplyCode={(promo) => { if (promo?.code) localStorage.setItem('pf_selected_promo', String(promo.code)); }} /></AccountPanel> : <Login onLoginSuccess={handleUserLogin} />;
     case 'help': return user ? <AccountPanel account={user} currentPage="help" onNavigate={navigate} onLogout={handleLogout}><HelpCenter onBack={() => setCurrentPage('ride')} /></AccountPanel> : <Login onLoginSuccess={handleUserLogin} />;
-    case 'notifications': return user ? <AccountPanel account={user} currentPage="notifications" onNavigate={navigate} onLogout={handleLogout}><NotificationCenter /></AccountPanel> : <Login onLoginSuccess={handleUserLogin} />;
+    case 'notifications': return user ? <AccountPanel account={user} currentPage="notifications" onNavigate={navigate} onLogout={handleLogout}><NotificationCenter onBack={() => setCurrentPage('ride')} /></AccountPanel> : <Login onLoginSuccess={handleUserLogin} />;
     default: return <div className="home-page"><div className="home-hero"><div className="home-copy"><div className="home-brand-lockup"><span>PREÇO</span><strong>FIXO</strong><em>17</em></div><div className="home-tagline">📍 NA CIDADE • CORRIDA PARTICULAR</div><h1>Preço justo.<br /><strong>Sem surpresa.</strong></h1><p>Corridas particulares com preço justo, segurança, conforto e atendimento para você chegar ao seu destino.</p><div className="home-feature-row"><span>💰 Preço justo</span><span>🛡️ Segurança</span><span>⏱️ Pontualidade</span></div><div className="home-buttons"><button type="button" onClick={() => setCurrentPage('login')} className="btn-home">👤 ENTRAR</button><button type="button" onClick={() => setCurrentPage('register')} className="btn-home secondary">CRIAR MINHA CONTA</button></div><button type="button" onClick={() => setCurrentPage('admin-login')} className="home-admin-link">🔐 Acesso administrativo</button></div><div className="home-visual"><div className="home-price-card"><small>R$</small><b>17</b><span>PREÇO FIXO</span></div><div className="home-car"><div className="home-car-glow" /><img className="home-car-real" src={precoFixo17Car} alt="Carro branco oficial PreçoFixo17 com identidade visual R$17" style={{ width: '100%', maxWidth: 520, height: 'auto', objectFit: 'contain', borderRadius: 14, position: 'relative', zIndex: 3, boxShadow: '0 18px 35px rgba(0,0,0,.5)' }} /></div><div className="home-visual-caption"><b>RÁPIDO. SEGURO.</b><span>E SEM COMPLICAÇÃO.</span></div></div></div></div>;
   }
 }
