@@ -17,7 +17,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: npm
       - name: Patch passenger map tracking
         shell: bash
         run: |
@@ -44,7 +43,7 @@ jobs:
           fs.writeFileSync(path, s);
           NODE
       - name: Build frontend
-        run: npm ci && npm run build
+        run: npm install --no-audit --no-fund && npm run build
       - name: Commit source fix and remove one-time workflow
         shell: bash
         run: |
