@@ -98,6 +98,37 @@ export async function syncBackendSession(firebaseUser) {
   }
 }
 
+// Recupera contas que continuam autenticadas no Firebase quando o JWT local
+// do PreçoFixo17 foi perdido (por exemplo, após limpar o storage, trocar de
+// dispositivo ou atualizar o navegador). O backend também recupera o perfil
+// por e-mail quando ele estiver salvo sob um UID Firebase legado.
+if (auth && typeof window !== 'undefined') {
+  onAuthStateChanged(auth, async (firebaseUser) => {
+    if (!firebaseUser) return;
+
+    const hadBackendSession = Boolean(localStorage.getItem('token') && localStorage.getItem('user'));
+    if (hadBackendSession) return;
+
+    const recoveryKey = `pf17-auth-recovery:${firebaseUser.uid}`;
+    if (sessionStorage.getItem(recoveryKey)) return;
+    sessionStorage.setItem(recoveryKey, '1');
+
+    try {
+      await persistenceReady;
+      const data = await syncBackendSession(firebaseUser);
+      if (data?.token && data?.user) {
+        // O App lê a sessão no carregamento inicial. Recarregar somente quando
+        // a sessão backend foi restaurada evita deixar a tela parada em login.
+        window.location.reload();
+      } else {
+        sessionStorage.removeItem(recoveryKey);
+      }
+    } catch (_) {
+      sessionStorage.removeItem(recoveryKey);
+    }
+  });
+}
+
 export async function logoutFirebase() {
   if (auth) await signOut(auth).catch(() => {});
 }
