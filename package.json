@@ -30,7 +30,7 @@
   },
   "scripts": {
     "start": "react-scripts start",
-    "prebuild": "node scripts/fix-admin-logout.js && node scripts/fix-admin-driver-approval.js && node scripts/fix-map-location-v2.js",
+    "prebuild": "node scripts/fix-admin-logout.js && node scripts/fix-admin-driver-approval.js && node scripts/fix-map-location-v3.js",
     "build": "CI=false react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject"
