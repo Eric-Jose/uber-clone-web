@@ -4,6 +4,7 @@ import './index.css';
 import './home-enhancements.css';
 import './map-dark-theme.css';
 import './search-bottom.css';
+import './styles/PassengerTouchFix.css';
 import App from './App';
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
