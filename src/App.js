@@ -66,11 +66,15 @@ function AccountPanel({ account, currentPage, onNavigate, onLogout, children }) 
     <div className="pf-app-layout" style={{ minHeight: '100vh', background: '#050505' }}>
       {/* Content */}
       <main style={{ minHeight: '100vh', position: 'relative' }}>
-        {React.cloneElement(children, {
-          onOpenMenu: () => setMenuOpen(true),
-          onOpenNotifications: () => onNavigate('notifications'),
-          onNavigate: onNavigate
-        })}
+        {React.Children.map(children, (child) =>
+          React.isValidElement(child)
+            ? React.cloneElement(child, {
+                onOpenMenu: () => setMenuOpen(true),
+                onOpenNotifications: () => onNavigate('notifications'),
+                onNavigate
+              })
+            : child
+        )}
       </main>
 
       {/* Screen 6: Navigation Drawer */}
