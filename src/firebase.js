@@ -2,10 +2,13 @@ import { initializeApp } from 'firebase/app';
 import {
   browserLocalPersistence,
   createUserWithEmailAndPassword,
+  FacebookAuthProvider,
   getAuth,
+  GoogleAuthProvider,
   onAuthStateChanged,
   setPersistence,
   signInWithEmailAndPassword,
+  signInWithPopup,
   signOut,
 } from 'firebase/auth';
 import { BACKEND_URL } from './config';
@@ -66,10 +69,19 @@ export async function syncFirebaseRegistration(email, password) {
   }
 }
 
+export async function signInWithSocialProvider(providerName) {
+  if (!auth) throw new Error('Login social indisponível: Firebase não está configurado no aplicativo.');
+  await persistenceReady;
+  const provider = providerName === 'facebook' ? new FacebookAuthProvider() : new GoogleAuthProvider();
+  provider.setCustomParameters({ prompt: 'select_account' });
+  const result = await signInWithPopup(auth, provider);
+  return result.user;
+}
+
 export async function syncBackendSession(firebaseUser) {
   if (!firebaseUser) return null;
   try {
-    const idToken = await firebaseUser.getIdToken();
+    const idToken = await firebaseUser.getIdToken(true);
     const response = await fetch(`${BACKEND_URL}/api/auth/firebase-session`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
