@@ -1,6 +1,6 @@
 {
   "name": "uber-clone-web",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "App tipo Uber com mapa e sistema de corridas",
   "private": true,
   "homepage": "https://uber-clone-web.vercel.app",
