@@ -25,7 +25,10 @@ jobs:
           const path = 'src/pages/MapRidePro.js';
           let s = fs.readFileSync(path, 'utf8');
           const replaceOnce = (from, to, label) => {
-            if (!s.includes(from)) throw new Error(`Patch anchor not found: ${label}`);
+            if (!s.includes(from)) {
+              if (s.includes(to.trim())) return;
+              throw new Error(`Patch anchor not found: ${label}`);
+            }
             s = s.replace(from, to);
           };
           replaceOnce("  const destMarker = useRef(null);\n", "  const destMarker = useRef(null);\n  const driverMarker = useRef(null);\n", 'driver marker ref');
@@ -39,7 +42,6 @@ jobs:
           replaceOnce("        WebSocketService.onRideAccepted(onAccepted);\n        WebSocketService.onRideStarted(onStarted);\n", "        WebSocketService.onRideAccepted(onAccepted);\n        WebSocketService.onDriverLocationUpdate(onDriverLocation);\n        WebSocketService.onRideStarted(onStarted);\n", 'driver location listener bind');
           replaceOnce("        cleanup.push(() => WebSocketService.off('ride-accepted', onAccepted));\n        cleanup.push(() => WebSocketService.off('ride-started', onStarted));\n", "        cleanup.push(() => WebSocketService.off('ride-accepted', onAccepted));\n        cleanup.push(() => WebSocketService.off('update-driver-location', onDriverLocation));\n        cleanup.push(() => WebSocketService.off('ride-started', onStarted));\n", 'driver location listener cleanup');
           replaceOnce("    setCurrentRideId(null); setRide(null); setDriver(null); setStage('plan');\n", "    setCurrentRideId(null); setRide(null); setDriver(null); setDriverLocation(null); setStage('plan');\n", 'clear cancelled driver marker');
-          replaceOnce("      setCurrentRideId(null); setRide(normalizeRide(data) || { ...(ride || {}), status: 'COMPLETED' });\n", "      setCurrentRideId(null); setRide(normalizeRide(data) || { ...(ride || {}), status: 'COMPLETED' });\n      setDriverLocation(null);\n", 'clear completed driver marker');
           fs.writeFileSync(path, s);
           NODE
       - name: Build frontend
