@@ -3,7 +3,7 @@ import '../styles/Auth.css';
 import '../styles/PrecoFixo17Reference.css';
 import Register from './Register';
 import ForgotPassword from './ForgotPassword';
-import { signInWithSocialProvider, syncBackendSession } from '../firebase';
+import { loginWithFirebasePassword, signInWithSocialProvider, syncBackendSession } from '../firebase';
 import { BACKEND_URL } from '../config';
 import precoFixo17Car from '../assets/precoFixo17Car';
 
@@ -20,23 +20,50 @@ function Login({ onLoginSuccess }) {
   if (showRegister) return <Register onRegisterSuccess={onLoginSuccess} onBackToLogin={() => setShowRegister(false)} />;
   if (showForgotPassword) return <ForgotPassword onBackToLogin={() => setShowForgotPassword(false)} />;
 
+  const backendLogin = async (normalizedEmail) => {
+    const response = await fetch(`${BACKEND_URL}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: normalizedEmail, password }),
+      cache: 'no-store',
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const serverMessage = data?.error || 'Email ou senha inválidos.';
+      const error = new Error(serverMessage);
+      error.status = response.status;
+      throw error;
+    }
+    if (!data?.token || !data?.user) throw new Error('Resposta de login incompleta.');
+    localStorage.setItem('token', data.token);
+    localStorage.setItem('user', JSON.stringify(data.user));
+    return data;
+  };
+
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError('');
     try {
       const normalizedEmail = email.trim().toLowerCase();
-      const response = await fetch(`${BACKEND_URL}/api/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: normalizedEmail, password }),
-        cache: 'no-store',
-      });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data.error || 'Email ou senha inválidos.');
-      if (!data?.token || !data?.user) throw new Error('Resposta de login incompleta.');
-      localStorage.setItem('token', data.token);
-      localStorage.setItem('user', JSON.stringify(data.user));
+      // O Firebase Web autentica a senha no mesmo projeto usado pelo backend.
+      // Depois disso, o backend emite o JWT próprio do PreçoFixo17.
+      try {
+        const firebaseUser = await loginWithFirebasePassword(normalizedEmail, password);
+        const synced = await syncBackendSession(firebaseUser);
+        if (synced?.token && synced?.user) {
+          onLoginSuccess(synced.user);
+          return;
+        }
+      } catch (firebaseError) {
+        // Mantém o endpoint do backend como fallback para ambientes onde o
+        // Firebase Web esteja temporariamente indisponível.
+        if (firebaseError?.code === 'auth/too-many-requests') {
+          throw new Error('Muitas tentativas de login. Aguarde alguns minutos e tente novamente.');
+        }
+      }
+
+      const data = await backendLogin(normalizedEmail);
       onLoginSuccess(data.user);
     } catch (err) {
       setError(err.message || 'Não foi possível fazer login.');
