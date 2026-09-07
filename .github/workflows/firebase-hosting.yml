@@ -23,12 +23,25 @@ jobs:
         with:
           node-version: 20
 
+      - name: Pin npm compatible with CRA 5
+        run: npm install --global npm@8.19.4
+
       - name: Install dependencies
+        env:
+          npm_config_legacy_peer_deps: 'true'
+          npm_config_audit: 'false'
+          npm_config_fund: 'false'
         run: npm install --legacy-peer-deps --no-audit --no-fund
+
+      - name: Verify dependency tree used by CRA
+        run: |
+          node -v
+          npm -v
+          node -e "for (const p of ['react-scripts','webpack','terser-webpack-plugin','schema-utils','ajv','ajv-keywords']) { try { console.log(p, require(p + '/package.json').version) } catch (e) { console.error('missing ' + p); process.exitCode = 1 } }"
 
       - name: Build React app
         env:
-          REACT_APP_BACKEND_URL: https://precofixo17-backend-production.up.railway.app
+          REACT_APP_BACKEND_URL: https://uber-clone-backend-eric-jose.vercel.app
           REACT_APP_FIREBASE_API_KEY: ${{ secrets.REACT_APP_FIREBASE_API_KEY }}
           REACT_APP_FIREBASE_AUTH_DOMAIN: ${{ secrets.REACT_APP_FIREBASE_AUTH_DOMAIN }}
           REACT_APP_FIREBASE_PROJECT_ID: ${{ secrets.REACT_APP_FIREBASE_PROJECT_ID }}
