@@ -1,0 +1,20 @@
+/* PreçoFixo17 — pesquisa de rota no rodapé do mapa, centralizada no mobile. */
+@media (max-width: 640px) {
+  .rp .panel:has(.input) {
+    top: auto !important;
+    bottom: calc(18px + env(safe-area-inset-bottom, 0px)) !important;
+    left: 50% !important;
+    right: auto !important;
+    width: min(92vw, 560px) !important;
+    max-width: 560px !important;
+    margin: 0 !important;
+    transform: translateX(-50%) !important;
+  }
+  .rp .panel:has(.input) > .card {
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+  .rp .panel:has(.input) .suggest {
+    max-height: min(38vh, 300px) !important;
+  }
+}
