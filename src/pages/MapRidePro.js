@@ -42,6 +42,13 @@ export default function MapRidePro({ onRideCreate, onBack, onNavigate, onOpenMen
   const [passengerCount, setPassengerCount] = useState(1);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [currentRideId, setCurrentRideId] = useState(null);
+  const [toastMessage, setToastMessage] = useState('');
+
+  const showToast = (msg) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(''), 3500);
+  };
 
   // Modals
   const [modalType, setModalType] = useState(null); // 'payment' | 'promo' | 'passengers' | 'message'
@@ -229,7 +236,7 @@ export default function MapRidePro({ onRideCreate, onBack, onNavigate, onOpenMen
     const token = localStorage.getItem('token');
     if (token) {
       try {
-        await fetch(`${B}/api/rides/request`, {
+        const resp = await fetch(`${B}/api/rides/request`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -242,6 +249,13 @@ export default function MapRidePro({ onRideCreate, onBack, onNavigate, onOpenMen
             distance: distanceKm
           })
         });
+        const data = await resp.json().catch(() => ({}));
+        if (data.ride?.id) {
+          setCurrentRideId(data.ride.id);
+          if (typeof onRideCreate === 'function') {
+            onRideCreate(data.ride);
+          }
+        }
       } catch (_) {}
     }
 
@@ -259,8 +273,28 @@ export default function MapRidePro({ onRideCreate, onBack, onNavigate, onOpenMen
   };
 
   // 5. Cancel ride (Screen 3 -> Screen 2)
-  const handleCancelRide = () => {
+  const handleCancelRide = async () => {
     clearTimeout(carAnimTimer.current);
+    if (currentRideId) {
+      const token = localStorage.getItem('token');
+      if (token) {
+        try {
+          await fetch(`${B}/api/rides/${currentRideId}/status`, {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`
+            },
+            body: JSON.stringify({
+              status: 'CANCELLED',
+              cancellationReason: 'Cancelado pelo passageiro'
+            })
+          });
+        } catch (_) {}
+      }
+      setCurrentRideId(null);
+    }
+    showToast('Corrida cancelada.');
     setStage('plan');
   };
 
@@ -878,6 +912,35 @@ export default function MapRidePro({ onRideCreate, onBack, onNavigate, onOpenMen
         </button>
       </header>
 
+      {/* Floating in-app toast notification */}
+      {toastMessage && (
+        <div
+          className="pf-toast-banner"
+          style={{
+            position: 'absolute',
+            top: 68,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 9999,
+            background: '#151921',
+            border: '1px solid #ff5a00',
+            color: '#ffffff',
+            padding: '8px 18px',
+            borderRadius: 20,
+            fontSize: 13,
+            fontWeight: 600,
+            boxShadow: '0 8px 24px rgba(0,0,0,0.6)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            animation: 'pfFadeIn 0.2s ease',
+            whiteSpace: 'nowrap'
+          }}
+        >
+          <span>ℹ️</span> {toastMessage}
+        </div>
+      )}
+
       {/* ========================================================= */}
       {/* SCREEN 2: SOLICITAR CORRIDA                               */}
       {/* ========================================================= */}
@@ -918,7 +981,7 @@ export default function MapRidePro({ onRideCreate, onBack, onNavigate, onOpenMen
                 type="button"
                 className="pf-route-add-btn"
                 title="Adicionar parada"
-                onClick={() => alert('Parada intermediária adicionada à rota.')}
+                onClick={() => showToast('Parada intermediária adicionada à rota.')}
               >
                 +
               </button>
@@ -1020,7 +1083,7 @@ export default function MapRidePro({ onRideCreate, onBack, onNavigate, onOpenMen
               type="button"
               className="pf-driver-call-btn"
               title="Ligar para o motorista"
-              onClick={() => alert(`Ligando para ${driver.name} (${driver.phone})…`)}
+              onClick={() => showToast(`Ligando para ${driver.name} (${driver.phone})…`)}
             >
               📞
             </button>

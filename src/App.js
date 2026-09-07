@@ -17,6 +17,8 @@ import ResetPassword from './pages/ResetPassword';
 import LiveStatsBar from './pages/LiveStatsBar';
 import ProfilePhoto from './pages/ProfilePhoto';
 import RideRatingPanel from './pages/RideRatingPanel';
+import Promotions from './pages/Promotions';
+import HelpCenter from './pages/HelpCenter';
 import { logoutFirebase } from './firebase';
 import { BACKEND_URL } from './config';
 import { dispatchRideSearch } from './services/rideDispatch';
@@ -32,7 +34,7 @@ import './styles/PrecoFixo17AccountMenu.css';
 
 const getStored = (key) => { try { return JSON.parse(localStorage.getItem(key) || 'null'); } catch (_) { return null; } };
 const resolveUserPage = (user) => { if (!user) return 'home'; if (user.userType !== 'driver') return 'ride'; if (user.driverApprovalStatus === 'approved') return 'driver-dashboard'; if (user.driverApprovalStatus === 'pending') return 'driver-pending'; return 'driver-registration'; };
-const isUserPage = (page, user) => { if (!user) return false; if (page === 'ride' || page === 'ride-history' || page === 'profile' || page === 'notifications' || page === 'payment') return true; if (user.userType === 'driver' && user.driverApprovalStatus === 'approved' && page === 'driver-dashboard') return true; if (user.userType === 'driver' && user.driverApprovalStatus === 'pending' && page === 'driver-pending') return true; if (user.userType === 'driver' && user.driverApprovalStatus !== 'approved' && user.driverApprovalStatus !== 'pending' && page === 'driver-registration') return true; return false; };
+const isUserPage = (page, user) => { if (!user) return false; if (page === 'ride' || page === 'ride-history' || page === 'profile' || page === 'notifications' || page === 'payment' || page === 'promos' || page === 'help') return true; if (user.userType === 'driver' && user.driverApprovalStatus === 'approved' && page === 'driver-dashboard') return true; if (user.userType === 'driver' && user.driverApprovalStatus === 'pending' && page === 'driver-pending') return true; if (user.userType === 'driver' && user.driverApprovalStatus !== 'approved' && user.driverApprovalStatus !== 'pending' && page === 'driver-registration') return true; return false; };
 const getInitialPage = () => { const params = new URLSearchParams(window.location.search); if (params.get('mode') === 'resetPassword' && params.get('oobCode')) return 'reset-password'; const token = localStorage.getItem('token'); const adminToken = localStorage.getItem('adminToken'); const admin = getStored('admin'); const user = getStored('user'); if (admin && adminToken) return 'admin-dashboard'; if (user && token) return resolveUserPage(user); return 'home'; };
 
 function AccountPanel({ account, currentPage, onNavigate, onLogout, children }) {
@@ -53,14 +55,6 @@ function AccountPanel({ account, currentPage, onNavigate, onLogout, children }) 
 
   const handleMenuClick = (item) => {
     setMenuOpen(false);
-    if (item.id === 'promos') {
-      alert('Promoção ativa: Ganhe desconto na sua primeira corrida com o cupom FIXO17VIP!');
-      return;
-    }
-    if (item.id === 'help') {
-      alert('Central de Ajuda PreçoFixo17: Suporte 24h disponível via WhatsApp ou e-mail.');
-      return;
-    }
     onNavigate(item.page);
   };
 
@@ -124,6 +118,8 @@ function AccountPanel({ account, currentPage, onNavigate, onLogout, children }) 
                   (item.id === 'history' && currentPage === 'ride-history') ||
                   (item.id === 'notifications' && currentPage === 'notifications') ||
                   (item.id === 'payment' && currentPage === 'payment') ||
+                  (item.id === 'promos' && currentPage === 'promos') ||
+                  (item.id === 'help' && currentPage === 'help') ||
                   (item.id === 'settings' && currentPage === 'profile');
 
                 return (
@@ -188,7 +184,9 @@ function App() {
     case 'driver-dashboard': return user ? <AccountPanel account={user} currentPage="driver-dashboard" onNavigate={navigate} onLogout={handleLogout}><LiveStatsBar userType="driver" /><DriverDashboardMapPro /></AccountPanel> : <Login onLoginSuccess={handleUserLogin} />;
     case 'profile': return user ? <AccountPanel account={user} currentPage="profile" onNavigate={navigate} onLogout={handleLogout}><UserProfile user={user} onLogout={handleLogout} onRequestRide={() => setCurrentPage('ride')} onHistory={() => setCurrentPage('ride-history')} /></AccountPanel> : <Login onLoginSuccess={handleUserLogin} />;
     case 'admin-panel': return <AdminPanel />;
-    case 'payment': return user ? <AccountPanel account={user} currentPage="payment" onNavigate={navigate} onLogout={handleLogout}><Payment rideId={null} amount={17} onPaymentSuccess={() => {}} /></AccountPanel> : <Login onLoginSuccess={handleUserLogin} />;
+    case 'payment': return user ? <AccountPanel account={user} currentPage="payment" onNavigate={navigate} onLogout={handleLogout}><Payment rideId={null} amount={17} onBack={() => setCurrentPage('ride')} onPaymentSuccess={() => setCurrentPage('ride-history')} /></AccountPanel> : <Login onLoginSuccess={handleUserLogin} />;
+    case 'promos': return user ? <AccountPanel account={user} currentPage="promos" onNavigate={navigate} onLogout={handleLogout}><Promotions userId={user?.uid || user?.id} onApplyCode={() => {}} /></AccountPanel> : <Login onLoginSuccess={handleUserLogin} />;
+    case 'help': return user ? <AccountPanel account={user} currentPage="help" onNavigate={navigate} onLogout={handleLogout}><HelpCenter onBack={() => setCurrentPage('ride')} /></AccountPanel> : <Login onLoginSuccess={handleUserLogin} />;
     case 'notifications': return user ? <AccountPanel account={user} currentPage="notifications" onNavigate={navigate} onLogout={handleLogout}><NotificationCenter /></AccountPanel> : <Login onLoginSuccess={handleUserLogin} />;
     default: return <div className="home-page"><div className="home-hero"><div className="home-copy"><div className="home-brand-lockup"><span>PREÇO</span><strong>FIXO</strong><em>17</em></div><div className="home-tagline">📍 NA CIDADE • CORRIDA PARTICULAR</div><h1>Preço justo.<br /><strong>Sem surpresa.</strong></h1><p>Corridas particulares com preço justo, segurança, conforto e atendimento para você chegar ao seu destino.</p><div className="home-feature-row"><span>💰 Preço justo</span><span>🛡️ Segurança</span><span>⏱️ Pontualidade</span></div><div className="home-buttons"><button type="button" onClick={() => setCurrentPage('login')} className="btn-home">👤 ENTRAR</button><button type="button" onClick={() => setCurrentPage('register')} className="btn-home secondary">CRIAR MINHA CONTA</button></div><button type="button" onClick={() => setCurrentPage('admin-login')} className="home-admin-link">🔐 Acesso administrativo</button></div><div className="home-visual"><div className="home-price-card"><small>R$</small><b>17</b><span>PREÇO FIXO</span></div><div className="home-car"><div className="home-car-glow" /><img className="home-car-real" src={precoFixo17Car} alt="Carro branco oficial PreçoFixo17 com identidade visual R$17" style={{ width: '100%', maxWidth: 520, height: 'auto', objectFit: 'contain', borderRadius: 14, position: 'relative', zIndex: 3, boxShadow: '0 18px 35px rgba(0,0,0,.5)' }} /></div><div className="home-visual-caption"><b>RÁPIDO. SEGURO.</b><span>E SEM COMPLICAÇÃO.</span></div></div></div></div>;
   }

@@ -37,21 +37,24 @@ function Promotions({ userId, onApplyCode }) {
 
   const [appliedCode, setAppliedCode] = useState(null);
   const [couponInput, setCouponInput] = useState('');
+  const [feedback, setFeedback] = useState(null);
 
   const handleApplyPromo = (promo) => {
     if (promo.used) {
-      alert('Este cupom já foi utilizado!');
+      setFeedback({ type: 'error', text: 'Este cupom já foi utilizado!' });
       return;
     }
 
     setAppliedCode(promo);
-    onApplyCode(promo);
-    alert(`✅ Cupom ${promo.code} aplicado com sucesso!`);
+    if (typeof onApplyCode === 'function') {
+      onApplyCode(promo);
+    }
+    setFeedback({ type: 'success', text: `Cupom ${promo.code} aplicado com sucesso!` });
   };
 
   const handleApplyCustomCode = () => {
     if (!couponInput.trim()) {
-      alert('Digite um código!');
+      setFeedback({ type: 'error', text: 'Digite um código válido.' });
       return;
     }
 
@@ -60,7 +63,7 @@ function Promotions({ userId, onApplyCode }) {
       handleApplyPromo(found);
       setCouponInput('');
     } else {
-      alert('Código inválido!');
+      setFeedback({ type: 'error', text: 'Código de cupom inválido ou expirado.' });
     }
   };
 
@@ -68,6 +71,31 @@ function Promotions({ userId, onApplyCode }) {
     <div className="promotions-container">
       <h2>🎉 Promoções e Cupons</h2>
       <p className="subtitle">Economize em suas corridas</p>
+
+      {feedback && (
+        <div style={{
+          background: feedback.type === 'success' ? '#143820' : '#381414',
+          border: `1px solid ${feedback.type === 'success' ? '#22c55e' : '#ef4444'}`,
+          color: '#ffffff',
+          borderRadius: 10,
+          padding: '10px 16px',
+          marginBottom: 16,
+          fontSize: 14,
+          fontWeight: 600,
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center'
+        }}>
+          <span>{feedback.type === 'success' ? '✅' : '⚠️'} {feedback.text}</span>
+          <button
+            type="button"
+            onClick={() => setFeedback(null)}
+            style={{ background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer', fontSize: 16 }}
+          >
+            ×
+          </button>
+        </div>
+      )}
 
       {/* Entrada de cupom customizado */}
       <div className="coupon-input-section">
