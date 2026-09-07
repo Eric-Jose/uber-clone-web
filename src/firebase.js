@@ -35,19 +35,19 @@ if (isFirebaseConfigured) {
 
 export { auth, onAuthStateChanged };
 
+export async function loginWithFirebasePassword(email, password) {
+  if (!auth) throw new Error('Firebase não está configurado no aplicativo.');
+  await persistenceReady;
+  const result = await signInWithEmailAndPassword(auth, email, password);
+  return result.user;
+}
+
 export async function syncFirebaseLogin(email, password) {
   if (!auth) return null;
   await persistenceReady;
   try {
-    const result = await signInWithEmailAndPassword(auth, email, password);
-    return result.user;
-  } catch (error) {
-    if (error?.code === 'auth/user-not-found') {
-      try {
-        const result = await createUserWithEmailAndPassword(auth, email, password);
-        return result.user;
-      } catch (_) { return null; }
-    }
+    return await loginWithFirebasePassword(email, password);
+  } catch (_) {
     return null;
   }
 }
