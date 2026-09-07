@@ -1,0 +1,39 @@
+name: npm audit
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: package.json
+
+      - name: Generate npm audit report
+        shell: bash
+        run: |
+          set +e
+          npm install --package-lock-only --ignore-scripts --no-audit
+          npm audit --json > npm-audit.json 2>&1
+          AUDIT_EXIT=$?
+          echo "npm audit exit code: $AUDIT_EXIT"
+          test -s npm-audit.json
+          exit 0
+
+      - name: Upload audit report
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-audit-report
+          path: npm-audit.json
+          if-no-files-found: error
+          retention-days: 7
