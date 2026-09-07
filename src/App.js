@@ -38,15 +38,126 @@ const getInitialPage = () => { const params = new URLSearchParams(window.locatio
 function AccountPanel({ account, currentPage, onNavigate, onLogout, children }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const isDriver = account?.userType === 'driver' && account?.driverApprovalStatus === 'approved';
-  const items = isDriver ? [{ page: 'driver-dashboard', icon: '⌂', label: 'Início' }, { page: 'ride-history', icon: '▤', label: 'Histórico' }, { page: 'profile', icon: '◯', label: 'Perfil' }] : [{ page: 'ride', icon: '⌖', label: 'Procurar corrida' }, { page: 'ride-history', icon: '▤', label: 'Histórico' }, { page: 'profile', icon: '◯', label: 'Perfil' }];
-  const menuItems = isDriver ? [{ page: 'driver-dashboard', icon: '⌂', label: 'Início' }, { page: 'ride-history', icon: '▤', label: 'Minhas corridas' }, { page: 'notifications', icon: '🔔', label: 'Notificações' }, { page: 'profile', icon: '◯', label: 'Perfil' }, { page: 'profile', icon: '⚙', label: 'Configurações' }, { page: 'profile', icon: '?', label: 'Ajuda' }] : [{ page: 'ride', icon: '⌖', label: 'Solicitar corrida' }, { page: 'ride-history', icon: '▤', label: 'Minhas corridas' }, { page: 'payment', icon: '▣', label: 'Pagamentos' }, { page: 'notifications', icon: '🔔', label: 'Notificações' }, { page: 'payment', icon: '▤', label: 'Formas de pagamento' }, { page: 'profile', icon: '⚙', label: 'Configurações' }, { page: 'profile', icon: '?', label: 'Ajuda' }];
-  const go = (page) => { setMenuOpen(false); onNavigate(page); };
-  return <div className="account-shell">
-    <div className="account-topbar"><button type="button" className="pf17-menu-button" onClick={() => setMenuOpen(true)} aria-label="Abrir menu">☰</button><div className="account-brand"><span>Preço</span><strong>Fixo17</strong></div><button type="button" className="account-profile-trigger" onClick={() => go('profile')} aria-label="Abrir perfil"><ProfilePhoto account={account} compact /></button></div>
-    <main className="account-content">{children}</main><RideRatingPanel account={account} />
-    <nav className="app-bottom-nav" aria-label="Navegação principal">{items.map(item => <button key={item.page} type="button" className={`app-nav-item ${currentPage === item.page ? 'active' : ''}`} onClick={() => onNavigate(item.page)}><span className="app-nav-icon">{item.icon}</span><span>{item.label}</span></button>)}</nav>
-    {menuOpen && <><div className="pf17-menu-backdrop" onClick={() => setMenuOpen(false)} aria-hidden="true" /><aside className="pf17-menu-drawer" aria-label="Menu principal"><div className="pf17-menu-head"><div className="pf17-menu-logo">Preço<b>Fixo17</b></div><button type="button" className="pf17-menu-close" onClick={() => setMenuOpen(false)} aria-label="Fechar menu">×</button></div>{menuItems.map((item, index) => <button type="button" className="pf17-menu-item" key={`${item.label}-${index}`} onClick={() => go(item.page)}><span className="pf17-menu-icon">{item.icon}</span><span>{item.label}</span></button>)}{!isDriver && <button type="button" className="pf17-menu-item" onClick={() => go('ride')}><span className="pf17-menu-icon">🏷️</span><span>Promoções</span></button>}<button type="button" className="pf17-menu-item danger" onClick={() => { setMenuOpen(false); onLogout?.(); }}><span className="pf17-menu-icon">↪</span><span>Sair</span></button></aside></>}
-  </div>;
+
+  const menuItems = [
+    { id: 'home', page: isDriver ? 'driver-dashboard' : 'ride', icon: '⌂', label: 'Início' },
+    { id: 'ride', page: isDriver ? 'driver-dashboard' : 'ride', icon: '⌖', label: 'Solicitar corrida' },
+    { id: 'history', page: 'ride-history', icon: '▤', label: 'Minhas corridas' },
+    { id: 'payment', page: 'payment', icon: '💳', label: 'Pagamentos' },
+    { id: 'promos', page: 'promos', icon: '🏷️', label: 'Promoções' },
+    { id: 'notifications', page: 'notifications', icon: '🔔', label: 'Notificações', badge: '3' },
+    { id: 'payment-methods', page: 'payment', icon: '💳', label: 'Formas de pagamento' },
+    { id: 'help', page: 'help', icon: '❓', label: 'Ajuda' },
+    { id: 'settings', page: 'profile', icon: '⚙️', label: 'Configurações' }
+  ];
+
+  const handleMenuClick = (item) => {
+    setMenuOpen(false);
+    if (item.id === 'promos') {
+      alert('Promoção ativa: Ganhe desconto na sua primeira corrida com o cupom FIXO17VIP!');
+      return;
+    }
+    if (item.id === 'help') {
+      alert('Central de Ajuda PreçoFixo17: Suporte 24h disponível via WhatsApp ou e-mail.');
+      return;
+    }
+    onNavigate(item.page);
+  };
+
+  const userName = account?.name || account?.fullName || 'João Silva';
+  const userRole = isDriver ? 'Motorista Parceiro' : 'Passageiro';
+  const userRating = account?.rating || '4.9';
+
+  return (
+    <div className="pf-app-layout" style={{ minHeight: '100vh', background: '#050505' }}>
+      {/* Content */}
+      <main style={{ minHeight: '100vh', position: 'relative' }}>
+        {React.cloneElement(children, {
+          onOpenMenu: () => setMenuOpen(true),
+          onOpenNotifications: () => onNavigate('notifications'),
+          onNavigate: onNavigate
+        })}
+      </main>
+
+      {/* Screen 6: Navigation Drawer */}
+      {menuOpen && (
+        <div className="pf-drawer-backdrop" onClick={() => setMenuOpen(false)}>
+          <aside className="pf-drawer" onClick={(e) => e.stopPropagation()}>
+            {/* User Profile Card at Top */}
+            <div className="pf-drawer-user">
+              <div className="pf-drawer-avatar">
+                <img
+                  src={
+                    account?.profilePhoto ||
+                    'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=160&auto=format&fit=crop&q=80'
+                  }
+                  alt={userName}
+                />
+                <div className="pf-drawer-online" />
+              </div>
+              <div className="pf-drawer-user-info">
+                <div className="pf-drawer-user-name">{userName}</div>
+                <div className="pf-drawer-user-role">{userRole}</div>
+                <div className="pf-drawer-user-rating">
+                  <span>★</span>
+                  <span>{userRating}</span>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="pf-drawer-bell"
+                onClick={() => {
+                  setMenuOpen(false);
+                  onNavigate('notifications');
+                }}
+                aria-label="Notificações"
+              >
+                🔔
+              </button>
+            </div>
+
+            {/* Menu Items List */}
+            <nav className="pf-drawer-menu">
+              {menuItems.map((item) => {
+                const isActive =
+                  (item.id === 'home' && (currentPage === 'ride' || currentPage === 'driver-dashboard')) ||
+                  (item.id === 'history' && currentPage === 'ride-history') ||
+                  (item.id === 'notifications' && currentPage === 'notifications') ||
+                  (item.id === 'payment' && currentPage === 'payment') ||
+                  (item.id === 'settings' && currentPage === 'profile');
+
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    className={`pf-drawer-item ${isActive ? 'active' : ''}`}
+                    onClick={() => handleMenuClick(item)}
+                  >
+                    <span className="pf-drawer-icon">{item.icon}</span>
+                    <span>{item.label}</span>
+                    {item.badge && <span className="pf-drawer-badge">{item.badge}</span>}
+                  </button>
+                );
+              })}
+
+              {/* Sair (Logout) */}
+              <button
+                type="button"
+                className="pf-drawer-logout"
+                onClick={() => {
+                  setMenuOpen(false);
+                  onLogout?.();
+                }}
+              >
+                <span className="pf-drawer-icon">↪</span>
+                <span>Sair</span>
+              </button>
+            </nav>
+          </aside>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function DriverPending({ user, onLogout }) { return <div style={{ minHeight: '100vh', background: '#090909', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, fontFamily: 'Arial' }}><div style={{ maxWidth: 520, width: '100%', background: '#151515', border: '1px solid #ff5a00', borderRadius: 16, padding: 28, textAlign: 'center' }}><ProfilePhoto account={user} compact /><div style={{ fontSize: 54 }}>⏳</div><h1>Cadastro em análise</h1><p style={{ color: '#ccc', lineHeight: 1.6 }}>{user?.name ? `${user.name}, ` : ''}seu cadastro de motorista foi enviado e aguarda aprovação.</p><p style={{ color: '#999', fontSize: 13 }}>Esta tela será atualizada automaticamente quando o administrador revisar o cadastro.</p><button type="button" onClick={onLogout} style={{ border: 0, borderRadius: 10, padding: '12px 20px', background: '#ff5a00', color: '#fff', fontWeight: 700 }}>Sair</button></div></div>; }

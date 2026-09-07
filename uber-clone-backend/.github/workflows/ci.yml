@@ -1,0 +1,104 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+    branches:
+      - main
+      - develop
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_ENV: test
+
+jobs:
+  build-and-test:
+    name: Build & Test (Node ${{ matrix.node-version }})
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: true
+      matrix:
+        node-version: [18.x, 20.x, 22.x]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        id: setup-node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Report tool versions
+        run: |
+          echo "Node.js version: $(node --version)"
+          echo "npm version: $(npm --version)"
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Verify JavaScript syntax
+        run: |
+          set -e
+          find . -type f -name '*.js' -not -path './node_modules/*' -print0 | xargs -0 -n1 node --check
+
+      - name: Verify Firebase data safety
+        run: npm run check:data-safety
+
+      - name: Run linter (if configured)
+        run: npm run lint --if-present
+
+      - name: Run tests (if configured)
+        run: npm test --if-present
+        env:
+          NODE_ENV: test
+
+      - name: Build project (if configured)
+        id: build
+        run: |
+          echo "build_start=$(date +%s)" >> "$GITHUB_ENV"
+          npm run build --if-present
+          build_end=$(date +%s)
+          echo "Build duration: $((build_end - build_start))s"
+        env:
+          NODE_ENV: production
+
+      - name: Upload build artifacts
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts-node-${{ matrix.node-version }}
+          path: |
+            dist/
+            build/
+          if-no-files-found: ignore
+          retention-days: 5
+
+      - name: Job summary
+        if: always()
+        run: |
+          echo "### Build result for Node.js ${{ matrix.node-version }}: \`${{ job.status }}\`" >> "$GITHUB_STEP_SUMMARY"
+
+  ci-status:
+    name: CI Status Summary
+    needs: build-and-test
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Report overall status
+        run: |
+          echo "## CI Summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "Matrix result across Node.js 18, 20, 22: **${{ needs.build-and-test.result }}**" >> "$GITHUB_STEP_SUMMARY"
+          if [ "${{ needs.build-and-test.result }}" != "success" ]; then
+            echo "CI failed for one or more Node.js versions."
+            exit 1
+          fi
+          echo "All Node.js versions passed successfully."

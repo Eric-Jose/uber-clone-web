@@ -1,15 +1,442 @@
-import React,{useState}from'react';
+import React, { useState } from 'react';
 import '../styles/Payment.css';
+import '../styles/PrecoFixo17Reference.css';
 
-const FIXED_RIDE_PRICE=17;
+const FIXED_RIDE_PRICE = 17;
 
-function Payment({rideId,onPaymentSuccess}){
- const[paymentMethod,setPaymentMethod]=useState('cash');
- const[loading,setLoading]=useState(false);
- const[message,setMessage]=useState('');
- const total=FIXED_RIDE_PRICE;
- const methods=[['cash','💵','Dinheiro'],['card','💳','Cartão'],['pix','▣','PIX']];
- const handlePayment=async e=>{e?.preventDefault();setMessage('');setLoading(true);setTimeout(()=>{setLoading(false);setMessage('O provedor de pagamento ainda não está conectado. Nenhuma cobrança foi realizada.');if(typeof onPaymentSuccess==='function')onPaymentSuccess({pending:true,rideId,amount:total,paymentMethod})},500)};
- return <div className="pf-payment"><style>{`.pf-payment{min-height:100vh;background:#030608;color:#f7f9fb;font-family:Arial,sans-serif;padding:18px 14px 40px}.pf-pay-wrap{max-width:680px;margin:auto}.pf-pay-head{padding:8px 2px 20px}.pf-pay-kicker{color:#ff6b00;font-size:11px;font-weight:900;letter-spacing:.16em}.pf-pay-title{font-size:28px;margin:5px 0 0;font-weight:900;letter-spacing:-.04em}.pf-pay-sub{color:#9ba7b1;font-size:13px;margin-top:6px}.pf-price{background:linear-gradient(145deg,#11181d,#070b0e);border:1px solid #28333b;border-radius:20px;padding:20px;margin-bottom:14px}.pf-price-label{color:#9ba7b1;font-size:13px}.pf-price-value{font-size:42px;font-weight:900;margin-top:5px;color:#fff}.pf-fixed{display:inline-block;margin-top:10px;background:rgba(255,107,0,.13);border:1px solid rgba(255,107,0,.3);color:#ff8a1d;border-radius:999px;padding:6px 10px;font-size:11px;font-weight:900}.pf-method-box{background:#070b0e;border:1px solid #28333b;border-radius:18px;padding:16px}.pf-method-title{font-size:15px;font-weight:900;margin:0 0 11px}.pf-methods{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.pf-method{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;min-height:76px;border:1px solid #28333b;border-radius:14px;background:#0b1115;color:#9ba7b1;font-weight:800;font-size:12px;cursor:pointer}.pf-method input{position:absolute;opacity:0}.pf-method.active{border-color:#ff6b00;background:rgba(255,107,0,.12);color:#fff;box-shadow:inset 0 0 0 1px #ff6b00}.pf-method-icon{font-size:22px}.pf-change{margin-top:10px;background:#0b1115;border:1px solid #28333b;border-radius:13px;padding:12px;color:#9ba7b1;font-size:13px}.pf-info{margin-top:12px;background:#0b1115;border:1px solid #28333b;border-radius:15px;padding:13px;color:#9ba7b1;font-size:12px;line-height:1.5}.pf-msg{margin-top:10px;color:#ffb26e}.pf-confirm{width:100%;margin-top:12px;border:0;border-radius:14px;padding:15px;background:#ff6b00;color:#fff;font-weight:900;font-size:15px;cursor:pointer}.pf-confirm:disabled{opacity:.6}.pf-safe{margin-top:10px;text-align:center;color:#65717a;font-size:11px}@media(max-width:420px){.pf-methods{grid-template-columns:1fr}.pf-method{min-height:58px;flex-direction:row;justify-content:flex-start;padding:0 15px}.pf-price-value{font-size:38px}}`}</style><div className="pf-pay-wrap"><header className="pf-pay-head"><div className="pf-pay-kicker">PREÇO FIXO 17 • CORRIDA PARTICULAR</div><h1 className="pf-pay-title">Pagamento</h1><div className="pf-pay-sub">Corrida {rideId||'—'}</div></header><section className="pf-price"><div className="pf-price-label">Valor da corrida</div><div className="pf-price-value">R$ {total.toFixed(2).replace('.',',')}</div><span className="pf-fixed">PREÇO FIXO</span></section><section className="pf-method-box"><h2 className="pf-method-title">Forma de pagamento</h2><div className="pf-methods">{methods.map(([value,icon,label])=><label key={value} className={'pf-method '+(paymentMethod===value?'active':'')}><input type="radio" name="paymentMethod" value={value} checked={paymentMethod===value} onChange={e=>setPaymentMethod(e.target.value)}/><span className="pf-method-icon">{icon}</span><span>{label}</span></label>)}</div>{paymentMethod==='cash'&&<div className="pf-change">💵 Pagamento em dinheiro. Combine o troco com o motorista.</div>}{paymentMethod==='pix'&&<div className="pf-info">PIX seguro: o aplicativo ainda não possui provedor conectado, então nenhum QR Code ou cobrança fictícia será criado.</div>}{paymentMethod==='card'&&<div className="pf-info">Cartão seguro: o pagamento deverá usar checkout/tokenização de um provedor. O app não coleta número do cartão ou CVV diretamente.</div>}{message&&<div className="pf-info pf-msg" role="status">{message}</div>}<button className="pf-confirm" onClick={handlePayment} disabled={loading}>{loading?'Verificando…':'Confirmar pagamento • R$ 17,00'}</button><div className="pf-safe">Nenhuma cobrança é realizada enquanto o provedor financeiro não estiver conectado.</div></section></div></div>;
+function Payment({ rideId, amount = FIXED_RIDE_PRICE, onPaymentSuccess, onBack }) {
+  const [selectedMethod, setSelectedMethod] = useState('money'); // 'money' | 'card' | 'pix'
+  const [cashGiven, setCashGiven] = useState('20,00');
+  const [loading, setLoading] = useState(false);
+  const [confirmed, setConfirmed] = useState(false);
+
+  // Calculate change
+  const numericCash = parseFloat(cashGiven.replace(/\./g, '').replace(',', '.')) || 0;
+  const changeValue = Math.max(0, numericCash - amount);
+
+  const handleConfirm = () => {
+    setLoading(true);
+    setTimeout(() => {
+      setLoading(false);
+      setConfirmed(true);
+      if (typeof onPaymentSuccess === 'function') {
+        onPaymentSuccess({
+          rideId,
+          amount,
+          method: selectedMethod,
+          change: changeValue
+        });
+      }
+    }, 600);
+  };
+
+  return (
+    <div className="pf-payment-screen">
+      <style>{`
+        .pf-payment-screen {
+          min-height: 100vh;
+          background: #050505;
+          color: #ffffff;
+          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+          display: flex;
+          flex-direction: column;
+        }
+        .pf-pay-topbar {
+          height: 56px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 0 16px;
+          border-bottom: 1px solid #1c2128;
+          position: sticky;
+          top: 0;
+          background: rgba(5, 5, 5, 0.95);
+          backdrop-filter: blur(10px);
+          z-index: 10;
+        }
+        .pf-pay-back {
+          background: transparent;
+          border: none;
+          color: #ffffff;
+          cursor: pointer;
+          padding: 8px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 50%;
+        }
+        .pf-pay-back:hover { background: #161b22; }
+        .pf-pay-title {
+          font-size: 17px;
+          font-weight: 700;
+          color: #ffffff;
+        }
+        .pf-pay-body {
+          flex: 1;
+          max-width: 440px;
+          width: 100%;
+          margin: 0 auto;
+          padding: 32px 20px 40px;
+          display: flex;
+          flex-direction: column;
+        }
+        .pf-pay-hero {
+          text-align: center;
+          margin-bottom: 36px;
+        }
+        .pf-pay-hero-label {
+          color: #8e98a5;
+          font-size: 15px;
+          margin-bottom: 6px;
+        }
+        .pf-pay-hero-price {
+          font-size: 46px;
+          font-weight: 900;
+          color: #ff5a00;
+          line-height: 1.1;
+          letter-spacing: -0.02em;
+        }
+        .pf-pay-hero-price small {
+          font-size: 26px;
+          font-weight: 700;
+          margin-right: 4px;
+        }
+        .pf-pay-section-label {
+          font-size: 15px;
+          font-weight: 700;
+          color: #ffffff;
+          margin-bottom: 14px;
+        }
+        .pf-pay-methods-list {
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+        }
+        .pf-pay-method-item {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 16px 18px;
+          background: #0f1216;
+          border: 1.5px solid #242a34;
+          border-radius: 16px;
+          cursor: pointer;
+          transition: all 0.15s ease;
+        }
+        .pf-pay-method-item:hover {
+          border-color: #3b4454;
+        }
+        .pf-pay-method-item.selected {
+          border-color: #ff5a00;
+          background: rgba(255, 90, 0, 0.06);
+        }
+        .pf-pay-method-left {
+          display: flex;
+          align-items: center;
+          gap: 14px;
+        }
+        .pf-pay-method-icon {
+          width: 40px;
+          height: 28px;
+          border-radius: 6px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 18px;
+        }
+        .pf-pay-icon-money {
+          background: #1e3a29;
+          color: #22c55e;
+        }
+        .pf-pay-icon-card {
+          background: #1e293b;
+          color: #38bdf8;
+        }
+        .pf-pay-icon-pix {
+          background: #0f3032;
+          color: #2dd4bf;
+        }
+        .pf-pay-method-name {
+          font-size: 16px;
+          font-weight: 600;
+          color: #ffffff;
+        }
+        .pf-pay-radio {
+          width: 22px;
+          height: 22px;
+          border-radius: 50%;
+          border: 2px solid #485260;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: all 0.15s ease;
+        }
+        .pf-pay-method-item.selected .pf-pay-radio {
+          border-color: #ff5a00;
+          background: #ff5a00;
+        }
+        .pf-pay-radio-check {
+          color: #ffffff;
+          font-size: 13px;
+          font-weight: 900;
+        }
+        .pf-pay-change-box {
+          margin-top: 24px;
+          background: #0f1216;
+          border: 1px solid #242a34;
+          border-radius: 16px;
+          padding: 16px 18px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+        }
+        .pf-pay-change-label {
+          font-size: 14px;
+          color: #8e98a5;
+        }
+        .pf-pay-change-inputs {
+          display: flex;
+          align-items: center;
+          gap: 14px;
+        }
+        .pf-pay-input-change {
+          background: #161a20;
+          border: 1px solid #323a48;
+          border-radius: 10px;
+          color: #ffffff;
+          font-size: 15px;
+          font-weight: 700;
+          padding: 8px 12px;
+          width: 100px;
+          text-align: right;
+          outline: none;
+        }
+        .pf-pay-input-change:focus {
+          border-color: #ff5a00;
+        }
+        .pf-pay-change-amount {
+          color: #22c55e;
+          font-weight: 800;
+          font-size: 16px;
+          white-space: nowrap;
+        }
+        .pf-pay-actions {
+          margin-top: auto;
+          padding-top: 36px;
+          display: flex;
+          flex-direction: column;
+          gap: 14px;
+          align-items: center;
+        }
+        .pf-pay-confirm-btn {
+          width: 100%;
+          background: #ff5a00;
+          color: #ffffff;
+          border: none;
+          border-radius: 999px;
+          font-size: 16px;
+          font-weight: 800;
+          padding: 16px;
+          cursor: pointer;
+          box-shadow: 0 8px 24px rgba(255, 90, 0, 0.35);
+          transition: background 0.15s ease, transform 0.1s ease;
+        }
+        .pf-pay-confirm-btn:hover:not(:disabled) {
+          background: #ff6a16;
+          transform: translateY(-1px);
+        }
+        .pf-pay-cancel-btn {
+          background: transparent;
+          border: none;
+          color: #8e98a5;
+          font-size: 15px;
+          font-weight: 600;
+          cursor: pointer;
+          padding: 8px;
+        }
+        .pf-pay-cancel-btn:hover {
+          color: #ffffff;
+        }
+        .pf-pay-success-modal {
+          position: fixed;
+          inset: 0;
+          background: rgba(0, 0, 0, 0.85);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 20px;
+          z-index: 1000;
+        }
+        .pf-pay-success-card {
+          background: #111418;
+          border: 1px solid #28303d;
+          border-radius: 20px;
+          padding: 28px 24px;
+          text-align: center;
+          max-width: 360px;
+          width: 100%;
+          animation: pfFadeIn 0.2s ease;
+        }
+        .pf-pay-success-icon {
+          width: 60px;
+          height: 60px;
+          background: rgba(34, 197, 94, 0.15);
+          color: #22c55e;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 30px;
+          margin: 0 auto 16px;
+        }
+      `}</style>
+
+      {/* Top Header */}
+      <header className="pf-pay-topbar">
+        <button
+          type="button"
+          className="pf-pay-back"
+          onClick={() => onBack?.()}
+          aria-label="Voltar"
+        >
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M15 18l-6-6 6-6" />
+          </svg>
+        </button>
+        <span className="pf-pay-title">Pagamento</span>
+        <div style={{ width: 38 }} />
+      </header>
+
+      {/* Payment Body */}
+      <main className="pf-pay-body">
+        {/* Hero Price */}
+        <div className="pf-pay-hero">
+          <div className="pf-pay-hero-label">Preço fixo da corrida</div>
+          <div className="pf-pay-hero-price">
+            <small>R$</small>17,00
+          </div>
+        </div>
+
+        {/* Payment Methods Section */}
+        <div className="pf-pay-section-label">Pagamento</div>
+        <div className="pf-pay-methods-list">
+          {/* Cash */}
+          <div
+            className={`pf-pay-method-item ${selectedMethod === 'money' ? 'selected' : ''}`}
+            onClick={() => setSelectedMethod('money')}
+          >
+            <div className="pf-pay-method-left">
+              <div className="pf-pay-method-icon pf-pay-icon-money">
+                💵
+              </div>
+              <span className="pf-pay-method-name">Dinheiro</span>
+            </div>
+            <div className="pf-pay-radio">
+              {selectedMethod === 'money' && <span className="pf-pay-radio-check">✓</span>}
+            </div>
+          </div>
+
+          {/* Credit Card */}
+          <div
+            className={`pf-pay-method-item ${selectedMethod === 'card' ? 'selected' : ''}`}
+            onClick={() => setSelectedMethod('card')}
+          >
+            <div className="pf-pay-method-left">
+              <div className="pf-pay-method-icon pf-pay-icon-card">
+                💳
+              </div>
+              <span className="pf-pay-method-name">Cartão de Crédito</span>
+            </div>
+            <div className="pf-pay-radio">
+              {selectedMethod === 'card' && <span className="pf-pay-radio-check">✓</span>}
+            </div>
+          </div>
+
+          {/* PIX */}
+          <div
+            className={`pf-pay-method-item ${selectedMethod === 'pix' ? 'selected' : ''}`}
+            onClick={() => setSelectedMethod('pix')}
+          >
+            <div className="pf-pay-method-left">
+              <div className="pf-pay-method-icon pf-pay-icon-pix">
+                ❖
+              </div>
+              <span className="pf-pay-method-name">PIX</span>
+            </div>
+            <div className="pf-pay-radio">
+              {selectedMethod === 'pix' && <span className="pf-pay-radio-check">✓</span>}
+            </div>
+          </div>
+        </div>
+
+        {/* Change Calculation when Money is selected */}
+        {selectedMethod === 'money' && (
+          <div className="pf-pay-change-box">
+            <span className="pf-pay-change-label">Troco para</span>
+            <div className="pf-pay-change-inputs">
+              <input
+                type="text"
+                className="pf-pay-input-change"
+                value={cashGiven}
+                onChange={(e) => setCashGiven(e.target.value)}
+                placeholder="20,00"
+              />
+              <span className="pf-pay-change-amount">
+                R$ {changeValue.toFixed(2).replace('.', ',')}
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* Action Buttons */}
+        <div className="pf-pay-actions">
+          <button
+            type="button"
+            className="pf-pay-confirm-btn"
+            onClick={handleConfirm}
+            disabled={loading}
+          >
+            {loading ? 'Confirmando…' : 'Confirmar pagamento'}
+          </button>
+          <button
+            type="button"
+            className="pf-pay-cancel-btn"
+            onClick={() => onBack?.()}
+          >
+            Cancelar
+          </button>
+        </div>
+      </main>
+
+      {/* Success Modal */}
+      {confirmed && (
+        <div className="pf-pay-success-modal">
+          <div className="pf-pay-success-card">
+            <div className="pf-pay-success-icon">✓</div>
+            <h2 style={{ margin: '0 0 8px', fontSize: 20 }}>Pagamento Confirmado!</h2>
+            <p style={{ color: '#8e98a5', fontSize: 14, margin: '0 0 20px' }}>
+              Corrida de R$ 17,00 paga com sucesso via{' '}
+              <strong>
+                {selectedMethod === 'money'
+                  ? `Dinheiro (Troco: R$ ${changeValue.toFixed(2).replace('.', ',')})`
+                  : selectedMethod === 'card'
+                  ? 'Cartão de Crédito'
+                  : 'PIX'}
+              </strong>
+              .
+            </p>
+            <button
+              type="button"
+              className="pf-btn-orange"
+              onClick={() => onBack?.()}
+            >
+              Concluir
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
+
 export default Payment;

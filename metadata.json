@@ -1,0 +1,6 @@
+{
+  "name": "PreçoFixo17",
+  "description": "PreçoFixo17 — mobilidade com preço transparente.",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

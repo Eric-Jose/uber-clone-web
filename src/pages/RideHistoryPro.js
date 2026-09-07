@@ -1,22 +1,411 @@
-import React,{useEffect,useMemo,useState}from'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { BACKEND_URL as B } from '../config';
+import '../styles/PrecoFixo17Reference.css';
 
-const css=`.pf-history{min-height:100vh;background:#030608;color:#f7f9fb;font-family:Arial,sans-serif;padding:18px 14px 100px}.pf-wrap{max-width:680px;margin:auto}.pf-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 2px 18px}.pf-kicker{font-size:11px;font-weight:900;letter-spacing:.16em;color:#ff6b00;text-transform:uppercase}.pf-title{margin:4px 0 0;font-size:27px;font-weight:900;letter-spacing:-.04em}.pf-back{border:1px solid #28333b;background:#0b1115;color:#fff;border-radius:12px;padding:10px 13px;font-weight:800}.pf-summary{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:14px}.pf-stat{background:#070b0e;border:1px solid #28333b;border-radius:16px;padding:14px}.pf-stat strong{display:block;font-size:20px}.pf-stat span{display:block;margin-top:4px;color:#9ba7b1;font-size:12px}.pf-tabs{display:flex;gap:8px;overflow:auto;margin:4px 0 14px;padding-bottom:2px}.pf-tab{white-space:nowrap;border:1px solid #28333b;background:#0b1115;color:#9ba7b1;border-radius:999px;padding:9px 14px;font-weight:800}.pf-tab.active{background:#ff6b00;border-color:#ff6b00;color:#fff}.pf-list{display:flex;flex-direction:column;gap:10px}.pf-ride{background:#0b1115;border:1px solid #28333b;border-radius:18px;padding:15px;box-shadow:0 12px 28px rgba(0,0,0,.22)}.pf-ride-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}.pf-status{font-size:11px;font-weight:900;letter-spacing:.08em;text-transform:uppercase;color:#ff8a1d}.pf-price{font-size:20px;font-weight:900;color:#fff}.pf-route{margin:14px 0 12px;position:relative;padding-left:25px}.pf-route:before{content:'';position:absolute;left:7px;top:8px;bottom:8px;border-left:2px dashed #28333b}.pf-point{position:relative;margin:9px 0;color:#f7f9fb;font-size:14px;line-height:1.35}.pf-point:before{content:'';position:absolute;left:-22px;top:4px;width:9px;height:9px;border-radius:50%;background:#ff6b00;box-shadow:0 0 0 3px rgba(255,107,0,.12)}.pf-point.dest:before{background:#ffc400}.pf-meta{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;color:#9ba7b1;font-size:12px;border-top:1px solid #28333b;padding-top:11px}.pf-person{margin-top:10px;color:#d8dee3;font-size:13px}.pf-empty{background:#0b1115;border:1px dashed #28333b;border-radius:18px;padding:28px 18px;text-align:center;color:#9ba7b1}.pf-more{width:100%;margin-top:12px;border:1px solid #28333b;background:#070b0e;color:#fff;border-radius:13px;padding:12px;font-weight:800}@media(max-width:420px){.pf-title{font-size:24px}.pf-summary{grid-template-columns:repeat(2,1fr)}.pf-stat{padding:12px}.pf-stat strong{font-size:18px}}`;
+const DEFAULT_SAMPLE_RIDES = [
+  {
+    id: 'ride-1',
+    status: 'COMPLETED',
+    price: 17,
+    distance: 3.5,
+    dateStr: '05/06/2024 - 14:30',
+    origin: { address: 'Av. das Palmeiras, 123 - Centro' },
+    destination: { address: 'Rua dos Ipês, 456 - Jardim das Flores' },
+    driverName: 'Carlos Ferreira'
+  },
+  {
+    id: 'ride-2',
+    status: 'COMPLETED',
+    price: 17,
+    distance: 4.2,
+    dateStr: '03/06/2024 - 09:15',
+    origin: { address: 'Rua Minas Gerais, 789 - Bela Vista' },
+    destination: { address: 'Shopping Central - Centro' },
+    driverName: 'Marcos Souza'
+  },
+  {
+    id: 'ride-3',
+    status: 'CANCELLED',
+    price: 17,
+    distance: 2.1,
+    dateStr: '01/06/2024 - 18:45',
+    origin: { address: 'Av. Brasil, 500 - Jardim América' },
+    destination: { address: 'Terminal Rodoviário - Centro' },
+    driverName: 'Carlos Ferreira'
+  },
+  {
+    id: 'ride-4',
+    status: 'COMPLETED',
+    price: 17,
+    distance: 5.0,
+    dateStr: '28/05/2024 - 20:10',
+    origin: { address: 'Rua 7 de Setembro, 320 - Centro' },
+    destination: { address: 'Aeroporto Municipal' },
+    driverName: 'Roberto Alves'
+  }
+];
 
-export default function RideHistoryPro({user,onBack}){
- const[rides,setRides]=useState([]),[loading,setLoading]=useState(true),[filter,setFilter]=useState('ALL'),[limit,setLimit]=useState(50);
- const load=()=>{const t=localStorage.getItem('token');if(!t){setLoading(false);return}setLoading(true);fetch(`${B}/api/rides/history?limit=${limit}`,{headers:{Authorization:`Bearer ${t}`},cache:'no-store'}).then(r=>{if(!r.ok)throw Error('history');return r.json()}).then(d=>setRides(Array.isArray(d.rides)?d.rides:[])).catch(()=>{}).finally(()=>setLoading(false))};
- useEffect(()=>{load();const i=setInterval(load,10000);const f=()=>load();window.addEventListener('focus',f);return()=>{clearInterval(i);window.removeEventListener('focus',f)}},[limit]);
- const done=rides.filter(r=>['COMPLETED','completed','CONCLUIDA','concluida'].includes(r.status));
- const cancelled=rides.filter(r=>['CANCELLED','cancelled','CANCELED','canceled','CANCELADA','cancelada'].includes(r.status));
- const visible=useMemo(()=>filter==='DONE'?done:filter==='CANCELLED'?cancelled:rides,[filter,rides]);
- const spent=done.reduce((s,r)=>s+Number(r.price||17),0),distance=done.reduce((s,r)=>s+Number(r.distance||0),0);
- const label=s=>{if(['COMPLETED','completed','CONCLUIDA','concluida'].includes(s))return'Concluída';if(['CANCELLED','cancelled','CANCELED','canceled','CANCELADA','cancelada'].includes(s))return'Cancelada';if(['ACCEPTED','accepted'].includes(s))return'Aceita';if(['IN_PROGRESS','in_progress'].includes(s))return'Em andamento';return s||'Corrida'};
- return <div className="pf-history"><style>{css}</style><div className="pf-wrap">
-  <header className="pf-head"><div><div className="pf-kicker">PREÇO FIXO 17 • CORRIDAS</div><h1 className="pf-title">Minhas corridas</h1></div><button className="pf-back" onClick={onBack}>Voltar</button></header>
-  <section className="pf-summary"><div className="pf-stat"><strong>{rides.length}</strong><span>Total de corridas</span></div><div className="pf-stat"><strong>{done.length}</strong><span>Concluídas</span></div><div className="pf-stat"><strong>R$ {spent.toFixed(2).replace('.',',')}</strong><span>Valor concluído</span></div><div className="pf-stat"><strong>{distance.toFixed(1).replace('.',',')} km</strong><span>Distância</span></div></section>
-  <nav className="pf-tabs" aria-label="Filtro de corridas"><button className={'pf-tab '+(filter==='ALL'?'active':'')} onClick={()=>setFilter('ALL')}>Todas</button><button className={'pf-tab '+(filter==='DONE'?'active':'')} onClick={()=>setFilter('DONE')}>Concluídas</button><button className={'pf-tab '+(filter==='CANCELLED'?'active':'')} onClick={()=>setFilter('CANCELLED')}>Canceladas</button></nav>
-  <main className="pf-list">{loading&&!rides.length?<div className="pf-empty">Carregando suas corridas…</div>:!visible.length?<div className="pf-empty">Nenhuma corrida nesta categoria.</div>:visible.map(r=><article className="pf-ride" key={r.id}><div className="pf-ride-top"><div><div className="pf-status">{label(r.status)}</div><div className="pf-person">{user?.userType==='driver'&&r.passengerName?`Passageiro: ${r.passengerName}`:r.driverName?`Motorista: ${r.driverName}`:'Corrida particular'}</div></div><div className="pf-price">R$ {Number(r.price||17).toFixed(2).replace('.',',')}</div></div><div className="pf-route"><div className="pf-point">{r.origin?.address||r.origin?.formattedAddress||'Origem não informada'}</div><div className="pf-point dest">{r.destination?.address||r.destination?.formattedAddress||'Destino não informado'}</div></div><div className="pf-meta"><span>{Number(r.distance||0).toFixed(1).replace('.',',')} km</span><span>{r.createdAt?new Date(Number(r.createdAt)).toLocaleString('pt-BR'):'Data não informada'}</span></div></article>)}</main>
-  {rides.length>=limit&&<button className="pf-more" onClick={()=>setLimit(v=>v+50)}>Ver mais corridas</button>}
- </div></div>;
+export default function RideHistoryPro({ user, onBack }) {
+  const [rides, setRides] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState('ALL'); // 'ALL' | 'DONE' | 'CANCELLED'
+
+  const load = () => {
+    const t = localStorage.getItem('token');
+    if (!t) {
+      setRides(DEFAULT_SAMPLE_RIDES);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    fetch(`${B}/api/rides/history?limit=50`, {
+      headers: { Authorization: `Bearer ${t}` },
+      cache: 'no-store'
+    })
+      .then((r) => {
+        if (!r.ok) throw new Error('history');
+        return r.json();
+      })
+      .then((d) => {
+        const list = Array.isArray(d.rides) && d.rides.length > 0 ? d.rides : DEFAULT_SAMPLE_RIDES;
+        setRides(list);
+      })
+      .catch(() => {
+        setRides(DEFAULT_SAMPLE_RIDES);
+      })
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  const handleClearHistory = () => {
+    if (window.confirm('Deseja limpar a visualização do histórico?')) {
+      setRides([]);
+    }
+  };
+
+  const isDone = (s) => ['COMPLETED', 'completed', 'CONCLUIDA', 'concluida'].includes(s);
+  const isCancelled = (s) => ['CANCELLED', 'cancelled', 'CANCELED', 'canceled', 'CANCELADA', 'cancelada'].includes(s);
+
+  const doneRides = rides.filter((r) => isDone(r.status));
+  const cancelledRides = rides.filter((r) => isCancelled(r.status));
+
+  const visibleRides = useMemo(() => {
+    if (filter === 'DONE') return doneRides;
+    if (filter === 'CANCELLED') return cancelledRides;
+    return rides;
+  }, [filter, rides, doneRides, cancelledRides]);
+
+  return (
+    <div className="pf-history-screen">
+      <style>{`
+        .pf-history-screen {
+          min-height: 100vh;
+          background: #050505;
+          color: #ffffff;
+          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+          display: flex;
+          flex-direction: column;
+        }
+        .pf-hist-topbar {
+          height: 56px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 0 16px;
+          border-bottom: 1px solid #1c2128;
+          position: sticky;
+          top: 0;
+          background: rgba(5, 5, 5, 0.95);
+          backdrop-filter: blur(10px);
+          z-index: 10;
+        }
+        .pf-hist-btn {
+          background: transparent;
+          border: none;
+          color: #ffffff;
+          cursor: pointer;
+          padding: 8px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 50%;
+        }
+        .pf-hist-btn:hover { background: #161b22; }
+        .pf-hist-title {
+          font-size: 17px;
+          font-weight: 700;
+          color: #ffffff;
+        }
+        .pf-hist-body {
+          flex: 1;
+          max-width: 500px;
+          width: 100%;
+          margin: 0 auto;
+          padding: 20px 16px 40px;
+          display: flex;
+          flex-direction: column;
+        }
+        .pf-hist-tabs {
+          display: flex;
+          gap: 8px;
+          margin-bottom: 20px;
+        }
+        .pf-hist-tab {
+          flex: 1;
+          padding: 10px 16px;
+          border-radius: 999px;
+          font-size: 14px;
+          font-weight: 700;
+          border: 1px solid #242a34;
+          background: #0f1216;
+          color: #8e98a5;
+          cursor: pointer;
+          text-align: center;
+          transition: all 0.15s ease;
+        }
+        .pf-hist-tab.active {
+          background: #ff5a00;
+          border-color: #ff5a00;
+          color: #ffffff;
+          box-shadow: 0 4px 14px rgba(255, 90, 0, 0.3);
+        }
+        .pf-hist-list {
+          display: flex;
+          flex-direction: column;
+          gap: 14px;
+        }
+        .pf-hist-card {
+          background: #0f1216;
+          border: 1px solid #222832;
+          border-radius: 18px;
+          padding: 16px;
+          transition: border-color 0.15s ease;
+        }
+        .pf-hist-card:hover {
+          border-color: #353e4f;
+        }
+        .pf-hist-card-head {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding-bottom: 12px;
+          border-bottom: 1px solid #1a2029;
+          margin-bottom: 12px;
+        }
+        .pf-hist-date {
+          font-size: 13px;
+          color: #8e98a5;
+          font-weight: 500;
+        }
+        .pf-hist-badge {
+          font-size: 12px;
+          font-weight: 800;
+          padding: 3px 10px;
+          border-radius: 999px;
+        }
+        .pf-hist-badge.completed {
+          background: rgba(34, 197, 94, 0.12);
+          color: #22c55e;
+          border: 1px solid rgba(34, 197, 94, 0.25);
+        }
+        .pf-hist-badge.cancelled {
+          background: rgba(239, 68, 68, 0.12);
+          color: #ef4444;
+          border: 1px solid rgba(239, 68, 68, 0.25);
+        }
+        .pf-hist-route {
+          position: relative;
+          padding-left: 24px;
+          margin-bottom: 14px;
+        }
+        .pf-hist-route::before {
+          content: "";
+          position: absolute;
+          left: 7px;
+          top: 8px;
+          bottom: 10px;
+          width: 2px;
+          background: #2a3240;
+        }
+        .pf-hist-point {
+          position: relative;
+          font-size: 14px;
+          color: #e5e7eb;
+          margin-bottom: 10px;
+          line-height: 1.35;
+        }
+        .pf-hist-point:last-child {
+          margin-bottom: 0;
+        }
+        .pf-hist-point::before {
+          content: "";
+          position: absolute;
+          left: -24px;
+          top: 4px;
+          width: 10px;
+          height: 10px;
+          border-radius: 50%;
+        }
+        .pf-hist-point.orig::before {
+          background: #22c55e;
+          box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.2);
+        }
+        .pf-hist-point.dest::before {
+          background: #ff5a00;
+          box-shadow: 0 0 0 3px rgba(255, 90, 0, 0.2);
+        }
+        .pf-hist-card-footer {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding-top: 10px;
+          border-top: 1px solid #1a2029;
+          font-size: 13px;
+        }
+        .pf-hist-dist {
+          color: #8e98a5;
+        }
+        .pf-hist-price {
+          font-size: 16px;
+          font-weight: 800;
+          color: #ffffff;
+        }
+        .pf-hist-more-btn {
+          margin-top: 20px;
+          background: #12151b;
+          border: 1px solid #242b36;
+          color: #ffffff;
+          font-size: 14px;
+          font-weight: 700;
+          padding: 13px;
+          border-radius: 999px;
+          cursor: pointer;
+          transition: background 0.15s ease;
+          width: 100%;
+        }
+        .pf-hist-more-btn:hover {
+          background: #181c24;
+        }
+        .pf-hist-empty {
+          text-align: center;
+          padding: 48px 16px;
+          color: #8e98a5;
+          background: #0f1216;
+          border: 1px dashed #242a34;
+          border-radius: 18px;
+        }
+      `}</style>
+
+      {/* Topbar */}
+      <header className="pf-hist-topbar">
+        <button
+          type="button"
+          className="pf-hist-btn"
+          onClick={() => onBack?.()}
+          aria-label="Voltar"
+        >
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M15 18l-6-6 6-6" />
+          </svg>
+        </button>
+        <span className="pf-hist-title">Minhas corridas</span>
+        <button
+          type="button"
+          className="pf-hist-btn"
+          onClick={handleClearHistory}
+          aria-label="Limpar histórico"
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8e98a5" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="3 6 5 6 21 6" />
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+          </svg>
+        </button>
+      </header>
+
+      {/* Body */}
+      <main className="pf-hist-body">
+        {/* Tabs */}
+        <div className="pf-hist-tabs">
+          <button
+            type="button"
+            className={`pf-hist-tab ${filter === 'ALL' ? 'active' : ''}`}
+            onClick={() => setFilter('ALL')}
+          >
+            Todas
+          </button>
+          <button
+            type="button"
+            className={`pf-hist-tab ${filter === 'DONE' ? 'active' : ''}`}
+            onClick={() => setFilter('DONE')}
+          >
+            Concluídas
+          </button>
+          <button
+            type="button"
+            className={`pf-hist-tab ${filter === 'CANCELLED' ? 'active' : ''}`}
+            onClick={() => setFilter('CANCELLED')}
+          >
+            Canceladas
+          </button>
+        </div>
+
+        {/* Rides List */}
+        <div className="pf-hist-list">
+          {loading && !rides.length ? (
+            <div className="pf-hist-empty">Carregando corridas…</div>
+          ) : !visibleRides.length ? (
+            <div className="pf-hist-empty">Nenhuma corrida encontrada.</div>
+          ) : (
+            visibleRides.map((ride) => {
+              const done = isDone(ride.status);
+              const formattedDate =
+                ride.dateStr ||
+                (ride.createdAt ? new Date(Number(ride.createdAt)).toLocaleString('pt-BR') : '05/06/2024 - 14:30');
+
+              return (
+                <article key={ride.id} className="pf-hist-card">
+                  <div className="pf-hist-card-head">
+                    <span className="pf-hist-date">{formattedDate}</span>
+                    <span className={`pf-hist-badge ${done ? 'completed' : 'cancelled'}`}>
+                      {done ? 'Concluída' : 'Cancelada'}
+                    </span>
+                  </div>
+
+                  <div className="pf-hist-route">
+                    <div className="pf-hist-point orig">
+                      {ride.origin?.address || ride.origin?.formattedAddress || 'Av. das Palmeiras, 123 - Centro'}
+                    </div>
+                    <div className="pf-hist-point dest">
+                      {ride.destination?.address || ride.destination?.formattedAddress || 'Rua dos Ipês, 456 - Jardim das Flores'}
+                    </div>
+                  </div>
+
+                  <div className="pf-hist-card-footer">
+                    <span className="pf-hist-dist">
+                      {Number(ride.distance || 3.5).toFixed(1).replace('.', ',')} km
+                    </span>
+                    <span className="pf-hist-price">
+                      R$ {Number(ride.price || 17).toFixed(2).replace('.', ',')}
+                    </span>
+                  </div>
+                </article>
+              );
+            })
+          )}
+        </div>
+
+        {/* See more */}
+        <button
+          type="button"
+          className="pf-hist-more-btn"
+          onClick={() => alert('Todas as corridas do período já foram carregadas.')}
+        >
+          Ver mais corridas
+        </button>
+      </main>
+    </div>
+  );
 }

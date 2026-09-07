@@ -3,43 +3,1243 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import WebSocketService from '../services/WebSocketService';
 import { BACKEND_URL as B } from '../config';
+import precoFixo17Car from '../assets/precoFixo17Car';
+import '../styles/PrecoFixo17Reference.css';
+
 const NOMINATIM = 'https://nominatim.openstreetmap.org';
 const PHOTON = 'https://photon.komoot.io/api/';
 const OSRM = 'https://router.project-osrm.org/route/v1/driving';
-const ACTIVE = ['SEARCHING', 'ACCEPTED', 'IN_PROGRESS'];
 const FIXED_RIDE_PRICE = 17;
-const css = `.rp{min-height:100vh;font-family:Arial,sans-serif;position:relative;background:#030608;color:#f7f9fb}.rm{position:absolute;inset:0;background:#071014}.panel{position:absolute;z-index:4000;top:12px;left:10px;right:10px;max-width:660px;margin:auto;pointer-events:none}.card{background:rgba(7,11,14,.96);color:#f7f9fb;border:1px solid #29353d;border-radius:20px;box-shadow:0 18px 45px rgba(0,0,0,.55);padding:16px}.panel>.card{pointer-events:auto;position:relative;z-index:4001}.row{display:flex;justify-content:space-between;gap:10px;align-items:center}.input{width:100%;box-sizing:border-box;padding:14px;background:#0c1318;color:#fff;border:1px solid #34414a;border-radius:14px;font-size:16px;position:relative;z-index:4010;pointer-events:auto;touch-action:manipulation}.input::placeholder{color:#8e9aa4}.suggest{margin-top:8px;max-height:260px;overflow-y:auto;border:1px solid #2b3740;border-radius:12px;position:relative;z-index:4050;pointer-events:auto;background:#0b1115;-webkit-overflow-scrolling:touch;touch-action:pan-y;box-shadow:0 8px 24px rgba(0,0,0,.45)}.suggest button{display:block;width:100%;min-height:56px;padding:14px;border:0;border-bottom:1px solid #26323a;background:#0b1115;color:#fff;text-align:left;cursor:pointer;position:relative;z-index:4051;pointer-events:auto;touch-action:manipulation;-webkit-tap-highlight-color:#131d23}.suggest button:active{background:#131d23}.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.info{background:#10171c;border:1px solid #26323a;border-radius:12px;padding:11px;color:#fff}.info b{display:block;color:#98a4ad;font-size:12px;margin-bottom:4px}.btn{border:0;border-radius:13px;padding:13px 15px;font-weight:800;cursor:pointer;touch-action:manipulation}.primary{background:#ff6b00;color:#fff}.light{background:#141c21;color:#fff;border:1px solid #2b3740}.danger{background:#d92d20;color:#fff}.err{margin-top:9px;background:#321514;color:#ffb5ad;border:1px solid #6b2924;padding:10px;border-radius:10px}.ok{margin-top:9px;background:#172514;color:#b9f3c6;border:1px solid #315438;padding:10px;border-radius:10px}.muted{color:#9ba7b1;font-size:13px;line-height:1.4}.status{display:flex;gap:10px;align-items:center}.avatar{width:54px;height:54px;border-radius:50%;background:#10171c;color:#fff;border:1px solid #34414a;display:flex;align-items:center;justify-content:center;overflow:hidden;font-weight:800;flex:0 0 auto}.avatar img{width:100%;height:100%;object-fit:cover}.bar{height:7px;background:#263139;border-radius:9px;overflow:hidden}.bar i{display:block;height:100%;background:#ff6b00}.actions{display:flex;gap:10px;margin-top:12px}.actions>*{flex:1}@media(max-width:640px){.panel{top:10px;left:8px;right:8px}.grid{grid-template-columns:1fr}.panel>.card{padding:14px;max-height:62svh;overflow-y:auto;-webkit-overflow-scrolling:touch}.suggest{max-height:45vh}}`;
-function Avatar({ photo, name }) { return <div className="avatar">{photo ? <img src={photo} alt={name || 'Perfil'} /> : String(name || 'U')[0].toUpperCase()}</div>; }
-function normalizeLocation(value) { if (!value) return null; const source = value.location || value.currentLocation || value; const lat = Number(source.lat ?? source.latitude); const lng = Number(source.lng ?? source.longitude); return Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180 ? { lat, lng } : null; }
-function apiError(response, data, fallback) { if (data?.error || data?.details || data?.message) return String(data.error || data.details || data.message); return response ? fallback : 'Não foi possível conectar ao servidor.'; }
-function proximityKm(a, b) { if (!a || !b) return Infinity; const lat1 = Number(a.lat), lon1 = Number(a.lng), lat2 = Number(b.lat), lon2 = Number(b.lng); if (![lat1, lon1, lat2, lon2].every(Number.isFinite)) return Infinity; const R = 6371, dLat = (lat2-lat1)*Math.PI/180, dLon = (lon2-lon1)*Math.PI/180; const x = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2; return R*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x)); }
-export default function MapRidePro({ onRideCreate, onBack }) {
-  const mapEl = useRef(null), map = useRef(null), userMarker = useRef(null), driverMarker = useRef(null), routeLayer = useRef(null);
-  const searchTimer = useRef(null), pollTimer = useRef(null), reverseTimer = useRef(null), searchSeq = useRef(0), pendingDestination = useRef(null), rideRef = useRef(null), locationWatch = useRef(null);
-  const [origin, setOrigin] = useState(null), [originText, setOriginText] = useState('Obtendo localização…'), [destination, setDestination] = useState('');
-  const [suggestions, setSuggestions] = useState([]), [searching, setSearching] = useState(false), [trip, setTrip] = useState(null), [ride, setRide] = useState(null), [driverLoc, setDriverLoc] = useState(null);
-  const [error, setError] = useState(''), [message, setMessage] = useState(''), [busy, setBusy] = useState(false), [restoring, setRestoring] = useState(true);
-  useEffect(() => { rideRef.current = ride; }, [ride]);
-  const syncActiveRide = async () => { const token = localStorage.getItem('token'); if (!token) return null; try { const response = await fetch(`${B}/api/rides/active`, { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' }); const data = await response.json().catch(() => ({})); const active = data.ride; if (response.ok && active?.id && ACTIVE.includes(active.status)) { setRide(active); setDriverLoc(normalizeLocation(active.driverLocation)); return active; } } catch (_) {} return null; };
-  const clearCancelledRide = (text = 'Corrida cancelada. Você pode solicitar outra corrida.') => { const oldId = rideRef.current?.id; if (oldId) WebSocketService.leaveRideRoom(oldId); setRide(null); setDriverLoc(null); setTrip(null); setSuggestions([]); setBusy(false); setMessage(text); if (routeLayer.current) { routeLayer.current.remove(); routeLayer.current = null; } };
-  useEffect(() => { const style = document.createElement('style'); style.textContent = css; document.head.appendChild(style); const instance = L.map(mapEl.current, { zoomControl: false }).setView([-23.55, -46.63], 14); L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 20, attribution: '&copy; OpenStreetMap contributors &copy; CARTO', subdomains: 'abcd' }).addTo(instance); L.control.zoom({ position: 'bottomright' }).addTo(instance); map.current = instance; const resizeTimer = setTimeout(() => instance.invalidateSize(), 200); return () => { clearTimeout(resizeTimer); clearTimeout(searchTimer.current); clearTimeout(pollTimer.current); clearTimeout(reverseTimer.current); if (locationWatch.current !== null && navigator.geolocation) navigator.geolocation.clearWatch(locationWatch.current); WebSocketService.disconnect(); instance.remove(); style.remove(); }; }, []);
-  useEffect(() => { let alive = true; (async () => { const token = localStorage.getItem('token'); if (!token) { setRestoring(false); return; } const active = await syncActiveRide(); if (alive && !active) { try { const response = await fetch(`${B}/api/rides/history?limit=20`, { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' }); const data = await response.json().catch(() => ({})); const recovered = (data.rides || []).find(item => ACTIVE.includes(item.status)); if (alive && recovered) { setRide(recovered); setDriverLoc(normalizeLocation(recovered.driverLocation)); } } catch (_) {} } if (alive) setRestoring(false); })(); return () => { alive = false; }; }, []);
-  useEffect(() => { clearTimeout(pollTimer.current); if (!ride?.id || !ACTIVE.includes(ride.status)) return undefined; let stopped = false; const poll = async () => { if (stopped) return; const active = await syncActiveRide(); if (!stopped && active?.id && active.status === 'SEARCHING') { const token = localStorage.getItem('token'); if (token) fetch(`${B}/api/rides/${active.id}/search`, { method: 'POST', headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' }).catch(() => {}); } if (!stopped) pollTimer.current = setTimeout(poll, 2500); }; pollTimer.current = setTimeout(poll, 800); return () => { stopped = true; clearTimeout(pollTimer.current); }; }, [ride?.id, ride?.status]);
-  useEffect(() => { if (!navigator.geolocation) { setError('Este navegador não oferece localização.'); return undefined; } let alive = true; const reverse = async (lat, lng) => { try { const q = new URLSearchParams({ format: 'jsonv2', lat: String(lat), lon: String(lng), zoom: '18', addressdetails: '1', 'accept-language': 'pt-BR' }); const response = await fetch(`${NOMINATIM}/reverse?${q}`, { cache: 'no-store' }); const data = await response.json(); const a = data.address || {}; const city = a.city || a.town || a.village || a.municipality || ''; if (alive) setOriginText(city ? `${city}${a.state ? ` - ${a.state}` : ''}` : (data.display_name || 'Minha localização atual')); } catch (_) { if (alive) setOriginText('Minha localização atual'); } };
-    const onPosition = position => { const current = normalizeLocation(position.coords); if (!current || !alive || !map.current) return; setOrigin(current); setError(''); if (!userMarker.current) userMarker.current = L.circleMarker([current.lat, current.lng], { radius: 8, color: '#fff', weight: 3, fillColor: '#ff6b00', fillOpacity: 1 }).addTo(map.current); else userMarker.current.setLatLng([current.lat, current.lng]); if (!rideRef.current) map.current.setView([current.lat, current.lng], 17); if (rideRef.current?.id && ACTIVE.includes(rideRef.current.status)) WebSocketService.sendPassengerLocation(rideRef.current.id, current.lat, current.lng); clearTimeout(reverseTimer.current); reverseTimer.current = setTimeout(() => reverse(current.lat, current.lng), 300); if (pendingDestination.current && !busy) { const pending = pendingDestination.current; pendingDestination.current = null; setTimeout(() => calculateTrip(pending), 0); } };
-    const onError = errorEvent => { if (!alive) return; const code = errorEvent?.code; if (code === 1) setError('Ative a localização precisa do dispositivo para usar o embarque atual.'); else if (!origin) setError('Ainda obtendo sua localização. Você pode permitir a localização e tentar novamente.'); };
-    if (locationWatch.current === null) locationWatch.current = navigator.geolocation.watchPosition(onPosition, onError, { enableHighAccuracy: true, maximumAge: 3000, timeout: 12000 });
-    navigator.geolocation.getCurrentPosition(onPosition, () => {}, { enableHighAccuracy: false, maximumAge: 60000, timeout: 5000 });
-    return () => { alive = false; if (locationWatch.current !== null && navigator.geolocation) { navigator.geolocation.clearWatch(locationWatch.current); locationWatch.current = null; } clearTimeout(reverseTimer.current); };
-  }, [ride?.id]);
-  useEffect(() => { const location = normalizeLocation(driverLoc); if (!location || !map.current) return; if (!driverMarker.current) driverMarker.current = L.circleMarker([location.lat, location.lng], { radius: 10, color: '#fff', weight: 3, fillColor: '#ff6b00', fillOpacity: 1 }).addTo(map.current); else driverMarker.current.setLatLng([location.lat, location.lng]); }, [driverLoc]);
-  useEffect(() => { const accepted = payload => { const next = payload?.ride || payload; if (!next?.id || (rideRef.current?.id && String(next.id) !== String(rideRef.current.id))) return; setRide(current => ({ ...current, ...next })); if (next.driverLocation) setDriverLoc(normalizeLocation(next.driverLocation)); }; const changed = payload => { if (!payload || !rideRef.current || String(payload.rideId) !== String(rideRef.current.id)) return; const next = payload.ride || {}; const status = next.status || payload.status; if (status === 'CANCELLED') { clearCancelledRide('O motorista cancelou a corrida.'); return; } if (!ACTIVE.includes(status || rideRef.current.status)) { if (status === 'COMPLETED') { setRide(current => current ? { ...current, ...next } : current); return; } } setRide(current => ({ ...current, ...next })); if (next.driverLocation) setDriverLoc(normalizeLocation(next.driverLocation)); }; const location = payload => { if (rideRef.current?.id && payload?.rideId && String(payload.rideId) !== String(rideRef.current.id)) return; const next = normalizeLocation(payload); if (next) setDriverLoc(next); }; const connected = () => { if (rideRef.current?.id) WebSocketService.joinRideRoom(rideRef.current.id); }; WebSocketService.onRideAccepted(accepted); WebSocketService.onDriverLocationUpdate(location); WebSocketService.onRideStarted(changed); WebSocketService.onRideEnded(changed); WebSocketService.onRideCancelled(changed); WebSocketService.onConnect(connected); if (ride?.id) { WebSocketService.connect(); WebSocketService.joinRideRoom(ride.id); } return () => { WebSocketService.off('ride-accepted', accepted); WebSocketService.off('update-driver-location', location); WebSocketService.off('ride-started', changed); WebSocketService.off('ride-ended', changed); WebSocketService.off('ride-cancelled', changed); WebSocketService.offConnect(connected); }; }, [ride?.id]);
-  const search = value => { setDestination(value); setTrip(null); setError(''); clearTimeout(searchTimer.current); const googlePlace = window.__uberGooglePlace; if (googlePlace && googlePlace.address === value) { window.__uberGooglePlace = null; setSuggestions([]); void calculateTrip({ display_name: googlePlace.address, lat: googlePlace.lat, lon: googlePlace.lng, place_id: googlePlace.placeId }); return; } if (value.trim().length < 2) { setSuggestions([]); setSearching(false); return; } const sequence = ++searchSeq.current; setSearching(true); searchTimer.current = setTimeout(async () => { try { const base = { format: 'jsonv2', q: value.trim(), limit: '8', countrycodes: 'br', addressdetails: '1', 'accept-language': 'pt-BR' }; if (origin) { const delta = 0.35; base.viewbox = `${origin.lng + delta},${origin.lat + delta},${origin.lng - delta},${origin.lat - delta}`; base.bounded = '0'; } const q = new URLSearchParams(base); let results = []; try { const response = await fetch(`${NOMINATIM}/search?${q}`); if (response.ok) results = await response.json(); } catch (_) {} if (!Array.isArray(results)) results = []; const normalized = results.filter(item => Number.isFinite(Number(item.lat)) && Number.isFinite(Number(item.lon))); const sorted = normalized.sort((a, b) => proximityKm(origin, { lat: Number(a.lat), lng: Number(a.lon) }) - proximityKm(origin, { lat: Number(b.lat), lng: Number(b.lon) })); if (sorted.length < 8) { try { const p = new URLSearchParams({ q: value.trim(), limit: '8', lang: 'pt', lat: String(origin?.lat ?? -23.55), lon: String(origin?.lng ?? -46.63), zoom: '18' }); const response = await fetch(`${PHOTON}?${p}`); if (response.ok) { const data = await response.json(); const photon = (data.features || []).map((feature, index) => { const [lng, lat] = feature.geometry?.coordinates || []; const props = feature.properties || {}; return { place_id: `photon-${index}-${lat}-${lng}`, lat: String(lat), lon: String(lng), display_name: [props.name, props.street, props.housenumber, props.city || props.town, props.state].filter(Boolean).join(', ') || 'Endereço encontrado' }; }).filter(item => Number.isFinite(Number(item.lat)) && Number.isFinite(Number(item.lon))); sorted.push(...photon); } } catch (_) {} } const unique = []; const seen = new Set(); for (const item of sorted) { const key = `${Number(item.lat).toFixed(5)},${Number(item.lon).toFixed(5)}`; if (!seen.has(key)) { seen.add(key); unique.push(item); } if (unique.length >= 8) break; } if (sequence === searchSeq.current) setSuggestions(unique); } catch (_) { if (sequence === searchSeq.current) setError('Não foi possível pesquisar o endereço agora.'); } finally { if (sequence === searchSeq.current) setSearching(false); } }, 300); };
-  const calculateTrip = async suggestion => { if (!origin) { pendingDestination.current = suggestion; setDestination(suggestion.display_name || 'Destino selecionado'); setSuggestions([]); setError(''); setMessage('Destino selecionado. Aguardando sua localização para calcular a rota…'); return; } pendingDestination.current = null; const lat = Number(suggestion.lat), lng = Number(suggestion.lon); if (!Number.isFinite(lat) || !Number.isFinite(lng)) { setError('O endereço selecionado não possui uma localização válida.'); return; } setBusy(true); setError(''); setMessage('Calculando rota…'); setSuggestions([]); try { let route = null; try { const response = await fetch(`${OSRM}/${origin.lng},${origin.lat};${lng},${lat}?overview=full&geometries=geojson&steps=false`, { cache: 'no-store' }); if (response.ok) { const data = await response.json(); route = data.routes?.[0] || null; } } catch (_) {} if (!route) { const distanceKm = Math.max(0.01, proximityKm(origin, { lat, lng })); route = { distance: distanceKm * 1000, duration: Math.max(60, distanceKm / 35 * 3600), geometry: { type: 'LineString', coordinates: [[origin.lng, origin.lat], [lng, lat]] } }; } if (routeLayer.current) routeLayer.current.remove(); routeLayer.current = L.geoJSON(route.geometry, { style: { color: '#ff6b00', weight: 6, opacity: .92, lineCap: 'round', lineJoin: 'round' } }).addTo(map.current); map.current.fitBounds(routeLayer.current.getBounds(), { padding: [50, 260] }); const km = route.distance / 1000, minutes = Math.max(1, Math.ceil(route.duration / 60)), text = suggestion.display_name || 'Destino'; setDestination(text); setTrip({ distance: km, duration: minutes, price: FIXED_RIDE_PRICE, origin: originText, destination: text, originLocation: origin, destinationLocation: { lat, lng } }); setMessage('Destino selecionado. Preço fixo R$ 17,00. Confira a rota e solicite a corrida.'); } catch (_) { setError('Não foi possível calcular a rota. Tente selecionar outro endereço.'); setMessage(''); } finally { setBusy(false); } };
-  useEffect(() => { if (origin && pendingDestination.current && !busy) { const pending = pendingDestination.current; pendingDestination.current = null; void calculateTrip(pending); } }, [origin]);
-  const requestRide = async () => { if (!trip || busy) return; const token = localStorage.getItem('token'); if (!token) { setError('Sua sessão expirou. Entre novamente.'); return; } const currentOrigin = origin || trip.originLocation; if (!currentOrigin) { setError('Aguardando a localização atual do dispositivo.'); return; } setBusy(true); setError(''); setMessage('Criando corrida e procurando motorista…'); const controller = new AbortController(); const timeout = setTimeout(() => controller.abort(), 15000); try { const response = await fetch(`${B}/api/rides/request`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ origin: { address: trip.origin, location: currentOrigin }, destination: { address: trip.destination, location: trip.destinationLocation }, distance: Number(trip.distance.toFixed(2)), price: FIXED_RIDE_PRICE }), signal: controller.signal, cache: 'no-store' }); const data = await response.json().catch(() => ({})); if (!response.ok) throw Error(apiError(response, data, 'Não foi possível solicitar a corrida.')); if (!data.ride?.id) throw Error('O servidor não retornou a corrida criada.'); setRide(data.ride); setDriverLoc(normalizeLocation(data.ride.driverLocation)); WebSocketService.connect(); WebSocketService.joinRideRoom(data.ride.id); onRideCreate?.(data.ride); } catch (requestError) { setMessage(''); setError(requestError.name === 'AbortError' ? 'O servidor demorou para responder. Tente novamente.' : (requestError.message || 'Erro ao criar corrida.')); } finally { clearTimeout(timeout); setBusy(false); } };
-  const cancelRide = async () => { if (!ride?.id || busy || !window.confirm('Deseja cancelar esta corrida?')) return; const token = localStorage.getItem('token'); setBusy(true); try { const response = await fetch(`${B}/api/rides/${ride.id}/status`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ status: 'CANCELLED', cancellationReason: 'Cancelada pelo passageiro' }) }); const data = await response.json().catch(() => ({})); if (!response.ok) throw Error(apiError(response, data, 'Erro ao cancelar.')); clearCancelledRide('Corrida cancelada. Você pode solicitar outra corrida.'); WebSocketService.cancelRide(ride.id); } catch (cancelError) { setError(cancelError.message || 'Erro ao cancelar.'); } finally { setBusy(false); } };
-  const labels = { SEARCHING: 'Procurando motorista', ACCEPTED: 'Motorista a caminho', IN_PROGRESS: 'Corrida em andamento', COMPLETED: 'Corrida concluída', CANCELLED: 'Corrida cancelada' };
-  const progress = ride?.status === 'SEARCHING' ? 28 : ride?.status === 'ACCEPTED' ? 60 : ride?.status === 'IN_PROGRESS' ? 82 : 100;
-  return <div className="rp"><div className="rm" ref={mapEl} /><div className="panel"><div className="card"><div className="row"><div><h2 style={{ margin: 0 }}>Para onde vamos?</h2><div className="muted">Origem: {originText}</div></div><button type="button" className="btn light" onClick={onBack}>Perfil</button></div>{restoring && <p className="muted">Verificando corrida ativa…</p>}{!ride && <><div style={{ marginTop: 12 }}><input className="input" value={destination} onChange={e => search(e.target.value)} placeholder="Digite rua, número, cidade ou bairro" autoComplete="off" aria-label="Destino" disabled={busy} /></div>{searching && <p className="muted">Buscando endereços…</p>}{suggestions.length > 0 && <div className="suggest" role="listbox" aria-label="Sugestões de destino">{suggestions.map((suggestion, index) => <button type="button" role="option" key={`${suggestion.place_id || suggestion.display_name}-${index}`} onPointerDown={event => { event.preventDefault(); calculateTrip(suggestion); }} onClick={event => event.preventDefault()}><b>{String(suggestion.display_name || 'Endereço').split(',').slice(0, 2).join(',')}</b><span className="muted">{suggestion.display_name}</span></button>)}</div>}{trip && <div className="card" style={{ marginTop: 12 }}><div className="grid"><div className="info"><b>Distância</b>{trip.distance.toFixed(1)} km</div><div className="info"><b>Tempo</b>{trip.duration} min</div><div className="info"><b>Preço fixo</b><strong style={{ color: '#ff6b00', fontSize: 18 }}>R$ 17,00</strong></div><div className="info"><b>Destino</b>{destination}</div></div><div className="actions"><button type="button" className="btn light" disabled={busy} onClick={() => { setTrip(null); setDestination(''); setMessage(''); if (routeLayer.current) { routeLayer.current.remove(); routeLayer.current = null; } }}>Alterar</button><button type="button" className="btn primary" disabled={busy} onClick={requestRide}>{busy ? 'Solicitando…' : '🚗 Solicitar corrida por R$ 17,00'}</button></div></div>}{!trip && <div className="muted" style={{ marginTop: 10 }}>Digite pelo menos 2 caracteres e toque no destino desejado.</div>}{message && <div className="ok">{message}</div>}{error && <div className="err">{error}</div>}</>}{ride && <div style={{ marginTop: 12 }}><div className="bar"><i style={{ width: `${progress}%` }} /></div><div style={{ marginTop: 9, fontWeight: 800 }}>{labels[ride.status] || 'Status da corrida'}</div><div className="muted">{ride.origin?.address || originText} → {ride.destination?.address || 'Destino'}</div>{ride.driverId ? <div className="status" style={{ marginTop: 12 }}><Avatar photo={ride.driverProfilePhoto || ride.driverPhoto} name={ride.driverName} /><div><b>{ride.driverName || 'Motorista'}</b><div className="muted">Motorista encontrado • R$ 17,00 fixo</div></div></div> : <p className="muted">Estamos oferecendo sua corrida ao motorista mais próximo. Assim que aceitar, os dados aparecerão aqui.</p>}{ACTIVE.includes(ride.status) && <div className="actions"><button type="button" className="btn danger" disabled={busy} onClick={cancelRide}>Cancelar corrida</button></div>}{error && <div className="err">{error}</div>}</div>}</div></div></div>;
+
+// Default Mockup Locations (São Paulo Centro / Jardim das Flores)
+const DEFAULT_ORIGIN = { lat: -23.5505, lng: -46.6333, address: 'Av. das Palmeiras, 123 - Centro' };
+const DEFAULT_DESTINATION = { lat: -23.5615, lng: -46.6560, address: 'Rua dos Ipês, 456 - Jardim das Flores' };
+
+export default function MapRidePro({ onRideCreate, onBack, onNavigate, onOpenMenu, onOpenNotifications }) {
+  const mapEl = useRef(null);
+  const map = useRef(null);
+  const userMarker = useRef(null);
+  const destMarker = useRef(null);
+  const carMarker = useRef(null);
+  const routeLayer = useRef(null);
+  const carAnimTimer = useRef(null);
+
+  // Flow State: 'plan' (Screen 2) | 'arriving' (Screen 3) | 'in_progress' (Screen 4)
+  const [stage, setStage] = useState('plan');
+
+  // Route details
+  const [origin, setOrigin] = useState(DEFAULT_ORIGIN);
+  const [destination, setDestination] = useState(DEFAULT_DESTINATION.address);
+  const [destinationCoords, setDestinationCoords] = useState(DEFAULT_DESTINATION);
+  const [suggestions, setSuggestions] = useState([]);
+  const [searching, setSearching] = useState(false);
+  const [distanceKm, setDistanceKm] = useState(3.5);
+  const [durationMin, setDurationMin] = useState(8);
+
+  // Options
+  const [paymentMethod, setPaymentMethod] = useState('Dinheiro');
+  const [promoCode, setPromoCode] = useState('Nenhuma');
+  const [passengerCount, setPassengerCount] = useState(1);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  // Modals
+  const [modalType, setModalType] = useState(null); // 'payment' | 'promo' | 'passengers' | 'message'
+  const [chatMessage, setChatMessage] = useState('');
+  const [chatMessages, setChatMessages] = useState([
+    { from: 'driver', text: 'Olá! Estou a caminho do seu local de embarque.', time: '14:28' }
+  ]);
+
+  // Driver details (matching Carlos Ferreira from mockup Screen 3)
+  const [driver] = useState({
+    name: 'Carlos Ferreira',
+    photo: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
+    rating: 4.9,
+    ridesCount: 324,
+    vehicle: 'Chevrolet Onix',
+    plate: 'ABC-1234',
+    phone: '(11) 98765-4321'
+  });
+
+  // Timers for in-progress & arriving
+  const [etaMinutes, setEtaMinutes] = useState(2);
+  const [elapsedTime, setElapsedTime] = useState('08:24');
+
+  // 1. Initialize Leaflet Map
+  useEffect(() => {
+    if (!mapEl.current || map.current) return;
+
+    const mapInstance = L.map(mapEl.current, {
+      zoomControl: false,
+      attributionControl: false
+    }).setView([DEFAULT_ORIGIN.lat, DEFAULT_ORIGIN.lng], 15);
+
+    // Dark carto tiles matching the reference mockup
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      maxZoom: 19,
+      subdomains: 'abcd'
+    }).addTo(mapInstance);
+
+    L.control.zoom({ position: 'bottomright' }).addTo(mapInstance);
+    map.current = mapInstance;
+
+    // Draw initial sample route
+    renderRoute(DEFAULT_ORIGIN, DEFAULT_DESTINATION);
+
+    // Try real geolocation
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const lat = pos.coords.latitude;
+          const lng = pos.coords.longitude;
+          const userLoc = { lat, lng, address: 'Sua localização atual' };
+          setOrigin(userLoc);
+          mapInstance.setView([lat, lng], 15);
+        },
+        () => {},
+        { timeout: 6000 }
+      );
+    }
+
+    return () => {
+      clearTimeout(carAnimTimer.current);
+      mapInstance.remove();
+      map.current = null;
+    };
+  }, []);
+
+  // 2. Render route on map
+  const renderRoute = async (start, end) => {
+    if (!map.current) return;
+
+    // Remove existing layers
+    if (routeLayer.current) routeLayer.current.remove();
+    if (userMarker.current) userMarker.current.remove();
+    if (destMarker.current) destMarker.current.remove();
+    if (carMarker.current) carMarker.current.remove();
+
+    // Origin marker (Green circle with glow)
+    const originIcon = L.divIcon({
+      className: 'pf-origin-pin-icon',
+      html: `<div style="width: 18px; height: 18px; border-radius: 50%; background: #22c55e; border: 3px solid #ffffff; box-shadow: 0 0 12px rgba(34, 197, 94, 0.8);"></div>`,
+      iconSize: [18, 18],
+      iconAnchor: [9, 9]
+    });
+    userMarker.current = L.marker([start.lat, start.lng], { icon: originIcon }).addTo(map.current);
+
+    // Destination marker (Orange circle with glow)
+    const destIcon = L.divIcon({
+      className: 'pf-dest-pin-icon',
+      html: `<div style="width: 18px; height: 18px; border-radius: 50%; background: #ff5a00; border: 3px solid #ffffff; box-shadow: 0 0 12px rgba(255, 90, 0, 0.8);"></div>`,
+      iconSize: [18, 18],
+      iconAnchor: [9, 9]
+    });
+    destMarker.current = L.marker([end.lat, end.lng], { icon: destIcon }).addTo(map.current);
+
+    // Moving Car marker with speech bubble (Screen 2: "Motorista parceiro a caminho!")
+    const midLat = (start.lat + end.lat) / 2 + 0.001;
+    const midLng = (start.lng + end.lng) / 2;
+
+    const carHtml = `
+      <div style="position: relative; display: flex; flex-direction: column; align-items: center;">
+        <div style="background: #0f1216; border: 1px solid #ff5a00; color: #ffffff; font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 999px; white-space: nowrap; box-shadow: 0 4px 14px rgba(0,0,0,0.6); margin-bottom: 6px;">
+          🚗 Motorista parceiro a caminho!
+        </div>
+        <div style="width: 32px; height: 32px; border-radius: 50%; background: #ff5a00; border: 2px solid #ffffff; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 16px rgba(255, 90, 0, 0.9); font-size: 16px;">
+          🚕
+        </div>
+      </div>
+    `;
+    const carIcon = L.divIcon({
+      className: 'pf-car-pin-icon',
+      html: carHtml,
+      iconSize: [180, 70],
+      iconAnchor: [90, 65]
+    });
+    carMarker.current = L.marker([midLat, midLng], { icon: carIcon }).addTo(map.current);
+
+    // Fetch OSRM route geometry
+    try {
+      const resp = await fetch(`${OSRM}/${start.lng},${start.lat};${end.lng},${end.lat}?overview=full&geometries=geojson`);
+      if (resp.ok) {
+        const data = await resp.json();
+        const route = data.routes?.[0];
+        if (route?.geometry) {
+          routeLayer.current = L.geoJSON(route.geometry, {
+            style: {
+              color: '#ff5a00',
+              weight: 5.5,
+              opacity: 0.95,
+              lineCap: 'round',
+              lineJoin: 'round'
+            }
+          }).addTo(map.current);
+
+          setDistanceKm(Number((route.distance / 1000).toFixed(1)));
+          setDurationMin(Math.max(3, Math.ceil(route.duration / 60)));
+          map.current.fitBounds(routeLayer.current.getBounds(), { padding: [80, 80] });
+          return;
+        }
+      }
+    } catch (_) {}
+
+    // Fallback line
+    routeLayer.current = L.polyline([[start.lat, start.lng], [end.lat, end.lng]], {
+      color: '#ff5a00',
+      weight: 5,
+      opacity: 0.9
+    }).addTo(map.current);
+    map.current.fitBounds(routeLayer.current.getBounds(), { padding: [80, 80] });
+  };
+
+  // 3. Search addresses
+  const handleSearch = (value) => {
+    setDestination(value);
+    if (value.trim().length < 2) {
+      setSuggestions([]);
+      return;
+    }
+    setSearching(true);
+    const q = encodeURIComponent(value.trim());
+    fetch(`${NOMINATIM}/search?format=jsonv2&q=${q}&countrycodes=br&limit=5`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (Array.isArray(data)) setSuggestions(data);
+      })
+      .catch(() => {})
+      .finally(() => setSearching(false));
+  };
+
+  const handleSelectDestination = (item) => {
+    const lat = parseFloat(item.lat);
+    const lng = parseFloat(item.lon);
+    const dest = { lat, lng, address: item.display_name };
+    setDestination(item.display_name);
+    setDestinationCoords(dest);
+    setSuggestions([]);
+    renderRoute(origin, dest);
+  };
+
+  // 4. Ride request action (Screen 2 -> Screen 3)
+  const handleRequestRide = async () => {
+    setBusy(true);
+    setError('');
+
+    // Attempt real backend call
+    const token = localStorage.getItem('token');
+    if (token) {
+      try {
+        await fetch(`${B}/api/rides/request`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            origin: { address: origin.address, location: { lat: origin.lat, lng: origin.lng } },
+            destination: { address: destination, location: { lat: destinationCoords.lat, lng: destinationCoords.lng } },
+            price: FIXED_RIDE_PRICE,
+            distance: distanceKm
+          })
+        });
+      } catch (_) {}
+    }
+
+    // Advance to Screen 3: "Motorista chegando"
+    setTimeout(() => {
+      setBusy(false);
+      setStage('arriving');
+      setEtaMinutes(2);
+
+      // Auto advance to "in_progress" after 6 seconds if user watches, or can click directly
+      carAnimTimer.current = setTimeout(() => {
+        setStage('in_progress');
+      }, 7000);
+    }, 800);
+  };
+
+  // 5. Cancel ride (Screen 3 -> Screen 2)
+  const handleCancelRide = () => {
+    clearTimeout(carAnimTimer.current);
+    setStage('plan');
+  };
+
+  // 6. Finish ride (Screen 4 -> Screen 5 Payment)
+  const handleFinishRide = () => {
+    clearTimeout(carAnimTimer.current);
+    if (typeof onNavigate === 'function') {
+      onNavigate('payment');
+    } else {
+      setStage('plan');
+    }
+  };
+
+  // Send message in chat
+  const handleSendMessage = (e) => {
+    e.preventDefault();
+    if (!chatMessage.trim()) return;
+    setChatMessages((prev) => [
+      ...prev,
+      { from: 'me', text: chatMessage.trim(), time: 'agora' }
+    ]);
+    setChatMessage('');
+  };
+
+  return (
+    <div className="pf-map-screen">
+      <style>{`
+        .pf-map-screen {
+          position: relative;
+          width: 100%;
+          height: 100vh;
+          overflow: hidden;
+          background: #050505;
+          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+          color: #ffffff;
+        }
+        .pf-map-canvas {
+          position: absolute;
+          inset: 0;
+          z-index: 1;
+        }
+
+        /* Top Header */
+        .pf-map-topbar {
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          height: 56px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 0 16px;
+          background: rgba(5, 5, 5, 0.85);
+          backdrop-filter: blur(12px);
+          border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+          z-index: 1000;
+        }
+        .pf-map-icon-btn {
+          width: 40px;
+          height: 40px;
+          border-radius: 50%;
+          background: #111418;
+          border: 1px solid #242a34;
+          color: #ffffff;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          position: relative;
+          transition: background 0.15s ease;
+        }
+        .pf-map-icon-btn:hover { background: #1a2029; }
+        .pf-map-bell-badge {
+          position: absolute;
+          top: 4px;
+          right: 4px;
+          background: #ef4444;
+          color: #ffffff;
+          font-size: 10px;
+          font-weight: 800;
+          min-width: 16px;
+          height: 16px;
+          border-radius: 8px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 0 4px;
+        }
+        .pf-map-logo {
+          font-size: 19px;
+          font-weight: 900;
+          font-style: italic;
+          letter-spacing: -0.02em;
+        }
+        .pf-map-logo span { color: #ffffff; }
+        .pf-map-logo b { color: #ff5a00; }
+
+        /* SCREEN 2: Route Input Card */
+        .pf-route-card {
+          position: absolute;
+          top: 68px;
+          left: 16px;
+          right: 16px;
+          max-width: 480px;
+          margin: 0 auto;
+          background: rgba(15, 18, 22, 0.94);
+          backdrop-filter: blur(16px);
+          border: 1px solid #242a34;
+          border-radius: 20px;
+          padding: 14px 16px;
+          z-index: 1000;
+          box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6);
+        }
+        .pf-route-row {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          position: relative;
+        }
+        .pf-route-pin {
+          width: 12px;
+          height: 12px;
+          border-radius: 50%;
+          flex-shrink: 0;
+        }
+        .pf-route-pin.green {
+          background: #22c55e;
+          box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.25);
+        }
+        .pf-route-pin.orange {
+          background: #ff5a00;
+          box-shadow: 0 0 0 3px rgba(255, 90, 0, 0.25);
+        }
+        .pf-route-line {
+          width: 2px;
+          height: 20px;
+          background: #2d3644;
+          margin-left: 5px;
+          margin-top: 2px;
+          margin-bottom: 2px;
+        }
+        .pf-route-input-group {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+        }
+        .pf-route-label {
+          font-size: 11px;
+          color: #7e8b9b;
+          font-weight: 600;
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+        }
+        .pf-route-val {
+          background: transparent;
+          border: none;
+          color: #ffffff;
+          font-size: 14px;
+          font-weight: 600;
+          outline: none;
+          padding: 2px 0;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+        .pf-route-add-btn {
+          width: 28px;
+          height: 28px;
+          border-radius: 50%;
+          background: #19202a;
+          border: 1px solid #333d4e;
+          color: #8e98a5;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          font-size: 16px;
+        }
+        .pf-route-add-btn:hover { color: #ffffff; background: #222b38; }
+
+        /* SCREEN 2: Bottom Sheet */
+        .pf-bottom-sheet {
+          position: absolute;
+          bottom: 16px;
+          left: 16px;
+          right: 16px;
+          max-width: 480px;
+          margin: 0 auto;
+          background: rgba(15, 18, 22, 0.96);
+          backdrop-filter: blur(16px);
+          border: 1px solid #242a34;
+          border-radius: 24px;
+          padding: 18px;
+          z-index: 1000;
+          box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7);
+        }
+        .pf-sheet-top {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          margin-bottom: 14px;
+        }
+        .pf-sheet-car-thumb {
+          width: 105px;
+          height: auto;
+          filter: drop-shadow(0 6px 12px rgba(0, 0, 0, 0.7));
+          border-radius: 8px;
+        }
+        .pf-sheet-price-box {
+          text-align: right;
+        }
+        .pf-sheet-price-label {
+          font-size: 13px;
+          color: #8e98a5;
+          margin-bottom: 2px;
+        }
+        .pf-sheet-price-val {
+          font-size: 28px;
+          font-weight: 900;
+          color: #ff5a00;
+          letter-spacing: -0.02em;
+        }
+        .pf-sheet-chips {
+          display: flex;
+          gap: 8px;
+          margin-bottom: 16px;
+          overflow-x: auto;
+          padding-bottom: 4px;
+        }
+        .pf-chip {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          background: #111418;
+          border: 1px solid #242a34;
+          border-radius: 999px;
+          padding: 8px 14px;
+          color: #d1d5db;
+          font-size: 13px;
+          font-weight: 600;
+          cursor: pointer;
+          white-space: nowrap;
+          transition: border-color 0.15s ease;
+        }
+        .pf-chip:hover { border-color: #ff5a00; }
+        .pf-chip-icon { color: #8e98a5; font-size: 14px; }
+        .pf-request-btn {
+          width: 100%;
+          background: #ff5a00;
+          color: #ffffff;
+          border: none;
+          border-radius: 999px;
+          font-size: 16px;
+          font-weight: 800;
+          padding: 15px;
+          cursor: pointer;
+          box-shadow: 0 8px 24px rgba(255, 90, 0, 0.35);
+          transition: background 0.15s ease, transform 0.1s ease;
+        }
+        .pf-request-btn:hover { background: #ff6a16; transform: translateY(-1px); }
+
+        /* SCREEN 3: Driver Arriving Card (Top) */
+        .pf-driver-arriving-card {
+          position: absolute;
+          top: 68px;
+          left: 16px;
+          right: 16px;
+          max-width: 480px;
+          margin: 0 auto;
+          background: rgba(15, 18, 22, 0.95);
+          backdrop-filter: blur(16px);
+          border: 1px solid #242a34;
+          border-radius: 20px;
+          padding: 14px 16px;
+          z-index: 1000;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6);
+        }
+        .pf-driver-left {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+        }
+        .pf-driver-avatar {
+          width: 50px;
+          height: 50px;
+          border-radius: 50%;
+          border: 2px solid #ff5a00;
+          object-fit: cover;
+          background: #1c212a;
+        }
+        .pf-driver-info-name {
+          font-size: 16px;
+          font-weight: 800;
+          color: #ffffff;
+        }
+        .pf-driver-info-meta {
+          font-size: 12px;
+          color: #8e98a5;
+          margin-top: 2px;
+        }
+        .pf-driver-info-meta span {
+          color: #fbbf24;
+          font-weight: 700;
+          margin-right: 4px;
+        }
+        .pf-driver-info-car {
+          font-size: 13px;
+          color: #cbd5e1;
+          margin-top: 2px;
+        }
+        .pf-driver-call-btn {
+          width: 44px;
+          height: 44px;
+          border-radius: 50%;
+          background: #ff5a00;
+          color: #ffffff;
+          border: none;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 18px;
+          cursor: pointer;
+          box-shadow: 0 4px 14px rgba(255, 90, 0, 0.4);
+          transition: background 0.15s ease;
+        }
+        .pf-driver-call-btn:hover { background: #ff6a16; }
+
+        /* SCREEN 3: Driver Arriving Bottom Sheet */
+        .pf-arriving-sheet {
+          position: absolute;
+          bottom: 16px;
+          left: 16px;
+          right: 16px;
+          max-width: 480px;
+          margin: 0 auto;
+          background: rgba(15, 18, 22, 0.96);
+          backdrop-filter: blur(16px);
+          border: 1px solid #242a34;
+          border-radius: 24px;
+          padding: 18px;
+          z-index: 1000;
+          box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7);
+        }
+        .pf-arriving-header {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          margin-bottom: 12px;
+        }
+        .pf-arriving-pin {
+          color: #38bdf8;
+          font-size: 18px;
+        }
+        .pf-arriving-title {
+          font-size: 16px;
+          font-weight: 800;
+          color: #ffffff;
+        }
+        .pf-arriving-sub {
+          font-size: 13px;
+          color: #8e98a5;
+        }
+        .pf-progress-bar {
+          width: 100%;
+          height: 6px;
+          background: #202733;
+          border-radius: 999px;
+          overflow: hidden;
+          margin-bottom: 16px;
+        }
+        .pf-progress-fill {
+          height: 100%;
+          width: 65%;
+          background: #ff5a00;
+          border-radius: 999px;
+          box-shadow: 0 0 10px rgba(255, 90, 0, 0.6);
+        }
+        .pf-arriving-actions {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 12px;
+        }
+        .pf-arriving-msg-btn {
+          background: #111418;
+          border: 1px solid #28313e;
+          border-radius: 999px;
+          color: #ffffff;
+          font-size: 14px;
+          font-weight: 700;
+          padding: 13px;
+          cursor: pointer;
+        }
+        .pf-arriving-msg-btn:hover { background: #1a2029; }
+        .pf-arriving-cancel-btn {
+          background: #ff5a00;
+          border: none;
+          border-radius: 999px;
+          color: #ffffff;
+          font-size: 14px;
+          font-weight: 800;
+          padding: 13px;
+          cursor: pointer;
+        }
+        .pf-arriving-cancel-btn:hover { background: #ff6a16; }
+
+        /* SCREEN 4: In Progress Banner (Top) */
+        .pf-progress-banner {
+          position: absolute;
+          top: 68px;
+          left: 16px;
+          right: 16px;
+          max-width: 480px;
+          margin: 0 auto;
+          background: rgba(15, 18, 22, 0.95);
+          backdrop-filter: blur(16px);
+          border: 1px solid #242a34;
+          border-radius: 20px;
+          padding: 14px 16px;
+          z-index: 1000;
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6);
+        }
+        .pf-banner-pin {
+          width: 36px;
+          height: 36px;
+          border-radius: 50%;
+          background: rgba(255, 90, 0, 0.15);
+          color: #ff5a00;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 18px;
+          flex-shrink: 0;
+        }
+        .pf-banner-title {
+          font-size: 15px;
+          font-weight: 800;
+          color: #ffffff;
+        }
+        .pf-banner-dest {
+          font-size: 13px;
+          color: #8e98a5;
+          margin-top: 2px;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        /* SCREEN 4: In Progress Bottom Sheet */
+        .pf-progress-sheet {
+          position: absolute;
+          bottom: 16px;
+          left: 16px;
+          right: 16px;
+          max-width: 480px;
+          margin: 0 auto;
+          background: rgba(15, 18, 22, 0.96);
+          backdrop-filter: blur(16px);
+          border: 1px solid #242a34;
+          border-radius: 24px;
+          padding: 18px;
+          z-index: 1000;
+          box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7);
+        }
+        .pf-stats-cols {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 10px;
+          text-align: center;
+          padding-bottom: 14px;
+          border-bottom: 1px solid #1e2530;
+          margin-bottom: 14px;
+        }
+        .pf-stat-box-label {
+          font-size: 12px;
+          color: #8e98a5;
+          margin-bottom: 4px;
+        }
+        .pf-stat-box-val {
+          font-size: 18px;
+          font-weight: 800;
+          color: #ffffff;
+        }
+        .pf-stat-box-val.orange {
+          color: #ff5a00;
+        }
+        .pf-pay-indicator-row {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          font-size: 13px;
+          color: #a4b0bf;
+          margin-bottom: 16px;
+        }
+        .pf-finish-btn {
+          width: 100%;
+          background: #dc2626;
+          color: #ffffff;
+          border: none;
+          border-radius: 999px;
+          font-size: 16px;
+          font-weight: 800;
+          padding: 15px;
+          cursor: pointer;
+          box-shadow: 0 8px 24px rgba(220, 38, 38, 0.35);
+          transition: background 0.15s ease;
+        }
+        .pf-finish-btn:hover { background: #b91c1c; }
+
+        /* Suggestions Dropdown */
+        .pf-suggest-dropdown {
+          position: absolute;
+          top: 100%;
+          left: 0;
+          right: 0;
+          background: #0f1216;
+          border: 1px solid #242a34;
+          border-radius: 14px;
+          margin-top: 8px;
+          max-height: 220px;
+          overflow-y: auto;
+          box-shadow: 0 12px 32px rgba(0,0,0,0.8);
+          z-index: 2000;
+        }
+        .pf-suggest-item {
+          display: block;
+          width: 100%;
+          padding: 12px 14px;
+          background: transparent;
+          border: none;
+          border-bottom: 1px solid #1a2029;
+          color: #ffffff;
+          text-align: left;
+          cursor: pointer;
+          font-size: 13px;
+        }
+        .pf-suggest-item:hover { background: #161b22; }
+
+        /* Modals (Payment / Promo / Passengers / Chat) */
+        .pf-modal-backdrop {
+          position: fixed;
+          inset: 0;
+          background: rgba(0, 0, 0, 0.75);
+          backdrop-filter: blur(4px);
+          z-index: 9999;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 16px;
+        }
+        .pf-modal-card {
+          width: 100%;
+          max-width: 380px;
+          background: #111418;
+          border: 1px solid #28313e;
+          border-radius: 20px;
+          padding: 20px;
+          animation: pfFadeIn 0.2s ease;
+        }
+      `}</style>
+
+      {/* Map Element */}
+      <div className="pf-map-canvas" ref={mapEl} />
+
+      {/* Top Header Bar */}
+      <header className="pf-map-topbar">
+        {stage === 'plan' ? (
+          <button
+            type="button"
+            className="pf-map-icon-btn"
+            onClick={() => onOpenMenu?.()}
+            aria-label="Menu lateral"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+              <line x1="3" y1="12" x2="21" y2="12" />
+              <line x1="3" y1="6" x2="21" y2="6" />
+              <line x1="3" y1="18" x2="21" y2="18" />
+            </svg>
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="pf-map-icon-btn"
+            onClick={() => setStage('plan')}
+            aria-label="Voltar"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+              <path d="M15 18l-6-6 6-6" />
+            </svg>
+          </button>
+        )}
+
+        <div className="pf-map-logo">
+          <span>PREÇO </span>
+          <b>FIXO 17</b>
+        </div>
+
+        <button
+          type="button"
+          className="pf-map-icon-btn"
+          onClick={() => onOpenNotifications?.()}
+          aria-label="Notificações"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+            <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+          </svg>
+          <span className="pf-map-bell-badge">3</span>
+        </button>
+      </header>
+
+      {/* ========================================================= */}
+      {/* SCREEN 2: SOLICITAR CORRIDA                               */}
+      {/* ========================================================= */}
+      {stage === 'plan' && (
+        <>
+          {/* Floating Route Card */}
+          <div className="pf-route-card">
+            {/* Origin Row */}
+            <div className="pf-route-row">
+              <div className="pf-route-pin green" />
+              <div className="pf-route-input-group">
+                <span className="pf-route-label">Seu local atual</span>
+                <input
+                  type="text"
+                  className="pf-route-val"
+                  value={origin.address}
+                  onChange={(e) => setOrigin({ ...origin, address: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className="pf-route-line" />
+
+            {/* Destination Row */}
+            <div className="pf-route-row" style={{ position: 'relative' }}>
+              <div className="pf-route-pin orange" />
+              <div className="pf-route-input-group">
+                <span className="pf-route-label">Para onde?</span>
+                <input
+                  type="text"
+                  className="pf-route-val"
+                  placeholder="Rua dos Ipês, 456 - Jardim das Flores"
+                  value={destination}
+                  onChange={(e) => handleSearch(e.target.value)}
+                />
+              </div>
+              <button
+                type="button"
+                className="pf-route-add-btn"
+                title="Adicionar parada"
+                onClick={() => alert('Parada intermediária adicionada à rota.')}
+              >
+                +
+              </button>
+
+              {/* Suggestions */}
+              {suggestions.length > 0 && (
+                <div className="pf-suggest-dropdown">
+                  {suggestions.map((item, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      className="pf-suggest-item"
+                      onClick={() => handleSelectDestination(item)}
+                    >
+                      {item.display_name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Bottom Sheet */}
+          <div className="pf-bottom-sheet">
+            <div className="pf-sheet-top">
+              <img
+                src={precoFixo17Car}
+                alt="Carro PreçoFixo17"
+                className="pf-sheet-car-thumb"
+              />
+              <div className="pf-sheet-price-box">
+                <div className="pf-sheet-price-label">Preço fixo da corrida</div>
+                <div className="pf-sheet-price-val">R$ 17,00</div>
+              </div>
+            </div>
+
+            {/* Option Chips */}
+            <div className="pf-sheet-chips">
+              <div
+                className="pf-chip"
+                onClick={() => setModalType('payment')}
+              >
+                <span className="pf-chip-icon">💳</span>
+                <span>Pagamento: {paymentMethod}</span>
+              </div>
+              <div
+                className="pf-chip"
+                onClick={() => setModalType('promo')}
+              >
+                <span className="pf-chip-icon">🏷️</span>
+                <span>Promoção: {promoCode}</span>
+              </div>
+              <div
+                className="pf-chip"
+                onClick={() => setModalType('passengers')}
+              >
+                <span className="pf-chip-icon">👤</span>
+                <span>Passageiros: {passengerCount} passageiro{passengerCount > 1 ? 's' : ''}</span>
+              </div>
+            </div>
+
+            {/* CTA Button */}
+            <button
+              type="button"
+              className="pf-request-btn"
+              disabled={busy}
+              onClick={handleRequestRide}
+            >
+              {busy ? 'Localizando motorista…' : 'Solicitar corrida'}
+            </button>
+          </div>
+        </>
+      )}
+
+      {/* ========================================================= */}
+      {/* SCREEN 3: MOTORISTA CHEGANDO                             */}
+      {/* ========================================================= */}
+      {stage === 'arriving' && (
+        <>
+          {/* Top Floating Driver Card */}
+          <div className="pf-driver-arriving-card">
+            <div className="pf-driver-left">
+              <img
+                src={driver.photo}
+                alt={driver.name}
+                className="pf-driver-avatar"
+              />
+              <div>
+                <div className="pf-driver-info-name">{driver.name}</div>
+                <div className="pf-driver-info-meta">
+                  <span>★ {driver.rating}</span> ({driver.ridesCount} corridas)
+                </div>
+                <div className="pf-driver-info-car">
+                  {driver.vehicle} - {driver.plate}
+                </div>
+              </div>
+            </div>
+            <button
+              type="button"
+              className="pf-driver-call-btn"
+              title="Ligar para o motorista"
+              onClick={() => alert(`Ligando para ${driver.name} (${driver.phone})…`)}
+            >
+              📞
+            </button>
+          </div>
+
+          {/* Bottom Arriving Sheet */}
+          <div className="pf-arriving-sheet">
+            <div className="pf-arriving-header">
+              <span className="pf-arriving-pin">📍</span>
+              <div>
+                <div className="pf-arriving-title">Motorista chegando</div>
+                <div className="pf-arriving-sub">Chegando em {etaMinutes} minutos</div>
+              </div>
+            </div>
+
+            <div className="pf-progress-bar">
+              <div className="pf-progress-fill" />
+            </div>
+
+            <div className="pf-arriving-actions">
+              <button
+                type="button"
+                className="pf-arriving-msg-btn"
+                onClick={() => setModalType('message')}
+              >
+                Mensagem
+              </button>
+              <button
+                type="button"
+                className="pf-arriving-cancel-btn"
+                onClick={handleCancelRide}
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* ========================================================= */}
+      {/* SCREEN 4: CORRIDA EM ANDAMENTO                           */}
+      {/* ========================================================= */}
+      {stage === 'in_progress' && (
+        <>
+          {/* Top Floating Banner */}
+          <div className="pf-progress-banner">
+            <div className="pf-banner-pin">📍</div>
+            <div style={{ minWidth: 0 }}>
+              <div className="pf-banner-title">Corrida em andamento</div>
+              <div className="pf-banner-dest">Destino: {destination}</div>
+            </div>
+          </div>
+
+          {/* Bottom In-Progress Sheet */}
+          <div className="pf-progress-sheet">
+            <div className="pf-stats-cols">
+              <div>
+                <div className="pf-stat-box-label">Tempo</div>
+                <div className="pf-stat-box-val">{elapsedTime}</div>
+              </div>
+              <div>
+                <div className="pf-stat-box-label">Distância</div>
+                <div className="pf-stat-box-val">{distanceKm} km</div>
+              </div>
+              <div>
+                <div className="pf-stat-box-label">Preço fixo</div>
+                <div className="pf-stat-box-val orange">R$ 17,00</div>
+              </div>
+            </div>
+
+            <div className="pf-pay-indicator-row">
+              <span>💳</span>
+              <span>Pagamento: {paymentMethod}</span>
+            </div>
+
+            <button
+              type="button"
+              className="pf-finish-btn"
+              onClick={handleFinishRide}
+            >
+              Finalizar corrida
+            </button>
+          </div>
+        </>
+      )}
+
+      {/* ========================================================= */}
+      {/* MODALS: Payment / Promo / Passengers / Chat               */}
+      {/* ========================================================= */}
+      {modalType === 'payment' && (
+        <div className="pf-modal-backdrop" onClick={() => setModalType(null)}>
+          <div className="pf-modal-card" onClick={(e) => e.stopPropagation()}>
+            <h3 style={{ margin: '0 0 14px' }}>Forma de Pagamento</h3>
+            {['Dinheiro', 'Cartão de Crédito', 'PIX'].map((method) => (
+              <button
+                key={method}
+                type="button"
+                className="pf-chip"
+                style={{ width: '100%', marginBottom: 8, justifyContent: 'space-between' }}
+                onClick={() => {
+                  setPaymentMethod(method);
+                  setModalType(null);
+                }}
+              >
+                <span>{method}</span>
+                {paymentMethod === method && <span style={{ color: '#ff5a00' }}>✓</span>}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {modalType === 'promo' && (
+        <div className="pf-modal-backdrop" onClick={() => setModalType(null)}>
+          <div className="pf-modal-card" onClick={(e) => e.stopPropagation()}>
+            <h3 style={{ margin: '0 0 14px' }}>Cupom ou Promoção</h3>
+            <input
+              type="text"
+              placeholder="Digite seu cupom"
+              className="pf-input-field"
+              style={{ background: '#1c212a', border: '1px solid #333d4e', borderRadius: 10, padding: 12, marginBottom: 12 }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  setPromoCode(e.currentTarget.value || 'Nenhuma');
+                  setModalType(null);
+                }
+              }}
+            />
+            <button
+              type="button"
+              className="pf-btn-orange"
+              onClick={() => {
+                setPromoCode('FIXO17VIP');
+                setModalType(null);
+              }}
+            >
+              Aplicar cupom FIXO17VIP
+            </button>
+          </div>
+        </div>
+      )}
+
+      {modalType === 'passengers' && (
+        <div className="pf-modal-backdrop" onClick={() => setModalType(null)}>
+          <div className="pf-modal-card" onClick={(e) => e.stopPropagation()}>
+            <h3 style={{ margin: '0 0 14px' }}>Quantidade de Passageiros</h3>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+              {[1, 2, 3, 4].map((num) => (
+                <button
+                  key={num}
+                  type="button"
+                  className={`pf-chip ${passengerCount === num ? 'active' : ''}`}
+                  style={{
+                    justifyContent: 'center',
+                    background: passengerCount === num ? '#ff5a00' : '#111418',
+                    color: '#fff'
+                  }}
+                  onClick={() => {
+                    setPassengerCount(num);
+                    setModalType(null);
+                  }}
+                >
+                  {num}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modalType === 'message' && (
+        <div className="pf-modal-backdrop" onClick={() => setModalType(null)}>
+          <div className="pf-modal-card" style={{ maxWidth: 420 }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+              <h3 style={{ margin: 0 }}>Mensagens com Carlos</h3>
+              <button
+                type="button"
+                style={{ background: 'none', border: 'none', color: '#8e98a5', fontSize: 18, cursor: 'pointer' }}
+                onClick={() => setModalType(null)}
+              >
+                ✕
+              </button>
+            </div>
+            <div style={{ height: 200, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8, padding: 8, background: '#0a0d11', borderRadius: 12, marginBottom: 12 }}>
+              {chatMessages.map((m, i) => (
+                <div
+                  key={i}
+                  style={{
+                    alignSelf: m.from === 'me' ? 'flex-end' : 'flex-start',
+                    background: m.from === 'me' ? '#ff5a00' : '#1c212a',
+                    color: '#ffffff',
+                    padding: '8px 12px',
+                    borderRadius: 12,
+                    fontSize: 13,
+                    maxWidth: '80%'
+                  }}
+                >
+                  {m.text}
+                </div>
+              ))}
+            </div>
+            <form onSubmit={handleSendMessage} style={{ display: 'flex', gap: 8 }}>
+              <input
+                type="text"
+                placeholder="Enviar mensagem…"
+                value={chatMessage}
+                onChange={(e) => setChatMessage(e.target.value)}
+                style={{ flex: 1, background: '#1c212a', border: '1px solid #333d4e', borderRadius: 999, padding: '10px 16px', color: '#fff', outline: 'none' }}
+              />
+              <button
+                type="submit"
+                style={{ background: '#ff5a00', border: 'none', borderRadius: '50%', width: 40, height: 40, color: '#fff', cursor: 'pointer' }}
+              >
+                ➤
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
