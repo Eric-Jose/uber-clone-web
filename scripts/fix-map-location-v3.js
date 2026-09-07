@@ -68,22 +68,45 @@ const newSearch = [
   '    setDestinationCoords((current) => ({ ...(current || {}), address: value }));',
   "    if (value.trim().length < 2) { setSuggestions([]); return; }",
   '    setSearching(true);',
-  "    const q = encodeURIComponent(value.trim() + ', Maracaju, Mato Grosso do Sul, Brasil');",
-  "    fetch(NOMINATIM + '/search?format=jsonv2&q=' + q + '&countrycodes=br&limit=5&viewbox=-55.30,-21.50,-55.00,-21.75&bounded=1')",
-  '      .then((r) => r.json())',
-  '      .then((data) => { if (Array.isArray(data)) setSuggestions(data); })',
-  '      .catch(() => {})',
+  '    const term = value.trim();',
+  "    const localQuery = encodeURIComponent(term + ', Maracaju, Mato Grosso do Sul, Brasil');",
+  '    const globalQuery = encodeURIComponent(term);',
+  "    const localUrl = NOMINATIM + '/search?format=jsonv2&q=' + localQuery + '&countrycodes=br&limit=5&viewbox=-55.30,-21.50,-55.00,-21.75&bounded=1';",
+  "    const globalUrl = NOMINATIM + '/search?format=jsonv2&q=' + globalQuery + '&countrycodes=br&limit=8';",
+  '    Promise.all([',
+  '      fetch(localUrl).then((r) => r.json()).catch(() => []),',
+  '      fetch(globalUrl).then((r) => r.json()).catch(() => [])',
+  '    ])',
+  '      .then(([localData, globalData]) => {',
+  '        const local = Array.isArray(localData) ? localData : [];',
+  '        const global = Array.isArray(globalData) ? globalData : [];',
+  '        const normalize = (item) => String(item?.display_name || item?.name || '').toLowerCase();',
+  '        const isMaracaju = (item) => {',
+  '          const text = normalize(item);',
+  "          return text.includes('maracaju') && text.includes('mato grosso do sul');",
+  '        };',
+  '        const ordered = [];',
+  '        const seen = new Set();',
+  '        [...local.filter(isMaracaju), ...local, ...global.filter(isMaracaju), ...global].forEach((item) => {',
+  '          const key = item?.place_id || normalize(item);',
+  '          if (!key || seen.has(key)) return;',
+  '          seen.add(key);',
+  '          ordered.push(item);',
+  '        });',
+  '        setSuggestions(ordered.slice(0, 8));',
+  '      })',
+  '      .catch(() => setSuggestions([]))',
   '      .finally(() => setSearching(false));',
   '  };'
 ].join('\n');
 source = source.slice(0, searchStart) + newSearch + source.slice(searchEnd);
 
 const validationOld = "    if (!origin || !Number.isFinite(Number(origin.lat)) || !destinationCoords || !Number.isFinite(Number(destinationCoords.lat)) || !Number.isFinite(Number(destinationCoords.lng))) {\n      setError('Escolha um destino válido.'); return;\n    }";
-const validationNew = "    if (!origin || !Number.isFinite(Number(origin.lat)) || !Number.isFinite(Number(origin.lng))) {\n      setError('Aguardando sua localização atual. Permita o acesso à localização do dispositivo.'); return;\n    }\n    if (!destinationCoords || !Number.isFinite(Number(destinationCoords.lat)) || !Number.isFinite(Number(destinationCoords.lng))) {\n      setError('Escolha um destino em Maracaju.'); return;\n    }";
+const validationNew = "    if (!origin || !Number.isFinite(Number(origin.lat)) || !Number.isFinite(Number(origin.lng))) {\n      setError('Aguardando sua localização atual. Permita o acesso à localização do dispositivo.'); return;\n    }\n    if (!destinationCoords || !Number.isFinite(Number(destinationCoords.lat)) || !Number.isFinite(Number(destinationCoords.lng))) {\n      setError('Escolha um destino válido.'); return;\n    }";
 if (source.includes(validationOld)) source = source.replace(validationOld, validationNew);
 
 source = source.replace("value={origin.address} onChange={(e)=>setOrigin({...origin,address:e.target.value})}", "value={origin?.address || 'Obtendo localização atual...'} readOnly");
-source = source.replace("placeholder=\"Rua dos Ipês, 456 - Jardim das Flores\"", "placeholder=\"Digite seu destino em Maracaju\"");
+source = source.replace("placeholder=\"Rua dos Ipês, 456 - Jardim das Flores\"", "placeholder=\"Para onde você vai?\"");
 
 fs.writeFileSync(appPath, source, 'utf8');
-console.log('[fix-map-location-v3] GPS automático protegido, sem rota fixa e destino somente após escolha do passageiro.');
+console.log('[fix-map-location-v3] GPS automático, sem rota fixa e busca de destino livre com prioridade para Maracaju/MS.');
