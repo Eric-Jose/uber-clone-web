@@ -10,6 +10,8 @@ class WebSocketService {
     this.driverRoomRetryCount = 0;
     this.cancelRefreshBound = false;
     this.authToken = null;
+    this.lastDriverHttpSync = 0;
+    this.lastPassengerHttpSync = 0;
   }
 
   connect() {
@@ -60,9 +62,6 @@ class WebSocketService {
         }
         return;
       }
-      // O status HTTP pode ter acabado de mudar para online enquanto o
-      // socket ainda estava sincronizando. Tente novamente sem perder a
-      // corrida por uma condição de corrida entre HTTP e Socket.IO.
       this.scheduleDriverRoomRetry();
     });
   }
@@ -133,9 +132,51 @@ class WebSocketService {
   }
   joinDriverRoom() { this.joinDriversRoom(); }
 
-  sendPresenceLocation(latitude, longitude) { this.ensureSocket()?.emit('driver-presence-location', { latitude, longitude, timestamp: new Date().toISOString() }); }
-  sendLocation(rideId, driverId, latitude, longitude) { this.ensureSocket()?.emit('driver-location', { rideId, driverId, latitude, longitude, timestamp: new Date().toISOString() }); }
-  sendPassengerLocation(rideId, latitude, longitude) { this.ensureSocket()?.emit('passenger-location', { rideId, latitude, longitude, timestamp: new Date().toISOString() }); }
+  syncDriverLocationHttp(driverId, latitude, longitude) {
+    const token = localStorage.getItem('token');
+    if (!token || !driverId || !Number.isFinite(Number(latitude)) || !Number.isFinite(Number(longitude))) return;
+    const now = Date.now();
+    if (now - this.lastDriverHttpSync < 5000) return;
+    this.lastDriverHttpSync = now;
+    void fetch(`${BACKEND_URL}/api/drivers/${encodeURIComponent(driverId)}/status`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ isOnline: true, currentLocation: { lat: Number(latitude), lng: Number(longitude) } }),
+      cache: 'no-store',
+    }).catch(() => {});
+  }
+
+  syncPassengerLocationHttp(rideId, latitude, longitude) {
+    const token = localStorage.getItem('token');
+    if (!token || !rideId || !Number.isFinite(Number(latitude)) || !Number.isFinite(Number(longitude))) return;
+    const now = Date.now();
+    if (now - this.lastPassengerHttpSync < 5000) return;
+    this.lastPassengerHttpSync = now;
+    void fetch(`${BACKEND_URL}/api/rides/${encodeURIComponent(rideId)}/passenger-location`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ location: { lat: Number(latitude), lng: Number(longitude) } }),
+      cache: 'no-store',
+    }).catch(() => {});
+  }
+
+  sendPresenceLocation(latitude, longitude) {
+    let user = null;
+    try { user = JSON.parse(localStorage.getItem('user') || 'null'); } catch (_) {}
+    const driverId = user?.uid || user?.id;
+    this.syncDriverLocationHttp(driverId, latitude, longitude);
+    this.ensureSocket()?.emit('driver-presence-location', { latitude, longitude, timestamp: new Date().toISOString() });
+  }
+
+  sendLocation(rideId, driverId, latitude, longitude) {
+    this.syncDriverLocationHttp(driverId, latitude, longitude);
+    this.ensureSocket()?.emit('driver-location', { rideId, driverId, latitude, longitude, timestamp: new Date().toISOString() });
+  }
+
+  sendPassengerLocation(rideId, latitude, longitude) {
+    this.syncPassengerLocationHttp(rideId, latitude, longitude);
+    this.ensureSocket()?.emit('passenger-location', { rideId, latitude, longitude, timestamp: new Date().toISOString() });
+  }
 
   requestRide(rideData) { return Boolean(rideData?.rideId); }
   acceptRide(rideId, driverId) { return Boolean(rideId && driverId); }
