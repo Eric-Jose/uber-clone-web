@@ -100,7 +100,7 @@ app.use((error, req, res, next) => { console.error('Erro não tratado na API:', 
 
 io.use((socket, next) => {
   try {
-    const token = socket.handshake.auth?.token || socket.handshake.headers?.authorization?.replace(/^Bearer\\s+/i, '');
+    const token = socket.handshake.auth?.token || socket.handshake.headers?.authorization?.replace(/^Bearer\s+/i, '');
     if (!token) return next(new Error('Não autenticado'));
     socket.user = jwt.verify(token, process.env.JWT_SECRET);
     next();
@@ -247,4 +247,4 @@ if (!process.env.VERCEL) {
   });
 }
 
-module.exports = { app, io, db, auth, server }; 
+module.exports = { app, io, db, auth, server };
