@@ -1,68 +1,96 @@
-/* PreçoFixo17 — barra de pesquisa de rota GLOBAL para telefone. */
-@media (max-width: 640px) {
-  /* Qualquer painel que contenha a pesquisa fica centralizado no rodapé. */
-  .rp .panel:has(.input),
-  .panel:has(.input) {
-    position: absolute !important;
-    top: auto !important;
-    bottom: calc(16px + env(safe-area-inset-bottom, 0px)) !important;
-    left: 50% !important;
-    right: auto !important;
-    width: 92vw !important;
-    max-width: 520px !important;
-    margin: 0 !important;
-    transform: translate3d(-50%, 0, 0) !important;
-  }
+/* PreçoFixo17 — barra de rota GLOBAL no centro inferior do telefone. */
 
-  .rp .panel:has(.input) > .card,
-  .panel:has(.input) > .card {
-    position: relative !important;
-    width: 100% !important;
-    margin: 0 auto !important;
-    box-sizing: border-box !important;
-    padding: 12px 12px 78px !important;
-    overflow: visible !important;
-  }
+/* A busca do passageiro usa MapRidePro. Esta regra é propositalmente forte
+   para vencer os estilos internos do mapa e funcionar sem depender de print. */
+.rp .panel:has(.input),
+.account-content .panel:has(.input) {
+  position: fixed !important;
+  top: auto !important;
+  left: 50% !important;
+  right: auto !important;
+  bottom: calc(96px + env(safe-area-inset-bottom, 0px)) !important;
+  width: min(92vw, 520px) !important;
+  max-width: 520px !important;
+  margin: 0 !important;
+  transform: translate3d(-50%, 0, 0) !important;
+  z-index: 5000 !important;
+  pointer-events: none !important;
+}
 
-  /* Barra: sempre no meio, em baixo, tanto para passageiro como demais telas. */
+.rp .panel:has(.input) > .card,
+.account-content .panel:has(.input) > .card {
+  position: relative !important;
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  box-sizing: border-box !important;
+  padding: 12px 12px 74px !important;
+  overflow: visible !important;
+  pointer-events: none !important;
+}
+
+/* A barra em si fica SEMPRE centralizada na parte inferior. */
+.rp .panel:has(.input) .input,
+.account-content .panel:has(.input) .input {
+  position: fixed !important;
+  left: 50% !important;
+  right: auto !important;
+  top: auto !important;
+  bottom: calc(96px + env(safe-area-inset-bottom, 0px)) !important;
+  width: min(86vw, 496px) !important;
+  min-width: 0 !important;
+  min-height: 54px !important;
+  height: 54px !important;
+  transform: translate3d(-50%, 0, 0) !important;
+  box-sizing: border-box !important;
+  z-index: 5100 !important;
+  pointer-events: auto !important;
+  touch-action: manipulation !important;
+  border-radius: 17px !important;
+  background: rgba(8,13,17,.98) !important;
+  color: #fff !important;
+  border: 2px solid #ff6b00 !important;
+  box-shadow: 0 12px 34px rgba(0,0,0,.58), 0 0 0 1px rgba(255,107,0,.16) !important;
+}
+
+.rp .panel:has(.input) .input::placeholder,
+.account-content .panel:has(.input) .input::placeholder {
+  color: #aeb8bf !important;
+  opacity: 1 !important;
+}
+
+/* Sugestões sobem a partir da barra, sem esconder a barra. */
+.rp .panel:has(.input) .suggest,
+.account-content .panel:has(.input) .suggest {
+  position: fixed !important;
+  left: 50% !important;
+  right: auto !important;
+  top: auto !important;
+  bottom: calc(158px + env(safe-area-inset-bottom, 0px)) !important;
+  width: min(86vw, 496px) !important;
+  max-width: 496px !important;
+  max-height: min(34svh, 280px) !important;
+  margin: 0 !important;
+  transform: translate3d(-50%, 0, 0) !important;
+  z-index: 5090 !important;
+  pointer-events: auto !important;
+  overflow-y: auto !important;
+  border-radius: 15px !important;
+}
+
+/* Conteúdo informativo não pode capturar a posição da barra. */
+.rp .panel:has(.input) .actions,
+.rp .panel:has(.input) .card .card,
+.account-content .panel:has(.input) .actions,
+.account-content .panel:has(.input) .card .card {
+  position: relative !important;
+  z-index: 4010 !important;
+}
+
+/* Em telas maiores mantém a mesma lógica, mas preserva o limite do telefone. */
+@media (min-width: 641px) {
   .rp .panel:has(.input) .input,
-  .panel:has(.input) .input {
-    position: absolute !important;
-    left: 50% !important;
-    right: auto !important;
-    bottom: 12px !important;
-    width: calc(100% - 24px) !important;
-    min-height: 52px !important;
-    transform: translateX(-50%) !important;
-    box-sizing: border-box !important;
-    z-index: 4070 !important;
-    border-radius: 16px !important;
-    background: rgba(12,19,24,.98) !important;
-    border: 1px solid #ff6b00 !important;
-    box-shadow: 0 10px 30px rgba(0,0,0,.55), 0 0 0 1px rgba(255,107,0,.12) !important;
-  }
-
-  /* Sugestões ficam acima da barra, sem cobri-la. */
-  .rp .panel:has(.input) .suggest,
-  .panel:has(.input) .suggest {
-    position: absolute !important;
-    left: 50% !important;
-    right: auto !important;
-    bottom: 72px !important;
-    width: calc(100% - 24px) !important;
-    transform: translateX(-50%) !important;
-    max-height: min(34vh, 280px) !important;
-    margin: 0 !important;
-    z-index: 4060 !important;
-    border-radius: 14px !important;
-  }
-
-  /* Estatísticas e ações não podem ocupar a posição da barra. */
-  .rp .panel:has(.input) .card .card,
-  .rp .panel:has(.input) .actions,
-  .panel:has(.input) .card .card,
-  .panel:has(.input) .actions {
-    position: relative !important;
-    z-index: 4010 !important;
+  .account-content .panel:has(.input) .input {
+    width: min(520px, 70vw) !important;
   }
 }
