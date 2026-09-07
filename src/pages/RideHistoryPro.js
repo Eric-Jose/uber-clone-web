@@ -2,49 +2,6 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { BACKEND_URL as B } from '../config';
 import '../styles/PrecoFixo17Reference.css';
 
-const DEFAULT_SAMPLE_RIDES = [
-  {
-    id: 'ride-1',
-    status: 'COMPLETED',
-    price: 17,
-    distance: 3.5,
-    dateStr: '05/06/2024 - 14:30',
-    origin: { address: 'Av. das Palmeiras, 123 - Centro' },
-    destination: { address: 'Rua dos Ipês, 456 - Jardim das Flores' },
-    driverName: 'Carlos Ferreira'
-  },
-  {
-    id: 'ride-2',
-    status: 'COMPLETED',
-    price: 17,
-    distance: 4.2,
-    dateStr: '03/06/2024 - 09:15',
-    origin: { address: 'Rua Minas Gerais, 789 - Bela Vista' },
-    destination: { address: 'Shopping Central - Centro' },
-    driverName: 'Marcos Souza'
-  },
-  {
-    id: 'ride-3',
-    status: 'CANCELLED',
-    price: 17,
-    distance: 2.1,
-    dateStr: '01/06/2024 - 18:45',
-    origin: { address: 'Av. Brasil, 500 - Jardim América' },
-    destination: { address: 'Terminal Rodoviário - Centro' },
-    driverName: 'Carlos Ferreira'
-  },
-  {
-    id: 'ride-4',
-    status: 'COMPLETED',
-    price: 17,
-    distance: 5.0,
-    dateStr: '28/05/2024 - 20:10',
-    origin: { address: 'Rua 7 de Setembro, 320 - Centro' },
-    destination: { address: 'Aeroporto Municipal' },
-    driverName: 'Roberto Alves'
-  }
-];
-
 export default function RideHistoryPro({ user, onBack }) {
   const [rides, setRides] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -53,7 +10,7 @@ export default function RideHistoryPro({ user, onBack }) {
   const load = () => {
     const t = localStorage.getItem('token');
     if (!t) {
-      setRides(DEFAULT_SAMPLE_RIDES);
+      setRides([]);
       setLoading(false);
       return;
     }
@@ -67,11 +24,10 @@ export default function RideHistoryPro({ user, onBack }) {
         return r.json();
       })
       .then((d) => {
-        const list = Array.isArray(d.rides) && d.rides.length > 0 ? d.rides : DEFAULT_SAMPLE_RIDES;
-        setRides(list);
+        setRides(Array.isArray(d.rides) ? d.rides : []);
       })
       .catch(() => {
-        setRides(DEFAULT_SAMPLE_RIDES);
+        setRides([]);
       })
       .finally(() => setLoading(false));
   };
@@ -184,9 +140,7 @@ export default function RideHistoryPro({ user, onBack }) {
           padding: 16px;
           transition: border-color 0.15s ease;
         }
-        .pf-hist-card:hover {
-          border-color: #353e4f;
-        }
+        .pf-hist-card:hover { border-color: #353e4f; }
         .pf-hist-card-head {
           display: flex;
           align-items: center;
@@ -195,164 +149,42 @@ export default function RideHistoryPro({ user, onBack }) {
           border-bottom: 1px solid #1a2029;
           margin-bottom: 12px;
         }
-        .pf-hist-date {
-          font-size: 13px;
-          color: #8e98a5;
-          font-weight: 500;
-        }
-        .pf-hist-badge {
-          font-size: 12px;
-          font-weight: 800;
-          padding: 3px 10px;
-          border-radius: 999px;
-        }
-        .pf-hist-badge.completed {
-          background: rgba(34, 197, 94, 0.12);
-          color: #22c55e;
-          border: 1px solid rgba(34, 197, 94, 0.25);
-        }
-        .pf-hist-badge.cancelled {
-          background: rgba(239, 68, 68, 0.12);
-          color: #ef4444;
-          border: 1px solid rgba(239, 68, 68, 0.25);
-        }
-        .pf-hist-route {
-          position: relative;
-          padding-left: 24px;
-          margin-bottom: 14px;
-        }
-        .pf-hist-route::before {
-          content: "";
-          position: absolute;
-          left: 7px;
-          top: 8px;
-          bottom: 10px;
-          width: 2px;
-          background: #2a3240;
-        }
-        .pf-hist-point {
-          position: relative;
-          font-size: 14px;
-          color: #e5e7eb;
-          margin-bottom: 10px;
-          line-height: 1.35;
-        }
-        .pf-hist-point:last-child {
-          margin-bottom: 0;
-        }
-        .pf-hist-point::before {
-          content: "";
-          position: absolute;
-          left: -24px;
-          top: 4px;
-          width: 10px;
-          height: 10px;
-          border-radius: 50%;
-        }
-        .pf-hist-point.orig::before {
-          background: #22c55e;
-          box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.2);
-        }
-        .pf-hist-point.dest::before {
-          background: #ff5a00;
-          box-shadow: 0 0 0 3px rgba(255, 90, 0, 0.2);
-        }
-        .pf-hist-card-footer {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          padding-top: 10px;
-          border-top: 1px solid #1a2029;
-          font-size: 13px;
-        }
-        .pf-hist-dist {
-          color: #8e98a5;
-        }
-        .pf-hist-price {
-          font-size: 16px;
-          font-weight: 800;
-          color: #ffffff;
-        }
-        .pf-hist-more-btn {
-          margin-top: 20px;
-          background: #12151b;
-          border: 1px solid #242b36;
-          color: #ffffff;
-          font-size: 14px;
-          font-weight: 700;
-          padding: 13px;
-          border-radius: 999px;
-          cursor: pointer;
-          transition: background 0.15s ease;
-          width: 100%;
-        }
-        .pf-hist-more-btn:hover {
-          background: #181c24;
-        }
-        .pf-hist-empty {
-          text-align: center;
-          padding: 48px 16px;
-          color: #8e98a5;
-          background: #0f1216;
-          border: 1px dashed #242a34;
-          border-radius: 18px;
-        }
+        .pf-hist-date { font-size: 13px; color: #8e98a5; font-weight: 500; }
+        .pf-hist-badge { font-size: 12px; font-weight: 800; padding: 3px 10px; border-radius: 999px; }
+        .pf-hist-badge.completed { background: rgba(34, 197, 94, 0.12); color: #22c55e; border: 1px solid rgba(34, 197, 94, 0.25); }
+        .pf-hist-badge.cancelled { background: rgba(239, 68, 68, 0.12); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.25); }
+        .pf-hist-route { position: relative; padding-left: 24px; margin-bottom: 14px; }
+        .pf-hist-route::before { content: ""; position: absolute; left: 7px; top: 8px; bottom: 10px; width: 2px; background: #2a3240; }
+        .pf-hist-point { position: relative; font-size: 14px; color: #e5e7eb; margin-bottom: 10px; line-height: 1.35; }
+        .pf-hist-point:last-child { margin-bottom: 0; }
+        .pf-hist-point::before { content: ""; position: absolute; left: -24px; top: 4px; width: 10px; height: 10px; border-radius: 50%; }
+        .pf-hist-point.orig::before { background: #22c55e; box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.2); }
+        .pf-hist-point.dest::before { background: #ff5a00; box-shadow: 0 0 0 3px rgba(255, 90, 0, 0.2); }
+        .pf-hist-card-footer { display: flex; align-items: center; justify-content: space-between; padding-top: 10px; border-top: 1px solid #1a2029; font-size: 13px; }
+        .pf-hist-dist { color: #8e98a5; }
+        .pf-hist-price { font-size: 16px; font-weight: 800; color: #ffffff; }
+        .pf-hist-more-btn { margin-top: 20px; background: #12151b; border: 1px solid #242b36; color: #ffffff; font-size: 14px; font-weight: 700; padding: 13px; border-radius: 999px; cursor: pointer; transition: background 0.15s ease; width: 100%; }
+        .pf-hist-more-btn:hover { background: #181c24; }
+        .pf-hist-empty { text-align: center; padding: 48px 16px; color: #8e98a5; background: #0f1216; border: 1px dashed #242a34; border-radius: 18px; }
       `}</style>
 
-      {/* Topbar */}
       <header className="pf-hist-topbar">
-        <button
-          type="button"
-          className="pf-hist-btn"
-          onClick={() => onBack?.()}
-          aria-label="Voltar"
-        >
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M15 18l-6-6 6-6" />
-          </svg>
+        <button type="button" className="pf-hist-btn" onClick={() => onBack?.()} aria-label="Voltar">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6" /></svg>
         </button>
         <span className="pf-hist-title">Minhas corridas</span>
-        <button
-          type="button"
-          className="pf-hist-btn"
-          onClick={handleClearHistory}
-          aria-label="Limpar histórico"
-        >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8e98a5" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="3 6 5 6 21 6" />
-            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-          </svg>
+        <button type="button" className="pf-hist-btn" onClick={handleClearHistory} aria-label="Limpar histórico">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8e98a5" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
         </button>
       </header>
 
-      {/* Body */}
       <main className="pf-hist-body">
-        {/* Tabs */}
         <div className="pf-hist-tabs">
-          <button
-            type="button"
-            className={`pf-hist-tab ${filter === 'ALL' ? 'active' : ''}`}
-            onClick={() => setFilter('ALL')}
-          >
-            Todas
-          </button>
-          <button
-            type="button"
-            className={`pf-hist-tab ${filter === 'DONE' ? 'active' : ''}`}
-            onClick={() => setFilter('DONE')}
-          >
-            Concluídas
-          </button>
-          <button
-            type="button"
-            className={`pf-hist-tab ${filter === 'CANCELLED' ? 'active' : ''}`}
-            onClick={() => setFilter('CANCELLED')}
-          >
-            Canceladas
-          </button>
+          <button type="button" className={`pf-hist-tab ${filter === 'ALL' ? 'active' : ''}`} onClick={() => setFilter('ALL')}>Todas</button>
+          <button type="button" className={`pf-hist-tab ${filter === 'DONE' ? 'active' : ''}`} onClick={() => setFilter('DONE')}>Concluídas</button>
+          <button type="button" className={`pf-hist-tab ${filter === 'CANCELLED' ? 'active' : ''}`} onClick={() => setFilter('CANCELLED')}>Canceladas</button>
         </div>
 
-        {/* Rides List */}
         <div className="pf-hist-list">
           {loading && !rides.length ? (
             <div className="pf-hist-empty">Carregando corridas…</div>
@@ -361,50 +193,22 @@ export default function RideHistoryPro({ user, onBack }) {
           ) : (
             visibleRides.map((ride) => {
               const done = isDone(ride.status);
-              const formattedDate =
-                ride.dateStr ||
-                (ride.createdAt ? new Date(Number(ride.createdAt)).toLocaleString('pt-BR') : '05/06/2024 - 14:30');
-
+              const formattedDate = ride.dateStr || (ride.createdAt ? new Date(Number(ride.createdAt)).toLocaleString('pt-BR') : 'Data não disponível');
               return (
                 <article key={ride.id} className="pf-hist-card">
-                  <div className="pf-hist-card-head">
-                    <span className="pf-hist-date">{formattedDate}</span>
-                    <span className={`pf-hist-badge ${done ? 'completed' : 'cancelled'}`}>
-                      {done ? 'Concluída' : 'Cancelada'}
-                    </span>
-                  </div>
-
+                  <div className="pf-hist-card-head"><span className="pf-hist-date">{formattedDate}</span><span className={`pf-hist-badge ${done ? 'completed' : 'cancelled'}`}>{done ? 'Concluída' : 'Cancelada'}</span></div>
                   <div className="pf-hist-route">
-                    <div className="pf-hist-point orig">
-                      {ride.origin?.address || ride.origin?.formattedAddress || 'Av. das Palmeiras, 123 - Centro'}
-                    </div>
-                    <div className="pf-hist-point dest">
-                      {ride.destination?.address || ride.destination?.formattedAddress || 'Rua dos Ipês, 456 - Jardim das Flores'}
-                    </div>
+                    <div className="pf-hist-point orig">{ride.origin?.address || ride.origin?.formattedAddress || 'Origem não informada'}</div>
+                    <div className="pf-hist-point dest">{ride.destination?.address || ride.destination?.formattedAddress || 'Destino não informado'}</div>
                   </div>
-
-                  <div className="pf-hist-card-footer">
-                    <span className="pf-hist-dist">
-                      {Number(ride.distance || 3.5).toFixed(1).replace('.', ',')} km
-                    </span>
-                    <span className="pf-hist-price">
-                      R$ {Number(ride.price || 17).toFixed(2).replace('.', ',')}
-                    </span>
-                  </div>
+                  <div className="pf-hist-card-footer"><span className="pf-hist-dist">{Number(ride.distance || 0).toFixed(1).replace('.', ',')} km</span><span className="pf-hist-price">R$ {Number(ride.price || 17).toFixed(2).replace('.', ',')}</span></div>
                 </article>
               );
             })
           )}
         </div>
 
-        {/* See more */}
-        <button
-          type="button"
-          className="pf-hist-more-btn"
-          onClick={() => alert('Todas as corridas do período já foram carregadas.')}
-        >
-          Ver mais corridas
-        </button>
+        <button type="button" className="pf-hist-more-btn" onClick={() => load()}>Atualizar histórico</button>
       </main>
     </div>
   );
