@@ -26,21 +26,34 @@ const firebaseConfig = {
   appId: process.env.REACT_APP_FIREBASE_APP_ID || '1:565195026004:web:6b03e62032d742d64387c1',
 };
 
-export const isFirebaseConfigured = Object.values(firebaseConfig).every(Boolean);
-
 let auth = null;
 let persistenceReady = Promise.resolve(false);
+let firebaseConfigured = false;
 
-if (isFirebaseConfigured) {
-  const app = initializeApp(firebaseConfig);
-  auth = getAuth(app);
-  persistenceReady = setPersistence(auth, browserLocalPersistence).then(() => true).catch(() => false);
+// Firebase é um recurso complementar do app. Um erro de inicialização dele
+// não pode derrubar a aplicação inteira, principalmente porque o login por
+// e-mail/senha usa o backend do PreçoFixo17.
+try {
+  firebaseConfigured = Object.values(firebaseConfig).every(Boolean);
+  if (firebaseConfigured) {
+    const app = initializeApp(firebaseConfig);
+    auth = getAuth(app);
+    persistenceReady = setPersistence(auth, browserLocalPersistence)
+      .then(() => true)
+      .catch(() => false);
+  }
+} catch (error) {
+  console.error('Falha ao inicializar Firebase Web:', error);
+  auth = null;
+  firebaseConfigured = false;
+  persistenceReady = Promise.resolve(false);
 }
 
+export const isFirebaseConfigured = firebaseConfigured;
 export { auth, onAuthStateChanged };
 
 export async function loginWithFirebasePassword(email, password) {
-  if (!auth) throw new Error('Firebase não está configurado no aplicativo.');
+  if (!auth) throw new Error('Login Firebase indisponível no momento.');
   await persistenceReady;
   const result = await signInWithEmailAndPassword(auth, email, password);
   return result.user;
@@ -103,9 +116,7 @@ export async function syncBackendSession(firebaseUser) {
 }
 
 // Recupera contas que continuam autenticadas no Firebase quando o JWT local
-// do PreçoFixo17 foi perdido (por exemplo, após limpar o storage, trocar de
-// dispositivo ou atualizar o navegador). O backend também recupera o perfil
-// por e-mail quando ele estiver salvo sob um UID Firebase legado.
+// do PreçoFixo17 foi perdido.
 if (auth && typeof window !== 'undefined') {
   onAuthStateChanged(auth, async (firebaseUser) => {
     if (!firebaseUser) return;
@@ -121,8 +132,6 @@ if (auth && typeof window !== 'undefined') {
       await persistenceReady;
       const data = await syncBackendSession(firebaseUser);
       if (data?.token && data?.user) {
-        // O App lê a sessão no carregamento inicial. Recarregar somente quando
-        // a sessão backend foi restaurada evita deixar a tela parada em login.
         window.location.reload();
       } else {
         sessionStorage.removeItem(recoveryKey);
