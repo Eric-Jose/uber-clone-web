@@ -3,9 +3,8 @@ import '../styles/Auth.css';
 import '../styles/PrecoFixo17Reference.css';
 import Register from './Register';
 import ForgotPassword from './ForgotPassword';
-import { BACKEND_URL } from '../config';
+import { isFirebaseConfigured, loginWithFirebasePassword, signInWithSocialProvider, syncBackendSession } from '../firebase';
 import precoFixo17Car from '../assets/precoFixo17Car';
-import { isFirebaseConfigured, signInWithSocialProvider, syncBackendSession } from '../firebase';
 
 function Login({ onLoginSuccess }) {
   const [email, setEmail] = useState('');
@@ -25,20 +24,21 @@ function Login({ onLoginSuccess }) {
     setLoading(true);
     setError('');
     try {
+      if (!isFirebaseConfigured) throw new Error('Firebase não está configurado no ambiente do aplicativo.');
       const normalizedEmail = email.trim().toLowerCase();
-      const response = await fetch(`${BACKEND_URL}/api/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: normalizedEmail, password })
-      });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data.error || 'Não foi possível entrar na conta.');
-      if (!data.token || !data.user) throw new Error('Resposta de login incompleta.');
-      localStorage.setItem('token', data.token);
-      localStorage.setItem('user', JSON.stringify(data.user));
+      const firebaseUser = await loginWithFirebasePassword(normalizedEmail, password);
+      const data = await syncBackendSession(firebaseUser);
+      if (!data?.token || !data?.user) throw new Error('Não foi possível sincronizar sua sessão com o servidor.');
       onLoginSuccess(data.user);
     } catch (err) {
-      setError(err.message || 'Não foi possível fazer login.');
+      const code = err?.code || '';
+      if (code === 'auth/invalid-credential' || code === 'auth/wrong-password' || code === 'auth/user-not-found' || code === 'auth/invalid-email') {
+        setError('Email ou senha inválidos.');
+      } else if (code === 'auth/too-many-requests') {
+        setError('Muitas tentativas. Aguarde alguns minutos e tente novamente.');
+      } else {
+        setError(err.message || 'Não foi possível fazer login.');
+      }
     } finally {
       setLoading(false);
     }
