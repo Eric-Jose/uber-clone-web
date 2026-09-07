@@ -24,6 +24,71 @@ async function normalizeUser(userData, uid) {
   return normalizedUser;
 }
 
+async function findExistingUserByEmail(email, uid) {
+  const snapshot = await db.ref('users')
+    .orderByChild('email')
+    .equalTo(email)
+    .limitToFirst(10)
+    .get();
+
+  let match = null;
+  snapshot.forEach((child) => {
+    if (!match && child.key !== uid && child.val()) match = { key: child.key, value: child.val() };
+  });
+  return match;
+}
+
+async function recoverUserProfile(uid, email, decoded) {
+  const userRef = db.ref(`users/${uid}`);
+  const directSnapshot = await userRef.get();
+  let user = directSnapshot.val();
+
+  if (user) {
+    const patch = {};
+    if (!user.uid) patch.uid = uid;
+    if (!user.email) patch.email = email;
+    if (!user.name && decoded.name) patch.name = String(decoded.name).trim();
+    if (!user.profilePhoto && decoded.picture) patch.profilePhoto = decoded.picture;
+    if (Object.keys(patch).length) {
+      await userRef.update(patch);
+      user = { ...user, ...patch };
+    }
+    return user;
+  }
+
+  // Recover an existing profile that is stored under a legacy Firebase UID.
+  const legacy = await findExistingUserByEmail(email, uid);
+  if (legacy) {
+    const recovered = {
+      ...legacy.value,
+      uid,
+      email,
+      recoveredFromUid: legacy.key,
+      recoveredAt: new Date().toISOString(),
+    };
+    await userRef.set(recovered);
+    await db.ref(`users/${legacy.key}`).remove();
+    return recovered;
+  }
+
+  const provider = decoded.firebase?.sign_in_provider || 'firebase';
+  user = {
+    uid,
+    email,
+    name: String(decoded.name || decoded.email?.split('@')[0] || 'Usuário').trim(),
+    phone: String(decoded.phone_number || '').trim(),
+    userType: 'passenger',
+    rating: 5.0,
+    totalRides: 0,
+    isOnline: false,
+    profilePhoto: decoded.picture || null,
+    authProvider: provider,
+    createdAt: new Date().toISOString(),
+  };
+  await userRef.set(user);
+  return user;
+}
+
 router.post('/', async (req, res) => {
   try {
     const idToken = String(req.body?.idToken || '').trim();
@@ -32,21 +97,8 @@ router.post('/', async (req, res) => {
     const uid = decoded.uid;
     const email = String(decoded.email || '').trim().toLowerCase();
     if (!email) return res.status(400).json({ error: 'A conta Firebase não possui email válido.' });
-    const userRef = db.ref(`users/${uid}`);
-    const userSnapshot = await userRef.get();
-    let user = userSnapshot.val();
-    if (!user) {
-      const provider = decoded.firebase?.sign_in_provider || 'firebase';
-      user = { uid, email, name: String(decoded.name || decoded.email?.split('@')[0] || 'Usuário').trim(), phone: String(decoded.phone_number || '').trim(), userType: 'passenger', rating: 5.0, totalRides: 0, isOnline: false, profilePhoto: decoded.picture || null, authProvider: provider, createdAt: new Date().toISOString() };
-      await userRef.set(user);
-    } else {
-      const patch = {};
-      if (!user.uid) patch.uid = uid;
-      if (!user.email) patch.email = email;
-      if (!user.name && decoded.name) patch.name = String(decoded.name).trim();
-      if (!user.profilePhoto && decoded.picture) patch.profilePhoto = decoded.picture;
-      if (Object.keys(patch).length) { await userRef.update(patch); user = { ...user, ...patch }; }
-    }
+
+    let user = await recoverUserProfile(uid, email, decoded);
     user = await normalizeUser(user, uid);
     const token = createToken(uid, email);
     return res.json({ success: true, token, user });
