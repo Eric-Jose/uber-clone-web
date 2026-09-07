@@ -1,13 +1,15 @@
 name: Patch ride dispatch
 
 on:
-  workflow_dispatch:
+  push:
+    branches: [main]
 
 permissions:
   contents: write
 
 jobs:
   patch:
+    if: ${{ github.event.head_commit.message != 'fix(ride): prioritize HTTP dispatch when Socket.IO is unavailable' && github.event.head_commit.message != 'chore(ci): remove temporary dispatch patch workflow' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
