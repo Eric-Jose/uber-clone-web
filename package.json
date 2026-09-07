@@ -17,7 +17,7 @@
     "cors": "^2.8.5",
     "dotenv": "^16.3.0",
     "firebase-admin": "^13.10.0",
-    "jsonwebtoken": "^9.0.2",
+    "jsonwebtoken": "^9.0.0",
     "bcryptjs": "^2.4.3",
     "socket.io": "^4.7.2"
   },
@@ -30,7 +30,7 @@
   },
   "scripts": {
     "start": "react-scripts start",
-    "prebuild": "node scripts/fix-admin-logout.js",
+    "prebuild": "node scripts/fix-admin-logout.js && node scripts/fix-admin-driver-approval.js",
     "build": "CI=false react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject"
