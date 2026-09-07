@@ -1,7 +1,8 @@
-/* PreçoFixo17 — pesquisa de rota: exclusiva para telefone. */
+/* PreçoFixo17 — barra de pesquisa de rota GLOBAL para telefone. */
 @media (max-width: 640px) {
-  /* Painel da pesquisa fica exatamente no centro horizontal e no rodapé. */
-  .rp .panel:has(.input) {
+  /* Qualquer painel que contenha a pesquisa fica centralizado no rodapé. */
+  .rp .panel:has(.input),
+  .panel:has(.input) {
     position: absolute !important;
     top: auto !important;
     bottom: calc(16px + env(safe-area-inset-bottom, 0px)) !important;
@@ -13,7 +14,8 @@
     transform: translate3d(-50%, 0, 0) !important;
   }
 
-  .rp .panel:has(.input) > .card {
+  .rp .panel:has(.input) > .card,
+  .panel:has(.input) > .card {
     position: relative !important;
     width: 100% !important;
     margin: 0 auto !important;
@@ -22,8 +24,9 @@
     overflow: visible !important;
   }
 
-  /* A barra propriamente dita também fica centralizada dentro do painel. */
-  .rp .panel:has(.input) .input {
+  /* Barra: sempre no meio, em baixo, tanto para passageiro como demais telas. */
+  .rp .panel:has(.input) .input,
+  .panel:has(.input) .input {
     position: absolute !important;
     left: 50% !important;
     right: auto !important;
@@ -39,8 +42,9 @@
     box-shadow: 0 10px 30px rgba(0,0,0,.55), 0 0 0 1px rgba(255,107,0,.12) !important;
   }
 
-  /* Endereços sugeridos sobem a partir da barra. */
-  .rp .panel:has(.input) .suggest {
+  /* Sugestões ficam acima da barra, sem cobri-la. */
+  .rp .panel:has(.input) .suggest,
+  .panel:has(.input) .suggest {
     position: absolute !important;
     left: 50% !important;
     right: auto !important;
@@ -53,9 +57,11 @@
     border-radius: 14px !important;
   }
 
-  /* Conteúdo/estatísticas nunca ficam sobre a barra. */
+  /* Estatísticas e ações não podem ocupar a posição da barra. */
   .rp .panel:has(.input) .card .card,
-  .rp .panel:has(.input) .actions {
+  .rp .panel:has(.input) .actions,
+  .panel:has(.input) .card .card,
+  .panel:has(.input) .actions {
     position: relative !important;
     z-index: 4010 !important;
   }
