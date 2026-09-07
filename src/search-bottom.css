@@ -1,66 +1,62 @@
-/* PreçoFixo17 — layout mobile exclusivo para telefone.
-   A busca fica como uma barra flutuante no rodapé; informações/estatísticas
-   permanecem acima dela, sem sobreposição. */
+/* PreçoFixo17 — pesquisa de rota: exclusiva para telefone. */
 @media (max-width: 640px) {
+  /* Painel da pesquisa fica exatamente no centro horizontal e no rodapé. */
   .rp .panel:has(.input) {
+    position: absolute !important;
     top: auto !important;
-    bottom: calc(12px + env(safe-area-inset-bottom, 0px)) !important;
+    bottom: calc(16px + env(safe-area-inset-bottom, 0px)) !important;
     left: 50% !important;
     right: auto !important;
-    width: min(94vw, 560px) !important;
-    max-width: 560px !important;
+    width: 92vw !important;
+    max-width: 520px !important;
     margin: 0 !important;
-    transform: translateX(-50%) !important;
+    transform: translate3d(-50%, 0, 0) !important;
   }
 
   .rp .panel:has(.input) > .card {
     position: relative !important;
     width: 100% !important;
+    margin: 0 auto !important;
     box-sizing: border-box !important;
-    padding: 14px 14px 78px !important;
+    padding: 12px 12px 78px !important;
     overflow: visible !important;
-    max-height: 72svh !important;
   }
 
-  /* Barra de destino: sempre no rodapé do painel, centralizada. */
+  /* A barra propriamente dita também fica centralizada dentro do painel. */
   .rp .panel:has(.input) .input {
     position: absolute !important;
-    z-index: 4070 !important;
-    left: 14px !important;
-    right: 14px !important;
-    bottom: 14px !important;
-    width: calc(100% - 28px) !important;
+    left: 50% !important;
+    right: auto !important;
+    bottom: 12px !important;
+    width: calc(100% - 24px) !important;
     min-height: 52px !important;
-    padding: 15px 16px !important;
+    transform: translateX(-50%) !important;
+    box-sizing: border-box !important;
+    z-index: 4070 !important;
     border-radius: 16px !important;
     background: rgba(12,19,24,.98) !important;
     border: 1px solid #ff6b00 !important;
     box-shadow: 0 10px 30px rgba(0,0,0,.55), 0 0 0 1px rgba(255,107,0,.12) !important;
   }
 
-  /* Sugestões abrem para cima da barra, nunca por cima dela. */
+  /* Endereços sugeridos sobem a partir da barra. */
   .rp .panel:has(.input) .suggest {
     position: absolute !important;
-    z-index: 4060 !important;
-    left: 14px !important;
-    right: 14px !important;
+    left: 50% !important;
+    right: auto !important;
     bottom: 72px !important;
-    width: calc(100% - 28px) !important;
+    width: calc(100% - 24px) !important;
+    transform: translateX(-50%) !important;
     max-height: min(34vh, 280px) !important;
     margin: 0 !important;
+    z-index: 4060 !important;
     border-radius: 14px !important;
-    box-shadow: 0 14px 34px rgba(0,0,0,.65) !important;
   }
 
-  /* O resumo da rota fica visualmente acima da busca. */
-  .rp .panel:has(.input) .card .card {
-    position: relative !important;
-    z-index: 4010 !important;
-    margin-bottom: 2px !important;
-  }
-
+  /* Conteúdo/estatísticas nunca ficam sobre a barra. */
+  .rp .panel:has(.input) .card .card,
   .rp .panel:has(.input) .actions {
     position: relative !important;
-    z-index: 4020 !important;
+    z-index: 4010 !important;
   }
 }
