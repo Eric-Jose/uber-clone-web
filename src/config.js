@@ -1,13 +1,13 @@
 // URL central da API do PreçoFixo17.
-// O backend de produção está dentro deste mesmo projeto Vercel, em /api.
-// Em desenvolvimento, usa REACT_APP_BACKEND_URL quando definida; caso contrário,
-// mantém a API relativa para que o front continue compatível com o backend unificado.
+// Em produção, o backend está dentro deste mesmo projeto Vercel em /api.
+// Portanto, o frontend NUNCA usa uma URL externa configurada por variável
+// REACT_APP_BACKEND_URL em produção; isso evita CORS, endpoints antigos e
+// o erro genérico "Failed to fetch" no login e nas demais chamadas.
 const configuredBackend = process.env.REACT_APP_BACKEND_URL;
 const isProduction = process.env.NODE_ENV === 'production';
 
 export const BACKEND_URL = (
-  configuredBackend ||
-  (isProduction ? '' : 'http://localhost:5000')
+  isProduction ? '' : (configuredBackend || 'http://localhost:5000')
 ).replace(/\/+$/, '');
 
 export default BACKEND_URL;
