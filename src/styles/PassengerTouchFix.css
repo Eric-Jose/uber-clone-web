@@ -1,0 +1,135 @@
+/* PreçoFixo17 — correção final de toque e camadas para iPhone/Android. */
+html, body, #root { width: 100%; min-width: 0; min-height: 100%; }
+
+button, a, input, textarea, select {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.pf-map-screen,
+.pf-map-screen * { -webkit-touch-callout: none; }
+
+/* O mapa fica atrás de toda a interface interativa. */
+.pf-map-screen > .pf-map-canvas {
+  position: absolute !important;
+  inset: 0 !important;
+  z-index: 1 !important;
+}
+
+.pf-map-screen > .pf-map-topbar,
+.pf-map-screen > .pf-route-card,
+.pf-map-screen > .pf-bottom-sheet,
+.pf-map-screen > .pf-driver-arriving-card,
+.pf-map-screen > .pf-arriving-sheet,
+.pf-map-screen > .pf-progress-banner,
+.pf-map-screen > .pf-progress-sheet {
+  pointer-events: auto !important;
+  z-index: 6000 !important;
+}
+
+.pf-map-screen button,
+.pf-map-screen input,
+.pf-map-screen .pf-route-card,
+.pf-map-screen .pf-bottom-sheet,
+.pf-map-screen .pf-driver-arriving-card,
+.pf-map-screen .pf-arriving-sheet,
+.pf-map-screen .pf-progress-banner,
+.pf-map-screen .pf-progress-sheet {
+  pointer-events: auto !important;
+  touch-action: manipulation !important;
+}
+
+.pf-map-screen .pf-suggest-dropdown,
+.pf-map-screen .pf-suggest-item {
+  pointer-events: auto !important;
+  z-index: 6100 !important;
+  touch-action: manipulation !important;
+}
+
+.pf-modal-backdrop {
+  pointer-events: auto !important;
+  z-index: 12000 !important;
+}
+.pf-modal-card,
+.pf-modal-card button,
+.pf-modal-card input {
+  pointer-events: auto !important;
+  touch-action: manipulation !important;
+}
+
+/* Menu lateral utilizado pelo App.js. */
+.pf-drawer-backdrop {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 13000 !important;
+  pointer-events: auto !important;
+}
+.pf-drawer {
+  position: absolute !important;
+  inset: 0 auto 0 0 !important;
+  z-index: 13001 !important;
+  width: min(88vw, 350px) !important;
+  max-width: 350px !important;
+  overflow-y: auto !important;
+  pointer-events: auto !important;
+  -webkit-overflow-scrolling: touch;
+}
+.pf-drawer button,
+.pf-drawer .pf-drawer-bell,
+.pf-drawer .pf-drawer-item,
+.pf-drawer .pf-drawer-logout {
+  pointer-events: auto !important;
+  touch-action: manipulation !important;
+  min-height: 50px !important;
+  position: relative !important;
+  z-index: 13002 !important;
+}
+
+/* Barra inferior: sempre acessível no telefone. */
+.app-bottom-nav {
+  z-index: 14000 !important;
+  pointer-events: auto !important;
+  padding-bottom: max(7px, env(safe-area-inset-bottom)) !important;
+}
+.app-bottom-nav .app-nav-item {
+  pointer-events: auto !important;
+  touch-action: manipulation !important;
+  min-height: 54px !important;
+}
+
+/* Evita que elementos decorativos capturem o toque. */
+.pf-map-screen .pf-map-logo,
+.pf-map-screen .pf-route-pin,
+.pf-map-screen .pf-route-line,
+.pf-map-screen .pf-sheet-car-thumb,
+.pf-map-screen .pf-sheet-price-box,
+.pf-map-screen .pf-banner-pin,
+.pf-map-screen .pf-progress-bar,
+.pf-map-screen .pf-progress-fill,
+.pf-map-screen .pf-driver-left,
+.pf-map-screen .pf-driver-avatar,
+.pf-map-screen .pf-driver-info-name,
+.pf-map-screen .pf-driver-info-meta,
+.pf-map-screen .pf-driver-info-car,
+.pf-map-screen .pf-arriving-header,
+.pf-map-screen .pf-arriving-pin,
+.pf-map-screen .pf-arriving-title,
+.pf-map-screen .pf-arriving-sub,
+.pf-map-screen .pf-stat-box-label,
+.pf-map-screen .pf-stat-box-val,
+.pf-map-screen .pf-pay-indicator-row,
+.pf-map-screen .pf-sheet-price-label,
+.pf-map-screen .pf-sheet-price-val,
+.pf-map-screen .pf-route-label,
+.pf-map-screen .pf-route-input-group {
+  pointer-events: none !important;
+}
+
+@media (max-width: 680px) {
+  .pf-map-screen { width: 100vw !important; max-width: 100vw !important; }
+  .pf-map-topbar { padding-top: max(8px, env(safe-area-inset-top)) !important; height: calc(56px + env(safe-area-inset-top)) !important; }
+  .pf-route-card { top: calc(64px + env(safe-area-inset-top)) !important; }
+  .pf-bottom-sheet,
+  .pf-arriving-sheet,
+  .pf-progress-sheet { bottom: calc(10px + env(safe-area-inset-bottom)) !important; }
+}
