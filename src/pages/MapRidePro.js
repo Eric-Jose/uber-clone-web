@@ -18,6 +18,7 @@ export default function MapRidePro({ onRideCreate, onBack, onNavigate, onOpenMen
   const map = useRef(null);
   const userMarker = useRef(null);
   const destMarker = useRef(null);
+  const driverMarker = useRef(null);
   const routeLayer = useRef(null);
   const toastTimer = useRef(null);
   const pollTimer = useRef(null);
@@ -47,6 +48,7 @@ export default function MapRidePro({ onRideCreate, onBack, onNavigate, onOpenMen
   const [driver, setDriver] = useState(null);
   const [etaMinutes, setEtaMinutes] = useState(2);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [driverLocation, setDriverLocation] = useState(null);
 
   const token = localStorage.getItem('token');
   const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
@@ -66,6 +68,8 @@ export default function MapRidePro({ onRideCreate, onBack, onNavigate, onOpenMen
       if (!response.ok) return;
       const data = await response.json();
       setDriver(data.driver || data);
+      const loc = data.driver?.currentLocation || data.currentLocation;
+      if (loc) setDriverLocation({ lat: Number(loc.lat ?? loc.latitude), lng: Number(loc.lng ?? loc.longitude) });
     } catch (_) {}
   };
 
@@ -74,6 +78,7 @@ export default function MapRidePro({ onRideCreate, onBack, onNavigate, onOpenMen
     setRide(nextRide);
     setCurrentRideId(nextRide.id || null);
     if (nextRide.driverId) void fetchDriver(nextRide.driverId);
+    if (nextRide.driverLocation) setDriverLocation({ lat: Number(nextRide.driverLocation.lat ?? nextRide.driverLocation.latitude), lng: Number(nextRide.driverLocation.lng ?? nextRide.driverLocation.longitude) });
     if (nextRide.destination?.location) {
       setDestinationCoords({ ...nextRide.destination.location, address: nextRide.destination.address || destination });
     }
@@ -88,8 +93,10 @@ export default function MapRidePro({ onRideCreate, onBack, onNavigate, onOpenMen
     } else if (nextRide.status === 'IN_PROGRESS') {
       setStage('in_progress');
     } else if (nextRide.status === 'COMPLETED') {
+      setDriverLocation(null);
       setStage('plan');
     } else if (nextRide.status === 'CANCELLED') {
+      setDriverLocation(null);
       setStage('plan');
       showToast('A corrida foi cancelada.');
     }
@@ -187,6 +194,14 @@ export default function MapRidePro({ onRideCreate, onBack, onNavigate, onOpenMen
   }, [token, currentRideId]);
 
   useEffect(() => {
+    if (!map.current || !driverLocation || !Number.isFinite(Number(driverLocation.lat)) || !Number.isFinite(Number(driverLocation.lng))) return;
+    const loc = { lat: Number(driverLocation.lat), lng: Number(driverLocation.lng) };
+    const driverIcon = L.divIcon({ className: 'pf-driver-live-icon', html: '<div style="width:34px;height:34px;border-radius:50%;background:#ff5a00;border:3px solid #fff;box-shadow:0 0 18px rgba(255,90,0,.75);display:grid;place-items:center;font-size:17px">🚗</div>', iconSize: [34, 34], iconAnchor: [17, 17] });
+    if (!driverMarker.current) driverMarker.current = L.marker([loc.lat, loc.lng], { icon: driverIcon, zIndexOffset: 1200 }).addTo(map.current);
+    else driverMarker.current.setLatLng([loc.lat, loc.lng]);
+  }, [driverLocation]);
+
+  useEffect(() => {
     if (!token || !currentRideId || !ride || ride.status !== 'IN_PROGRESS') {
       clearInterval(elapsedTimer.current);
       return undefined;
@@ -215,15 +230,25 @@ export default function MapRidePro({ onRideCreate, onBack, onNavigate, onOpenMen
           if (!nextRide?.id || (currentRideId && String(nextRide.id) !== String(currentRideId))) return;
           applyRideState({ ...nextRide, status: 'IN_PROGRESS' });
         };
+        const onDriverLocation = (data) => {
+          if (!data?.driverId && !data?.rideId) return;
+          if (data?.rideId && (!currentRideId || String(data.rideId) !== String(currentRideId))) return;
+          const loc = data?.location || { lat: data?.lat ?? data?.latitude, lng: data?.lng ?? data?.longitude };
+          const lat = Number(loc?.lat ?? loc?.latitude), lng = Number(loc?.lng ?? loc?.longitude);
+          if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+          setDriverLocation({ lat, lng });
+        };
         const onCancelled = (data) => {
           const nextRide = normalizeRide(data);
           if (!nextRide?.id || (currentRideId && String(nextRide.id) !== String(currentRideId))) return;
           applyRideState({ ...nextRide, status: 'CANCELLED' });
         };
         WebSocketService.onRideAccepted(onAccepted);
+        WebSocketService.onDriverLocationUpdate(onDriverLocation);
         WebSocketService.onRideStarted(onStarted);
         WebSocketService.onRideCancelled(onCancelled);
         cleanup.push(() => WebSocketService.off('ride-accepted', onAccepted));
+        cleanup.push(() => WebSocketService.off('update-driver-location', onDriverLocation));
         cleanup.push(() => WebSocketService.off('ride-started', onStarted));
         cleanup.push(() => WebSocketService.off('ride-cancelled', onCancelled));
       }
@@ -282,7 +307,7 @@ export default function MapRidePro({ onRideCreate, onBack, onNavigate, onOpenMen
       await fetch(`${B}/api/rides/${currentRideId}/status`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', ...authHeaders }, body: JSON.stringify({ status: 'CANCELLED', cancellationReason: 'Cancelado pelo passageiro' }) });
     } catch (_) {}
     clearInterval(pollTimer.current);
-    setCurrentRideId(null); setRide(null); setDriver(null); setStage('plan');
+    setCurrentRideId(null); setRide(null); setDriver(null); setDriverLocation(null); setStage('plan');
     setBusy(false); showToast('Corrida cancelada.');
   };
 
