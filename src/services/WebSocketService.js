@@ -12,6 +12,9 @@ class WebSocketService {
     this.authToken = null;
     this.lastDriverHttpSync = 0;
     this.lastPassengerHttpSync = 0;
+    this.passengerWatchId = null;
+    this.passengerWatchRideId = null;
+    this.passengerLastLocation = null;
   }
 
   connect() {
@@ -42,7 +45,10 @@ class WebSocketService {
     });
 
     this.socket.on('connect', () => {
-      if (this.activeRideId) this.socket.emit('join-ride-room', this.activeRideId);
+      if (this.activeRideId) {
+        this.socket.emit('join-ride-room', this.activeRideId);
+        this.ensurePassengerLocationWatch(this.activeRideId);
+      }
       if (this.driverRoomRequested) this.requestDriverRoom();
     });
     this.socket.on('connect_error', (error) => console.warn('Socket.IO:', error?.message || 'falha de conexão'));
@@ -84,6 +90,7 @@ class WebSocketService {
       try { user = JSON.parse(localStorage.getItem('user') || 'null'); } catch (_) {}
       if (!rideId || String(rideId) !== String(this.activeRideId) || user?.userType !== 'passenger') return;
       this.activeRideId = null;
+      this.stopPassengerLocationWatch();
       window.setTimeout(() => window.location.reload(), 50);
     });
   }
@@ -92,6 +99,7 @@ class WebSocketService {
     if (this.driverRoomRetryTimer) clearTimeout(this.driverRoomRetryTimer);
     this.driverRoomRetryTimer = null;
     this.driverRoomRetryCount = 0;
+    this.stopPassengerLocationWatch();
     if (this.socket) {
       this.socket.removeAllListeners();
       this.socket.disconnect();
@@ -111,9 +119,13 @@ class WebSocketService {
     if (!rideId) return;
     this.activeRideId = rideId;
     this.ensureSocket()?.emit('join-ride-room', rideId);
+    this.ensurePassengerLocationWatch(rideId);
   }
   leaveRideRoom(rideId) {
-    if (rideId && this.activeRideId === rideId) this.activeRideId = null;
+    if (rideId && this.activeRideId === rideId) {
+      this.activeRideId = null;
+      this.stopPassengerLocationWatch();
+    }
     if (rideId) this.ensureSocket()?.emit('leave-ride-room', rideId);
   }
   joinDriversRoom() {
@@ -131,6 +143,36 @@ class WebSocketService {
     this.driverRoomRetryTimer = null;
   }
   joinDriverRoom() { this.joinDriversRoom(); }
+
+  ensurePassengerLocationWatch(rideId) {
+    let user = null;
+    try { user = JSON.parse(localStorage.getItem('user') || 'null'); } catch (_) {}
+    if (user?.userType !== 'passenger' || !rideId || !navigator.geolocation) return;
+    if (String(this.passengerWatchRideId || '') === String(rideId) && this.passengerWatchId !== null) return;
+    this.stopPassengerLocationWatch();
+    this.passengerWatchRideId = rideId;
+    this.passengerLastLocation = null;
+    this.passengerWatchId = navigator.geolocation.watchPosition(
+      (position) => {
+        const latitude = Number(position?.coords?.latitude);
+        const longitude = Number(position?.coords?.longitude);
+        if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return;
+        const location = { lat: latitude, lng: longitude };
+        if (this.passengerLastLocation && Math.abs(this.passengerLastLocation.lat - latitude) < 0.00001 && Math.abs(this.passengerLastLocation.lng - longitude) < 0.00001) return;
+        this.passengerLastLocation = location;
+        this.sendPassengerLocation(rideId, latitude, longitude);
+      },
+      () => {},
+      { enableHighAccuracy: true, maximumAge: 1500, timeout: 10000 }
+    );
+  }
+
+  stopPassengerLocationWatch() {
+    if (this.passengerWatchId !== null && navigator.geolocation) navigator.geolocation.clearWatch(this.passengerWatchId);
+    this.passengerWatchId = null;
+    this.passengerWatchRideId = null;
+    this.passengerLastLocation = null;
+  }
 
   syncDriverLocationHttp(driverId, latitude, longitude) {
     const token = localStorage.getItem('token');
