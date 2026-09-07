@@ -21,5 +21,10 @@ const oldAdminRender = "  if (admin) return <AdminDashboardLive admin={admin} on
 const newAdminRender = "  if (admin && localStorage.getItem('adminToken')) return <AdminDashboardLive admin={admin} onLogout={handleAdminLogout} />;";
 if (updatedSource.includes(oldAdminRender)) updatedSource = updatedSource.replace(oldAdminRender, newAdminRender);
 
+// Corrige o crash de renderização quando AccountPanel recebe múltiplos filhos.
+const oldChildrenRender = "{React.cloneElement(children, {\n          onOpenMenu: () => setMenuOpen(true),\n          onOpenNotifications: () => onNavigate('notifications'),\n          onNavigate: onNavigate\n        })}";
+const newChildrenRender = "{React.Children.map(children, (child) => (\n          React.isValidElement(child)\n            ? React.cloneElement(child, {\n                onOpenMenu: () => setMenuOpen(true),\n                onOpenNotifications: () => onNavigate('notifications'),\n                onNavigate: onNavigate\n              })\n            : child\n        ))}";
+if (updatedSource.includes(oldChildrenRender)) updatedSource = updatedSource.replace(oldChildrenRender, newChildrenRender);
+
 if (updatedSource !== source) fs.writeFileSync(appPath, updatedSource, 'utf8');
-console.log('[fix-admin-logout] Logout Admin forçado: limpa sessão antes do redirecionamento e exige adminToken.');
+console.log('[fix-admin-logout] Sessão Admin protegida e AccountPanel multi-filhos corrigido.');
