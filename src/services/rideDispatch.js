@@ -10,6 +10,7 @@ export async function dispatchRideSearch(rideId, token) {
   }
 
   let lastError = null;
+  let lastData = null;
 
   for (let attempt = 0; attempt < RETRY_DELAYS_MS.length; attempt += 1) {
     const waitMs = RETRY_DELAYS_MS[attempt];
@@ -27,6 +28,7 @@ export async function dispatchRideSearch(rideId, token) {
       });
 
       const data = await response.json().catch(() => ({}));
+      lastData = data;
 
       if (response.status === 409) {
         const message = String(data?.error || '');
@@ -40,15 +42,25 @@ export async function dispatchRideSearch(rideId, token) {
         continue;
       }
 
-      return { ok: true, data, driversNotified: Number(data?.driversNotified || 0) };
+      const driversNotified = Number(data?.driversNotified || 0);
+      if (driversNotified > 0) {
+        return { ok: true, data, driversNotified };
+      }
+
+      // A corrida continua SEARCHING. Keep polling this endpoint so a driver
+      // who comes online or moves into range can still receive the request.
+      lastError = new Error('Nenhum motorista disponível nas proximidades. A busca continua.');
     } catch (error) {
       lastError = error;
     }
   }
 
   return {
-    ok: false,
-    error: lastError || new Error('Não foi possível iniciar a busca de motorista.'),
+    ok: true,
+    data: lastData,
+    driversNotified: Number(lastData?.driversNotified || 0),
+    searchingContinues: true,
     exhausted: true,
+    error: lastError,
   };
 }
