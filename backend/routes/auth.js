@@ -34,6 +34,20 @@ async function normalizeUser(userData, uid) {
   return normalizedUser;
 }
 
+async function issueFirebaseSession(idToken) {
+  if (!idToken) throw new Error('Token Firebase não fornecido');
+  const decoded = await auth.verifyIdToken(idToken);
+  const uid = decoded.uid;
+  const email = String(decoded.email || '').trim().toLowerCase();
+  if (!email) throw new Error('Conta Firebase sem e-mail');
+  const userSnapshot = await db.ref(`users/${uid}`).get();
+  const userData = userSnapshot.val();
+  if (!userData) throw new Error('Perfil do usuário não encontrado');
+  const normalizedUser = await normalizeUser(userData, uid);
+  const token = createToken(uid, email);
+  return { token, user: normalizedUser };
+}
+
 router.post('/register', async (req, res) => {
   try {
     const email = String(req.body?.email || '').trim().toLowerCase();
@@ -54,6 +68,37 @@ router.post('/register', async (req, res) => {
     return res.status(400).json({ error: error.code === 'auth/email-already-exists' ? 'Email já cadastrado' : error.message });
   }
 });
+
+// Troca um ID token Firebase válido pelo JWT do PreçoFixo17.
+// Isso mantém o login Web e a sessão do backend sincronizados após cadastro,
+// login, refresh da página e recuperação da sessão local.
+router.post('/firebase-session', async (req, res) => {
+  try {
+    const session = await issueFirebaseSession(String(req.body?.idToken || ''));
+    localStorageSafeSet(res, session);
+    return res.json({ message: 'Sessão sincronizada com sucesso', ...session });
+  } catch (error) {
+    console.error('Erro ao sincronizar sessão Firebase:', error.message);
+    return res.status(401).json({ error: 'Sessão Firebase inválida ou expirada.' });
+  }
+});
+
+// Compatibilidade com versões antigas do cliente que possam enviar o token
+// pelo cabeçalho Authorization em vez do corpo.
+router.post('/firebase-session/verify', async (req, res) => {
+  try {
+    const header = req.headers.authorization || '';
+    const idToken = header.startsWith('Bearer ') ? header.slice(7) : String(req.body?.idToken || '');
+    const session = await issueFirebaseSession(idToken);
+    return res.json({ message: 'Sessão sincronizada com sucesso', ...session });
+  } catch (error) {
+    console.error('Erro ao verificar sessão Firebase:', error.message);
+    return res.status(401).json({ error: 'Sessão Firebase inválida ou expirada.' });
+  }
+});
+
+// Mantém a resposta sem cookies; o cliente armazena apenas o JWT próprio do app.
+function localStorageSafeSet(_res, _session) {}
 
 router.post('/login', async (req, res) => {
   try {
