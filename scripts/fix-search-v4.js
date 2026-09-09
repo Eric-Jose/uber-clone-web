@@ -5,7 +5,9 @@ const appPath = path.join(__dirname, '..', 'src', 'pages', 'MapRidePro.js');
 let source = fs.readFileSync(appPath, 'utf8');
 
 if (!source.includes('const searchRequestRef = useRef(0);')) {
-  source = source.replace('  const elapsedTimer = useRef(null);', '  const elapsedTimer = useRef(null);\n  const searchRequestRef = useRef(0);');
+  source = source.replace('  const elapsedTimer = useRef(null);', '  const elapsedTimer = useRef(null);\n  const searchRequestRef = useRef(0);\n  const searchAbortRef = useRef(null);');
+} else if (!source.includes('const searchAbortRef = useRef(null);')) {
+  source = source.replace('  const searchRequestRef = useRef(0);', '  const searchRequestRef = useRef(0);\n  const searchAbortRef = useRef(null);');
 }
 
 const start = source.indexOf('  const handleSearch = (value) => {');
@@ -14,58 +16,77 @@ if (start < 0 || end < 0) throw new Error('MapRidePro search block not found');
 
 const replacement = `  const handleSearch = (value) => {
     const requestId = ++searchRequestRef.current;
-    const term = String(value || '').trim();
-    setDestination(value);
+    const term = String(value || '');
+    const trimmed = term.trim();
+
+    if (searchAbortRef.current) searchAbortRef.current.abort();
+    searchAbortRef.current = null;
+
+    // Every edit starts a fresh search. This deliberately invalidates the
+    // previous destination so an old result can never be requested by mistake.
+    setDestination(term);
+    setDestinationCoords(null);
     setSuggestions([]);
     setSearching(false);
     setError('');
-    setDestinationCoords(null);
-    if (term.length < 2) return;
 
+    if (trimmed.length < 2) return;
+
+    const controller = new AbortController();
+    searchAbortRef.current = controller;
     setSearching(true);
-    const photonUrl = 'https://photon.komoot.io/api/?q=' + encodeURIComponent(term) + '&limit=8&lang=pt';
-    const nominatimUrl = NOMINATIM + '/search?format=jsonv2&q=' + encodeURIComponent(term) + '&limit=8&addressdetails=1&accept-language=pt-BR';
 
-    const fetchJson = (url) => fetch(url, { headers: { Accept: 'application/json' } }).then((r) => {
-      if (!r.ok) throw new Error('SEARCH_HTTP_' + r.status);
-      return r.json();
-    });
-
-    Promise.allSettled([fetchJson(photonUrl), fetchJson(nominatimUrl)])
-      .then((results) => {
-        if (requestId !== searchRequestRef.current) return;
-        const photon = results[0].status === 'fulfilled' && Array.isArray(results[0].value?.features)
-          ? results[0].value.features.map((f) => {
-              const p = f.properties || {};
-              const c = f.geometry?.coordinates || [];
-              const display = [p.name, p.street && p.housenumber ? p.street + ', ' + p.housenumber : p.street, p.city || p.town || p.village, p.state, p.country]
-                .filter(Boolean).join(' - ');
-              return { lat: Number(c[1]), lon: Number(c[0]), display_name: display || p.name || term, place_id: 'photon-' + (f.properties?.osm_id || display) };
-            }) : [];
-        const nominatim = results[1].status === 'fulfilled' && Array.isArray(results[1].value) ? results[1].value : [];
-        const all = [...photon, ...nominatim].filter((item) => Number.isFinite(Number(item.lat)) && Number.isFinite(Number(item.lon)));
-        const seen = new Set();
-        const ordered = all.filter((item) => {
-          const key = item.place_id || (item.display_name + '|' + item.lat + '|' + item.lon);
-          if (seen.has(key)) return false;
-          seen.add(key);
-          return true;
-        }).sort((a, b) => {
-          const am = String(a.display_name || '').toLowerCase().includes('maracaju');
-          const bm = String(b.display_name || '').toLowerCase().includes('maracaju');
-          return Number(bm) - Number(am);
-        });
-        setSuggestions(ordered.slice(0, 8));
-        if (!ordered.length) setError('Nenhum endereço encontrado. Tente rua, número, bairro ou cidade.');
+    fetch((B || '') + '/api/location/search?q=' + encodeURIComponent(trimmed), {
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+      signal: controller.signal,
+      cache: 'no-store',
+    })
+      .then(async (response) => {
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data?.error || 'SEARCH_HTTP_' + response.status);
+        return data;
       })
-      .catch(() => {
-        if (requestId === searchRequestRef.current) setError('Não foi possível pesquisar o endereço agora.');
+      .then((data) => {
+        if (requestId !== searchRequestRef.current || controller.signal.aborted) return;
+        const results = Array.isArray(data?.results) ? data.results : [];
+        setSuggestions(results.slice(0, 8));
+        if (!results.length) setError('Nenhum endereço encontrado. Tente rua, número, bairro ou cidade.');
+      })
+      .catch((searchError) => {
+        if (controller.signal.aborted || requestId !== searchRequestRef.current) return;
+        setSuggestions([]);
+        setError(searchError?.message || 'Não foi possível pesquisar o endereço agora.');
       })
       .finally(() => {
-        if (requestId === searchRequestRef.current) setSearching(false);
+        if (requestId === searchRequestRef.current) {
+          setSearching(false);
+          searchAbortRef.current = null;
+        }
       });
   };`;
 
 source = source.slice(0, start) + replacement + source.slice(end);
+
+// A destination must always be explicitly selected from the current search.
+const selectStart = source.indexOf('  const handleSelectDestination = (item) => {');
+const selectEnd = source.indexOf('\n\n  const handleRequestRide', selectStart);
+if (selectStart < 0 || selectEnd < 0) throw new Error('MapRidePro destination selection block not found');
+const selectReplacement = `  const handleSelectDestination = (item) => {
+    const lat = Number(item?.lat);
+    const lng = Number(item?.lon ?? item?.lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+    const address = String(item?.display_name || item?.address || '').trim();
+    if (!address) return;
+    const dest = { lat, lng, address };
+    setDestination(address);
+    setDestinationCoords(dest);
+    setSuggestions([]);
+    setSearching(false);
+    setError('');
+    renderRoute(origin, dest);
+  };`;
+source = source.slice(0, selectStart) + selectReplacement + source.slice(selectEnd);
+
 fs.writeFileSync(appPath, source, 'utf8');
-console.log('[fix-search-v4] Destination search now uses Photon + Nominatim fallback with race protection.');
+console.log('[fix-search-v4] Passenger destination search now uses the same-origin backend geocoding proxy, cancels stale requests, and supports unlimited repeated searches.');
