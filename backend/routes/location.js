@@ -12,8 +12,10 @@ router.get('/search', async (req, res) => {
   if (query.length > 200) return res.status(400).json({ error: 'Busca muito longa.' });
 
   const encoded = encodeURIComponent(query);
-  const photonUrl = `https://photon.komoot.io/api/?q=${encoded}&limit=8&lang=pt`;
-  const nominatimUrl = `https://nominatim.openstreetmap.org/search?format=jsonv2&q=${encoded}&limit=8&addressdetails=1&accept-language=pt-BR`;
+  // No country, city, radius, or Maracaju restriction: the passenger can
+  // search for an address anywhere supported by OpenStreetMap.
+  const photonUrl = `https://photon.komoot.io/api/?q=${encoded}&limit=20&lang=pt`;
+  const nominatimUrl = `https://nominatim.openstreetmap.org/search?format=jsonv2&q=${encoded}&limit=20&addressdetails=1&accept-language=pt-BR`;
 
   const fetchJson = async (url, headers = {}) => {
     const controller = new AbortController();
@@ -68,7 +70,7 @@ router.get('/search', async (req, res) => {
         const bm = String(b.display_name || '').toLowerCase().includes(query.toLowerCase());
         return Number(bm) - Number(am);
       })
-      .slice(0, 8);
+      .slice(0, 20);
 
     return res.json({ success: true, results: merged });
   } catch (error) {
