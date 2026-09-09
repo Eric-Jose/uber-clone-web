@@ -1,0 +1,1 @@
+Final production design: embedded backend on Vercel, Firebase as ride-state source of truth, authenticated HTTP polling as reliable realtime transport, optional Socket.IO only where a persistent server exists. Driver notification results are filtered against current ride status, and Firebase transaction protects single acceptance.
