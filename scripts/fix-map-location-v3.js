@@ -12,6 +12,12 @@ source = source.replace("  const [distanceKm, setDistanceKm] = useState(3.5);", 
 source = source.replace("  const [durationMin, setDurationMin] = useState(8);", "  const [durationMin, setDurationMin] = useState(0);");
 source = source.replace("const PHOTON = 'https://photon.komoot.io/api/';\n", '');
 
+// Keep a monotonically increasing search id so a slower old request can never
+// overwrite suggestions produced by the newest text the passenger entered.
+if (!source.includes('const searchRequestRef = useRef(0);')) {
+  source = source.replace('  const elapsedTimer = useRef(null);', '  const elapsedTimer = useRef(null);\n  const searchRequestRef = useRef(0);');
+}
+
 // Use OpenStreetMap tiles directly: no Google/Mapbox/Carto API key is required.
 source = source.replace(/https:\/\/\{s\}\.basemaps\.cartocdn\.com\/dark_all\/\{z\}\/\{x\}\/\{y\}\{r\}\.png/g, 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png');
 source = source.replace(/, \{ maxZoom: 19, subdomains: 'abcd', updateWhenIdle: true \}/g, ", { maxZoom: 19, attribution: '&copy; OpenStreetMap contributors', updateWhenIdle: true }");
@@ -86,9 +92,15 @@ const searchEnd = source.indexOf('\n\n  const handleSelectDestination', searchSt
 if (searchStart < 0 || searchEnd < 0) throw new Error('MapRidePro destination search block not found.');
 const newSearch = [
   '  const handleSearch = (value) => {',
+  '    const requestId = ++searchRequestRef.current;',
   '    setDestination(value);',
-  '    setDestinationCoords((current) => ({ ...(current || {}), address: value }));',
-  "    if (value.trim().length < 2) { setSuggestions([]); return; }",
+  '    setSuggestions([]);',
+  '    setSearching(false);',
+  '    setError(\'\');',
+  "    if (value.trim().length < 2) { setDestinationCoords(null); return; }",
+  '    // Any new text invalidates the previous selected destination so the',
+  '    // passenger cannot accidentally request the old route.',
+  '    setDestinationCoords(null);',
   '    setSearching(true);',
   '    const term = value.trim();',
   "    const localQuery = encodeURIComponent(term + ', Maracaju, Mato Grosso do Sul, Brasil');",
@@ -100,6 +112,7 @@ const newSearch = [
   '      fetch(globalUrl).then((r) => r.json()).catch(() => [])',
   '    ])',
   '      .then(([localData, globalData]) => {',
+  '        if (requestId !== searchRequestRef.current) return;',
   '        const local = Array.isArray(localData) ? localData : [];',
   '        const global = Array.isArray(globalData) ? globalData : [];',
   '        const normalize = (item) => String(item?.display_name || item?.name || "").toLowerCase();',
@@ -117,8 +130,8 @@ const newSearch = [
   '        });',
   '        setSuggestions(ordered.slice(0, 8));',
   '      })',
-  '      .catch(() => setSuggestions([]))',
-  '      .finally(() => setSearching(false));',
+  '      .catch(() => { if (requestId === searchRequestRef.current) setSuggestions([]); })',
+  '      .finally(() => { if (requestId === searchRequestRef.current) setSearching(false); });',
   '  };'
 ].join('\n');
 source = source.slice(0, searchStart) + newSearch + source.slice(searchEnd);
