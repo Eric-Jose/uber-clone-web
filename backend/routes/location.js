@@ -140,6 +140,7 @@ router.get('/search', async (req, res) => {
     const normalizedQuery = normalizeText(query);
     const normalizedLocal = normalizeText(localArea);
     const terms = categoryTerms(query).map(normalizeText);
+    const isCategorySearch = terms.length > 0 && terms.some((term) => normalizeText(query).startsWith(term.slice(0, Math.min(4, term.length))));
     const unique = new Map();
     for (const item of [...arcgis, ...photon, ...nominatim]) {
       const itemLat = Number(item.lat), itemLon = Number(item.lon);
@@ -148,18 +149,33 @@ router.get('/search', async (req, res) => {
       if (!unique.has(key)) unique.set(key, { ...item, lat: itemLat, lon: itemLon });
     }
 
-    const score = (item) => {
+    const scored = [...unique.values()].map((item) => {
       const name = normalizeText(item.display_name);
       const distance = distanceKm(originLat, originLon, item.lat, item.lon);
       const isLocal = name.includes(normalizedLocal) || distance <= 35;
+      const category = terms.some((term) => term.length >= 2 && name.includes(term));
       const exact = name.includes(normalizedQuery) ? 1500 : 0;
-      const category = terms.some((term) => term.length >= 2 && name.includes(term)) ? 800 : 0;
+      const categoryScore = category ? 800 : 0;
       const local = isLocal ? 10000 : 0;
       const proximity = Math.max(0, 7000 - Math.min(distance * 140, 7000));
-      return local + category + exact + proximity;
-    };
+      return { item, distance, isLocal, category, score: local + categoryScore + exact + proximity };
+    });
 
-    const results = [...unique.values()].sort((a, b) => score(b) - score(a)).slice(0, 40);
+    // Category searches are establishment searches. Keep them tied to the
+    // user's current locality/radius so foreign hospitals, pharmacies, etc.
+    // do not pollute mobile suggestions. Ordinary address/place searches keep
+    // the global fallback behavior.
+    let results;
+    if (isCategorySearch) {
+      results = scored
+        .filter(({ category, distance }) => category && distance <= 100)
+        .sort((a, b) => b.score - a.score)
+        .map(({ item }) => item)
+        .slice(0, 40);
+    } else {
+      results = scored.sort((a, b) => b.score - a.score).map(({ item }) => item).slice(0, 40);
+    }
+
     const payload = { success: true, results, locality: localArea, locationMode: hasOrigin ? 'gps' : 'fallback' };
     searchCache.set(cacheKey, { timestamp: Date.now(), value: payload });
     if (searchCache.size > 120) searchCache.delete(searchCache.keys().next().value);
