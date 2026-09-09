@@ -80,7 +80,7 @@ const newSearch = [
   '      .then(([localData, globalData]) => {',
   '        const local = Array.isArray(localData) ? localData : [];',
   '        const global = Array.isArray(globalData) ? globalData : [];',
-  '        const normalize = (item) => String(item?.display_name || item?.name || '').toLowerCase();',
+  '        const normalize = (item) => String(item?.display_name || item?.name || "").toLowerCase();',
   '        const isMaracaju = (item) => {',
   '          const text = normalize(item);',
   "          return text.includes('maracaju') && text.includes('mato grosso do sul');",
