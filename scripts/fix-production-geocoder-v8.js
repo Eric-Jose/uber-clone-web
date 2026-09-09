@@ -8,22 +8,16 @@ if (start < 0 || end < 0) throw new Error('Location search route not found');
 
 let route = source.slice(start, end);
 
-// This patch runs after v7. Keep it idempotent and avoid depending on one
-// exact whitespace/escaping representation of the generated route.
 if (!route.includes('let localArea =')) {
   route = route.replace("limit: '30'", "limit: '50'");
   route = route.replace("maxLocations: '30'", "maxLocations: '50'");
   route = route.replace(/\.slice\(0, 20\);/, '.slice(0, 40);');
 
-  const categoryStart = route.indexOf('  const categoryMap = [');
-  const localQueriesStart = route.indexOf('  const localQueries = [', categoryStart);
-  if (categoryStart < 0 || localQueriesStart < 0) {
-    throw new Error('Expected v7 category search block not found');
-  }
-  const localQueriesEnd = route.indexOf('  const queries = [query];', localQueriesStart);
-  if (localQueriesEnd < 0) throw new Error('Expected v7 query block not found');
+  const localQueriesStart = route.indexOf('  const localQueries = [');
+  const queriesStart = route.indexOf('  const queries = [query];', localQueriesStart);
+  if (localQueriesStart < 0 || queriesStart < 0) throw new Error('Expected v7 query block not found');
 
-  const categoryBlock = `  const categoryMap = [
+  const localityBlock = `  const categoryMap = [
     { re: /^mercad/i, terms: ['mercado', 'supermercado', 'mercearia'] },
     { re: /^super\\s*mercad/i, terms: ['supermercado', 'mercado', 'mercearia'] },
     { re: /^hospital/i, terms: ['hospital', 'pronto atendimento', 'hospitalar'] },
@@ -37,20 +31,15 @@ if (!route.includes('let localArea =')) {
   const matchedCategory = categoryMap.find((item) => item.re.test(normalized));
   const categoryTerms = matchedCategory ? matchedCategory.terms : [query];
 
-  // GPS-first locality. Reverse-geocode the device once per request so
-  // category searches naturally prioritize the city/region where the phone is.
+  // GPS-first locality: use the phone's current city/region for local
+  // category suggestions. Maracaju is only the fallback without a position.
   let localArea = 'Maracaju MS';
   if (hasOrigin) {
     try {
       const reverseController = new AbortController();
       const reverseTimer = setTimeout(() => reverseController.abort(), 1800);
       const reverseParams = new URLSearchParams({
-        format: 'jsonv2',
-        lat: String(lat),
-        lon: String(lon),
-        zoom: '10',
-        addressdetails: '1',
-        'accept-language': 'pt-BR',
+        format: 'jsonv2', lat: String(lat), lon: String(lon), zoom: '10', addressdetails: '1', 'accept-language': 'pt-BR'
       });
       const reverseResponse = await fetch('https://nominatim.openstreetmap.org/reverse?' + reverseParams.toString(), {
         headers: { Accept: 'application/json', 'User-Agent': 'PrecoFixo17/1.0 locality-search' },
@@ -64,9 +53,7 @@ if (!route.includes('let localArea =')) {
         const state = address.state || '';
         if (city) localArea = [city, state].filter(Boolean).join(' ');
       }
-    } catch (_) {
-      // Maracaju remains the safe fallback when reverse geocoding is unavailable.
-    }
+    } catch (_) {}
   }
 
   const localQueries = [];
@@ -74,15 +61,13 @@ if (!route.includes('let localArea =')) {
   localQueries.push(query + ' ' + localArea);
 `;
 
-  route = route.slice(0, categoryStart) + categoryBlock + route.slice(localQueriesEnd);
+  route = route.slice(0, localQueriesStart) + localityBlock + route.slice(queriesStart);
 }
 
-// GPS proximity must outrank the old fixed Maracaju bonus when a device
-// position is available. Also works with the v7 score block exactly once.
 if (!route.includes('distance <= 35 ? 10000 : 0')) {
   const scoreStart = route.indexOf('    const score = (item) => {');
   const scoreEnd = route.indexOf('    };', scoreStart);
-  if (scoreStart < 0 || scoreEnd < 0) throw new Error('Expected v7 scoring block not found');
+  if (scoreStart < 0 || scoreEnd < 0) throw new Error('Expected score block not found');
   const scoreBlock = `    const score = (item) => {
       const name = String(item.display_name || '').toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g, '');
       const exact = name.includes(normalized) ? 1000 : 0;
