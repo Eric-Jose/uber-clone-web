@@ -22,11 +22,7 @@
     "socket.io": "^4.7.2"
   },
   "overrides": {
-    "terser-webpack-plugin": "5.3.14",
-    "schema-utils": {
-      "ajv": "6.12.6",
-      "ajv-keywords": "3.5.2"
-    }
+    "terser-webpack-plugin": "5.3.14"
   },
   "scripts": {
     "start": "react-scripts start",
