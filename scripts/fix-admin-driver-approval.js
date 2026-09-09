@@ -93,7 +93,6 @@ const motoristasPanel = [
 "        </div>",
 "      );",
 "    }",
-"  ";
 ].join('\n');
 source = source.slice(0, start) + motoristasPanel + source.slice(end);
 
