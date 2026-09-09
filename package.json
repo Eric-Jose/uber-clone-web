@@ -12,6 +12,9 @@
     "leaflet": "^1.9.4",
     "axios": "^1.6.0",
     "socket.io-client": "^4.7.2",
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.0",
     "firebase": "^12.1.0",
     "express": "^4.18.2",
     "cors": "^2.8.5",
@@ -26,7 +29,7 @@
   },
   "scripts": {
     "start": "react-scripts start",
-    "prebuild": "node scripts/fix-admin-logout.js && node scripts/fix-admin-driver-approval.js && node scripts/fix-map-location-v3.js && node scripts/fix-search-v4.js && node scripts/fix-production-quality.js && node scripts/fix-production-geocoder-v6.js",
+    "prebuild": "node scripts/fix-admin-logout.js && node scripts/fix-admin-driver-approval.js && node scripts/fix-map-location-v3.js && node scripts/fix-search-v4.js && node scripts/fix-production-quality.js && node scripts/fix-production-geocoder-v6.js && node scripts/fix-notifications.js",
     "build": "CI=false react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject"
