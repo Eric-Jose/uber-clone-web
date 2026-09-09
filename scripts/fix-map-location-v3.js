@@ -12,6 +12,11 @@ source = source.replace("  const [distanceKm, setDistanceKm] = useState(3.5);", 
 source = source.replace("  const [durationMin, setDurationMin] = useState(8);", "  const [durationMin, setDurationMin] = useState(0);");
 source = source.replace("const PHOTON = 'https://photon.komoot.io/api/';\n", '');
 
+// Use OpenStreetMap tiles directly: no Google/Mapbox/Carto API key is required.
+source = source.replace(/https:\/\/\{s\}\.basemaps\.cartocdn\.com\/dark_all\/\{z\}\/\{x\}\/\{y\}\{r\}\.png/g, 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png');
+source = source.replace(/, \{ maxZoom: 19, subdomains: 'abcd', updateWhenIdle: true \}/g, ", { maxZoom: 19, attribution: '&copy; OpenStreetMap contributors', updateWhenIdle: true }");
+source = source.replace(/, \{ maxZoom: 19, subdomains: 'abcd' \}/g, ", { maxZoom: 19, attribution: '&copy; OpenStreetMap contributors' }");
+
 const effectStart = source.indexOf("  useEffect(() => {\n    if (!mapEl.current || map.current) return;");
 const effectEnd = source.indexOf("\n\n  const renderRoute = async", effectStart);
 if (effectStart < 0 || effectEnd < 0) throw new Error('MapRidePro map initialization block not found.');
@@ -19,7 +24,7 @@ const newEffect = [
   '  useEffect(() => {',
   '    if (!mapEl.current || map.current) return;',
   "    const mapInstance = L.map(mapEl.current, { zoomControl: false, attributionControl: false, preferCanvas: true }).setView([MARACAJU_CENTER.lat, MARACAJU_CENTER.lng], 14);",
-  "    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 19, subdomains: 'abcd', updateWhenIdle: true }).addTo(mapInstance);",
+  "    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap contributors', updateWhenIdle: true }).addTo(mapInstance);",
   "    L.control.zoom({ position: 'bottomright' }).addTo(mapInstance);",
   '    map.current = mapInstance;',
   '',
@@ -109,4 +114,4 @@ source = source.replace("value={origin.address} onChange={(e)=>setOrigin({...ori
 source = source.replace("placeholder=\"Rua dos Ipês, 456 - Jardim das Flores\"", "placeholder=\"Para onde você vai?\"");
 
 fs.writeFileSync(appPath, source, 'utf8');
-console.log('[fix-map-location-v3] GPS automático, sem rota fixa e busca de destino livre com prioridade para Maracaju/MS.');
+console.log('[fix-map-location-v3] GPS automático, OpenStreetMap sem API key, busca de destino livre com prioridade para Maracaju/MS.');
