@@ -8,14 +8,16 @@ if (start < 0 || end < 0) throw new Error('Location search route not found');
 
 let route = source.slice(start, end);
 
+// v7 creates the route first; this patch deliberately targets stable markers
+// from that route instead of depending on an exact generated block.
 if (!route.includes('let localArea =')) {
-  route = route.replace("limit: '30'", "limit: '50'");
-  route = route.replace("maxLocations: '30'", "maxLocations: '50'");
-  route = route.replace(/\.slice\(0, 20\);/, '.slice(0, 40);');
+  route = route.replace(/limit: '30'/g, "limit: '50'");
+  route = route.replace(/maxLocations: '30'/g, "maxLocations: '50'");
+  route = route.replace(/\.slice\(0, 20\);/g, '.slice(0, 40);');
 
   const localQueriesStart = route.indexOf('  const localQueries = [');
   const queriesStart = route.indexOf('  const queries = [query];', localQueriesStart);
-  if (localQueriesStart < 0 || queriesStart < 0) throw new Error('Expected v7 query block not found');
+  if (localQueriesStart < 0 || queriesStart < 0) throw new Error('Expected v7 local query block not found');
 
   const localityBlock = `  const categoryMap = [
     { re: /^mercad/i, terms: ['mercado', 'supermercado', 'mercearia'] },
@@ -31,15 +33,20 @@ if (!route.includes('let localArea =')) {
   const matchedCategory = categoryMap.find((item) => item.re.test(normalized));
   const categoryTerms = matchedCategory ? matchedCategory.terms : [query];
 
-  // GPS-first locality: use the phone's current city/region for local
-  // category suggestions. Maracaju is only the fallback without a position.
+  // GPS-first locality. Maracaju is only the fallback when the device
+  // location is unavailable.
   let localArea = 'Maracaju MS';
   if (hasOrigin) {
     try {
       const reverseController = new AbortController();
       const reverseTimer = setTimeout(() => reverseController.abort(), 1800);
       const reverseParams = new URLSearchParams({
-        format: 'jsonv2', lat: String(lat), lon: String(lon), zoom: '10', addressdetails: '1', 'accept-language': 'pt-BR'
+        format: 'jsonv2',
+        lat: String(lat),
+        lon: String(lon),
+        zoom: '10',
+        addressdetails: '1',
+        'accept-language': 'pt-BR',
       });
       const reverseResponse = await fetch('https://nominatim.openstreetmap.org/reverse?' + reverseParams.toString(), {
         headers: { Accept: 'application/json', 'User-Agent': 'PrecoFixo17/1.0 locality-search' },
@@ -67,7 +74,7 @@ if (!route.includes('let localArea =')) {
 if (!route.includes('distance <= 35 ? 10000 : 0')) {
   const scoreStart = route.indexOf('    const score = (item) => {');
   const scoreEnd = route.indexOf('    };', scoreStart);
-  if (scoreStart < 0 || scoreEnd < 0) throw new Error('Expected score block not found');
+  if (scoreStart < 0 || scoreEnd < 0) throw new Error('Expected v7 score block not found');
   const scoreBlock = `    const score = (item) => {
       const name = String(item.display_name || '').toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g, '');
       const exact = name.includes(normalized) ? 1000 : 0;
