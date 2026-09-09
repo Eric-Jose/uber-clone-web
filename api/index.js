@@ -21,21 +21,17 @@ function cleanEnv(value) {
     .replace(/\\r/g, '\r');
 }
 
-function normalizeDatabaseUrl(projectId) {
-  // The PreçoFixo17 Firebase project is known and is also the public Web SDK
-  // fallback used by the frontend. Keep the Admin SDK on the same database even
-  // when Vercel receives a stale/malformed FIREBASE_DATABASE_URL variable.
+function normalizeDatabaseUrl() {
   const fallback = 'https://uber-clone-eric-f4327-default-rtdb.firebaseio.com/';
   const configured = cleanEnv(process.env.FIREBASE_DATABASE_URL).replace(/\/+$/, '');
-
   if (!configured) return fallback;
-
   try {
     const parsed = new URL(configured);
     if (!/^https?:$/.test(parsed.protocol) || !parsed.hostname) throw new Error('Invalid protocol or hostname');
     return `${parsed.protocol}//${parsed.host}${parsed.pathname.replace(/\/+$/, '')}/`;
-  } catch (error) {
-    console.warn('FIREBASE_DATABASE_URL inválida; usando o Realtime Database padrão do projeto.', error.message);
+  } catch (_) {
+    // Do not emit a production warning for a stale/malformed optional variable.
+    // The Firebase project has a deterministic Realtime Database URL.
     return fallback;
   }
 }
@@ -46,9 +42,7 @@ function bootstrap() {
   try {
     const express = require('express');
     const cors = require('cors');
-    const dotenv = require('dotenv');
     const admin = require('firebase-admin');
-    dotenv.config();
 
     const required = [
       'FIREBASE_PROJECT_ID',
@@ -62,7 +56,7 @@ function bootstrap() {
     const projectId = cleanEnv(process.env.FIREBASE_PROJECT_ID) || 'uber-clone-eric-f4327';
     const clientEmail = cleanEnv(process.env.FIREBASE_CLIENT_EMAIL);
     const privateKey = cleanEnv(process.env.FIREBASE_PRIVATE_KEY);
-    const databaseURL = normalizeDatabaseUrl(projectId);
+    const databaseURL = normalizeDatabaseUrl();
 
     if (!admin.apps.length) {
       admin.initializeApp({
