@@ -22,8 +22,8 @@ const replacement = `  const handleSearch = (value) => {
     if (searchAbortRef.current) searchAbortRef.current.abort();
     searchAbortRef.current = null;
 
-    // Every edit starts a fresh search. This deliberately invalidates the
-    // previous destination so an old result can never be requested by mistake.
+    // Every edit starts a completely new worldwide search. The previous
+    // destination is invalidated immediately and stale requests are cancelled.
     setDestination(term);
     setDestinationCoords(null);
     setSuggestions([]);
@@ -50,8 +50,8 @@ const replacement = `  const handleSearch = (value) => {
       .then((data) => {
         if (requestId !== searchRequestRef.current || controller.signal.aborted) return;
         const results = Array.isArray(data?.results) ? data.results : [];
-        setSuggestions(results.slice(0, 8));
-        if (!results.length) setError('Nenhum endereço encontrado. Tente rua, número, bairro ou cidade.');
+        setSuggestions(results.slice(0, 20));
+        if (!results.length) setError('Nenhum endereço encontrado. Tente rua, número, bairro, cidade ou país.');
       })
       .catch((searchError) => {
         if (controller.signal.aborted || requestId !== searchRequestRef.current) return;
@@ -89,4 +89,4 @@ const selectReplacement = `  const handleSelectDestination = (item) => {
 source = source.slice(0, selectStart) + selectReplacement + source.slice(selectEnd);
 
 fs.writeFileSync(appPath, source, 'utf8');
-console.log('[fix-search-v4] Passenger destination search now uses the same-origin backend geocoding proxy, cancels stale requests, and supports unlimited repeated searches.');
+console.log('[fix-search-v4] Passenger destination search is worldwide, uses the backend geocoding proxy, supports up to 20 suggestions, cancels stale requests, and allows unlimited repeated searches.');
