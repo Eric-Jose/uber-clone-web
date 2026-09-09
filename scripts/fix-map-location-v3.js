@@ -76,8 +76,8 @@ const newSearch = [
   '    const term = value.trim();',
   "    const localQuery = encodeURIComponent(term + ', Maracaju, Mato Grosso do Sul, Brasil');",
   '    const globalQuery = encodeURIComponent(term);',
-  "    const localUrl = NOMINATIM + '/search?format=jsonv2&q=' + localQuery + '&countrycodes=br&limit=5&viewbox=-55.30,-21.50,-55.00,-21.75&bounded=1';",
-  "    const globalUrl = NOMINATIM + '/search?format=jsonv2&q=' + globalQuery + '&countrycodes=br&limit=8';",
+  "    const localUrl = NOMINATIM + '/search?format=jsonv2&q=' + localQuery + '&limit=5&viewbox=-55.30,-21.50,-55.00,-21.75&bounded=1';",
+  "    const globalUrl = NOMINATIM + '/search?format=jsonv2&q=' + globalQuery + '&limit=8';",
   '    Promise.all([',
   '      fetch(localUrl).then((r) => r.json()).catch(() => []),',
   '      fetch(globalUrl).then((r) => r.json()).catch(() => [])',
@@ -106,6 +106,9 @@ const newSearch = [
 ].join('\n');
 source = source.slice(0, searchStart) + newSearch + source.slice(searchEnd);
 
+// Remove the old Brazil-only restriction everywhere in the route-search code.
+source = source.replace(/&countrycodes=br/g, '');
+
 const validationOld = "    if (!origin || !Number.isFinite(Number(origin.lat)) || !destinationCoords || !Number.isFinite(Number(destinationCoords.lat)) || !Number.isFinite(Number(destinationCoords.lng))) {\n      setError('Escolha um destino válido.'); return;\n    }";
 const validationNew = "    if (!origin || !Number.isFinite(Number(origin.lat)) || !Number.isFinite(Number(origin.lng))) {\n      setError('Aguardando sua localização atual. Permita o acesso à localização do dispositivo.'); return;\n    }\n    if (!destinationCoords || !Number.isFinite(Number(destinationCoords.lat)) || !Number.isFinite(Number(destinationCoords.lng))) {\n      setError('Escolha um destino válido.'); return;\n    }";
 if (source.includes(validationOld)) source = source.replace(validationOld, validationNew);
@@ -114,4 +117,4 @@ source = source.replace("value={origin.address} onChange={(e)=>setOrigin({...ori
 source = source.replace("placeholder=\"Rua dos Ipês, 456 - Jardim das Flores\"", "placeholder=\"Para onde você vai?\"");
 
 fs.writeFileSync(appPath, source, 'utf8');
-console.log('[fix-map-location-v3] GPS automático, OpenStreetMap sem API key, busca de destino livre com prioridade para Maracaju/MS.');
+console.log('[fix-map-location-v3] GPS automático, OpenStreetMap sem API key, busca de destino mundial com prioridade para Maracaju/MS.');
