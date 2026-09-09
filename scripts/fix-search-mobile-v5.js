@@ -6,7 +6,12 @@ let source = fs.readFileSync(file, 'utf8');
 if (!source.includes('const searchCacheRef = useRef(new Map());')) {
   source = source.replace(
     '  const searchRequestRef = useRef(0);',
-    '  const searchRequestRef = useRef(0);\n  const searchCacheRef = useRef(new Map());\n  const searchDebounceRef = useRef(null);'
+    '  const searchRequestRef = useRef(0);\n  const searchAbortRef = useRef(null);\n  const searchCacheRef = useRef(new Map());\n  const searchDebounceRef = useRef(null);'
+  );
+} else if (!source.includes('const searchAbortRef = useRef(null);')) {
+  source = source.replace(
+    '  const searchRequestRef = useRef(0);',
+    '  const searchRequestRef = useRef(0);\n  const searchAbortRef = useRef(null);'
   );
 }
 
@@ -35,7 +40,7 @@ const replacement = `  const handleSearch = (value) => {
     const originLng = Number(origin?.lng);
     const locationKey = Number.isFinite(originLat) && Number.isFinite(originLng)
       ? Math.round(originLat * 1000) + ',' + Math.round(originLng * 1000)
-      : 'maracaju';
+      : 'fallback';
     const cacheKey = trimmed.toLowerCase() + '|' + locationKey;
     const cached = searchCacheRef.current.get(cacheKey);
     if (cached) {
@@ -43,9 +48,6 @@ const replacement = `  const handleSearch = (value) => {
       return;
     }
 
-    // Mobile-first: wait briefly for the user to finish typing instead of
-    // sending a network request for every keystroke. One character is enough
-    // to begin suggestions, including "p", "pi", "pir" etc.
     searchDebounceRef.current = setTimeout(() => {
       if (requestId !== searchRequestRef.current) return;
       const controller = new AbortController();
@@ -94,4 +96,4 @@ const replacement = `  const handleSearch = (value) => {
 
 source = source.slice(0, start) + replacement + source.slice(end);
 fs.writeFileSync(file, source, 'utf8');
-console.log('[fix-search-mobile-v5] Mobile-first search: 1+ character suggestions, 180ms debounce and local cache.');
+console.log('[fix-search-mobile-v5] Mobile-first search: GPS-aware cache, 1+ character suggestions, debounce and request cancellation.');
