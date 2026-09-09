@@ -76,6 +76,11 @@ function categoryTerms(query) {
   return found ? found[1] : [query];
 }
 
+function isCategoryQuery(query) {
+  const q = normalizeText(query);
+  return [/^mercad/, /^super ?mercad/, /^farmacia/, /^drogaria/, /^hospital/, /^upa\b/, /^posto\b/, /^hotel\b/, /^pousada\b/, /^restaur/, /^lanchon/, /^padari/].some((re) => re.test(q));
+}
+
 function providerQueries(query, localArea) {
   const terms = categoryTerms(query);
   const values = [...terms.map((term) => `${term} ${localArea}`), query];
@@ -140,7 +145,7 @@ router.get('/search', async (req, res) => {
     const normalizedQuery = normalizeText(query);
     const normalizedLocal = normalizeText(localArea);
     const terms = categoryTerms(query).map(normalizeText);
-    const isCategorySearch = terms.length > 0 && terms.some((term) => normalizeText(query).startsWith(term.slice(0, Math.min(4, term.length))));
+    const isCategorySearch = isCategoryQuery(query);
     const unique = new Map();
     for (const item of [...arcgis, ...photon, ...nominatim]) {
       const itemLat = Number(item.lat), itemLon = Number(item.lon);
