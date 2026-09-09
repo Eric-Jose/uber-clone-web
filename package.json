@@ -19,11 +19,7 @@
     "bcryptjs": "^2.4.3",
     "socket.io": "^4.7.2"
   },
-  "overrides": {
-    "ajv": "8.17.1",
-    "ajv-keywords": "5.1.0",
-    "terser-webpack-plugin": "5.3.14"
-  },
+  "overrides": {"terser-webpack-plugin": "5.3.14"},
   "scripts": {
     "start": "react-scripts start",
     "prebuild": "node scripts/fix-admin-logout.js && node scripts/fix-admin-driver-approval.js && node scripts/fix-map-location-v3.js && node scripts/fix-search-mobile-v5.js && node scripts/fix-production-quality.js && node scripts/fix-notifications.js && node scripts/fix-ride-submit-guard.js",
