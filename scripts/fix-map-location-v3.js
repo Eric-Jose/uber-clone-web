@@ -64,6 +64,23 @@ const newEffect = [
 ].join('\n');
 source = source.slice(0, effectStart) + newEffect + source.slice(effectEnd);
 
+const routeEffectMarker = "  // ROUTE_SYNC_AFTER_SELECTION\n";
+if (!source.includes(routeEffectMarker)) {
+  const routeMarkerPos = source.indexOf('\n\n  useEffect(() => {', source.indexOf('const renderRoute = async'));
+  if (routeMarkerPos < 0) throw new Error('MapRidePro insertion point after renderRoute not found.');
+  const routeSync = [
+    '',
+    routeEffectMarker.trimEnd(),
+    '  useEffect(() => {',
+    '    if (!map.current || !origin || !destinationCoords) return;',
+    '    if (!Number.isFinite(Number(origin.lat)) || !Number.isFinite(Number(origin.lng))) return;',
+    '    if (!Number.isFinite(Number(destinationCoords.lat)) || !Number.isFinite(Number(destinationCoords.lng))) return;',
+    '    void renderRoute(origin, destinationCoords);',
+    '  }, [origin?.lat, origin?.lng, destinationCoords?.lat, destinationCoords?.lng]);'
+  ].join('\n');
+  source = source.slice(0, routeMarkerPos) + '\n' + routeSync + source.slice(routeMarkerPos);
+}
+
 const searchStart = source.indexOf('  const handleSearch = (value) => {');
 const searchEnd = source.indexOf('\n\n  const handleSelectDestination', searchStart);
 if (searchStart < 0 || searchEnd < 0) throw new Error('MapRidePro destination search block not found.');
@@ -106,7 +123,6 @@ const newSearch = [
 ].join('\n');
 source = source.slice(0, searchStart) + newSearch + source.slice(searchEnd);
 
-// Remove the old Brazil-only restriction everywhere in the route-search code.
 source = source.replace(/&countrycodes=br/g, '');
 
 const validationOld = "    if (!origin || !Number.isFinite(Number(origin.lat)) || !destinationCoords || !Number.isFinite(Number(destinationCoords.lat)) || !Number.isFinite(Number(destinationCoords.lng))) {\n      setError('Escolha um destino válido.'); return;\n    }";
@@ -117,4 +133,4 @@ source = source.replace("value={origin.address} onChange={(e)=>setOrigin({...ori
 source = source.replace("placeholder=\"Rua dos Ipês, 456 - Jardim das Flores\"", "placeholder=\"Para onde você vai?\"");
 
 fs.writeFileSync(appPath, source, 'utf8');
-console.log('[fix-map-location-v3] GPS automático, OpenStreetMap sem API key, busca de destino mundial com prioridade para Maracaju/MS.');
+console.log('[fix-map-location-v3] GPS automático, OpenStreetMap sem API key, busca de destino mundial com prioridade para Maracaju/MS e sincronização automática da rota após GPS/destino.');
