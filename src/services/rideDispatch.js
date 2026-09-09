@@ -1,7 +1,7 @@
 import { BACKEND_URL } from '../config';
 
-// The Vercel function writes the Firebase driver notifications before it
-// returns. This avoids relying on background work after an HTTP response.
+// Production sync marker: this branch is the Vercel production branch.
+// The Vercel function writes Firebase driver notifications before returning.
 const RETRY_DELAYS_MS = [1500, 4000, 6000, 8000, 10000, 10000, 10000, 10000];
 
 export async function dispatchRideSearch(rideId, token) {
@@ -13,9 +13,7 @@ export async function dispatchRideSearch(rideId, token) {
 
   for (let attempt = 0; attempt < RETRY_DELAYS_MS.length; attempt += 1) {
     const waitMs = RETRY_DELAYS_MS[attempt];
-    if (waitMs > 0) {
-      await new Promise((resolve) => window.setTimeout(resolve, waitMs));
-    }
+    if (waitMs > 0) await new Promise((resolve) => window.setTimeout(resolve, waitMs));
 
     try {
       const response = await fetch(`${BACKEND_URL}/api/ride-search-v2`, {
@@ -38,17 +36,11 @@ export async function dispatchRideSearch(rideId, token) {
       }
 
       if (!response.ok) {
-        lastError = new Error(
-          data?.error || `Busca de motorista falhou (${response.status})`,
-        );
+        lastError = new Error(data?.error || `Busca de motorista falhou (${response.status})`);
         continue;
       }
 
-      return {
-        ok: true,
-        data,
-        driversNotified: Number(data?.driversNotified || 0),
-      };
+      return { ok: true, data, driversNotified: Number(data?.driversNotified || 0) };
     } catch (error) {
       lastError = error;
     }
