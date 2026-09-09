@@ -173,7 +173,7 @@ router.get('/search', async (req, res) => {
     let results;
     if (isCategorySearch) {
       results = scored
-        .filter(({ category, distance }) => category && distance <= 100)
+        .filter(({ category, isLocal }) => category && isLocal)
         .sort((a, b) => b.score - a.score)
         .map(({ item }) => item)
         .slice(0, 40);
