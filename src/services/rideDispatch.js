@@ -20,7 +20,7 @@ function scheduleRetry(rideId, token, attempt) {
   const timer = setTimeout(async () => {
     retryTimers.delete(key);
     const result = await dispatchRideSearch(rideId, token, attempt + 1);
-    if (!result?.ok || result?.alreadyHandled || result?.driversNotified > 0) clearRetry(key);
+    if (result?.alreadyHandled || result?.driversNotified > 0) clearRetry(key);
   }, RETRY_DELAY_MS);
   retryTimers.set(key, timer);
 }
@@ -39,6 +39,7 @@ export async function dispatchRideSearch(rideId, token, attempt = 0) {
         clearRetry(rideId);
         return { ok: true, alreadyHandled: true, data };
       }
+      if (attempt < MAX_RETRIES - 1) scheduleRetry(rideId, token, attempt);
       return { ok: false, data, error: new Error(data?.error || `Busca de motorista falhou (${response.status})`) };
     }
 
