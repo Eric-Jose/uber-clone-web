@@ -21,7 +21,6 @@ import Promotions from './pages/Promotions';
 import HelpCenter from './pages/HelpCenter';
 import { logoutFirebase } from './firebase';
 import { BACKEND_URL } from './config';
-import { dispatchRideSearch } from './services/rideDispatch';
 import precoFixo17Car from './assets/precoFixo17Car';
 import './App.css';
 import './styles/VisualPolish.css';
@@ -40,7 +39,6 @@ const getInitialPage = () => { const params = new URLSearchParams(window.locatio
 function AccountPanel({ account, currentPage, onNavigate, onLogout, children }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const isDriver = account?.userType === 'driver' && account?.driverApprovalStatus === 'approved';
-
   const menuItems = [
     { id: 'home', page: isDriver ? 'driver-dashboard' : 'ride', icon: '⌂', label: 'Início' },
     { id: 'ride', page: isDriver ? 'driver-dashboard' : 'ride', icon: '⌖', label: 'Solicitar corrida' },
@@ -52,106 +50,29 @@ function AccountPanel({ account, currentPage, onNavigate, onLogout, children }) 
     { id: 'help', page: 'help', icon: '❓', label: 'Ajuda' },
     { id: 'settings', page: 'profile', icon: '⚙️', label: 'Configurações' }
   ];
-
-  const handleMenuClick = (item) => {
-    setMenuOpen(false);
-    onNavigate(item.page);
-  };
-
+  const handleMenuClick = (item) => { setMenuOpen(false); onNavigate(item.page); };
   const userName = account?.name || account?.fullName || 'João Silva';
   const userRole = isDriver ? 'Motorista Parceiro' : 'Passageiro';
   const userRating = account?.rating || '4.9';
-
   return (
     <div className="pf-app-layout" style={{ minHeight: '100vh', background: '#050505' }}>
-      {/* Content */}
       <main style={{ minHeight: '100vh', position: 'relative' }}>
-        {React.Children.map(children, (child) =>
-          React.isValidElement(child)
-            ? React.cloneElement(child, {
-                onOpenMenu: () => setMenuOpen(true),
-                onOpenNotifications: () => onNavigate('notifications'),
-                onNavigate
-              })
-            : child
-        )}
+        {React.Children.map(children, (child) => React.isValidElement(child) ? React.cloneElement(child, { onOpenMenu: () => setMenuOpen(true), onOpenNotifications: () => onNavigate('notifications'), onNavigate }) : child)}
       </main>
-
-      {/* Screen 6: Navigation Drawer */}
       {menuOpen && (
         <div className="pf-drawer-backdrop" onClick={() => setMenuOpen(false)}>
           <aside className="pf-drawer" onClick={(e) => e.stopPropagation()}>
-            {/* User Profile Card at Top */}
             <div className="pf-drawer-user">
-              <div className="pf-drawer-avatar">
-                <img
-                  src={
-                    account?.profilePhoto ||
-                    'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=160&auto=format&fit=crop&q=80'
-                  }
-                  alt={userName}
-                />
-                <div className="pf-drawer-online" />
-              </div>
-              <div className="pf-drawer-user-info">
-                <div className="pf-drawer-user-name">{userName}</div>
-                <div className="pf-drawer-user-role">{userRole}</div>
-                <div className="pf-drawer-user-rating">
-                  <span>★</span>
-                  <span>{userRating}</span>
-                </div>
-              </div>
-              <button
-                type="button"
-                className="pf-drawer-bell"
-                onClick={() => {
-                  setMenuOpen(false);
-                  onNavigate('notifications');
-                }}
-                aria-label="Notificações"
-              >
-                🔔
-              </button>
+              <div className="pf-drawer-avatar"><img src={account?.profilePhoto || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=160&auto=format&fit=crop&q=80'} alt={userName} /><div className="pf-drawer-online" /></div>
+              <div className="pf-drawer-user-info"><div className="pf-drawer-user-name">{userName}</div><div className="pf-drawer-user-role">{userRole}</div><div className="pf-drawer-user-rating"><span>★</span><span>{userRating}</span></div></div>
+              <button type="button" className="pf-drawer-bell" onClick={() => { setMenuOpen(false); onNavigate('notifications'); }} aria-label="Notificações">🔔</button>
             </div>
-
-            {/* Menu Items List */}
             <nav className="pf-drawer-menu">
               {menuItems.map((item) => {
-                const isActive =
-                  (item.id === 'home' && (currentPage === 'ride' || currentPage === 'driver-dashboard')) ||
-                  (item.id === 'history' && currentPage === 'ride-history') ||
-                  (item.id === 'notifications' && currentPage === 'notifications') ||
-                  (item.id === 'payment' && currentPage === 'payment') ||
-                  (item.id === 'promos' && currentPage === 'promos') ||
-                  (item.id === 'help' && currentPage === 'help') ||
-                  (item.id === 'settings' && currentPage === 'profile');
-
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    className={`pf-drawer-item ${isActive ? 'active' : ''}`}
-                    onClick={() => handleMenuClick(item)}
-                  >
-                    <span className="pf-drawer-icon">{item.icon}</span>
-                    <span>{item.label}</span>
-                    {item.badge && <span className="pf-drawer-badge">{item.badge}</span>}
-                  </button>
-                );
+                const isActive = (item.id === 'home' && (currentPage === 'ride' || currentPage === 'driver-dashboard')) || (item.id === 'history' && currentPage === 'ride-history') || (item.id === 'notifications' && currentPage === 'notifications') || (item.id === 'payment' && currentPage === 'payment') || (item.id === 'promos' && currentPage === 'promos') || (item.id === 'help' && currentPage === 'help') || (item.id === 'settings' && currentPage === 'profile');
+                return <button key={item.id} type="button" className={`pf-drawer-item ${isActive ? 'active' : ''}`} onClick={() => handleMenuClick(item)}><span className="pf-drawer-icon">{item.icon}</span><span>{item.label}</span>{item.badge && <span className="pf-drawer-badge">{item.badge}</span>}</button>;
               })}
-
-              {/* Sair (Logout) */}
-              <button
-                type="button"
-                className="pf-drawer-logout"
-                onClick={() => {
-                  setMenuOpen(false);
-                  onLogout?.();
-                }}
-              >
-                <span className="pf-drawer-icon">↪</span>
-                <span>Sair</span>
-              </button>
+              <button type="button" className="pf-drawer-logout" onClick={() => { setMenuOpen(false); onLogout?.(); }}><span className="pf-drawer-icon">↪</span><span>Sair</span></button>
             </nav>
           </aside>
         </div>
@@ -172,21 +93,11 @@ function App() {
   const handleLogout = async () => { await logoutFirebase(); setUser(null); localStorage.removeItem('token'); localStorage.removeItem('user'); setCurrentPage('home'); };
   const handleDriverRegistration = (registration) => { const currentUser = getStored('user') || user || {}; const updatedUser = { ...currentUser, userType: 'driver', driverApprovalStatus: registration?.status || 'pending' }; setUser(updatedUser); localStorage.setItem('user', JSON.stringify(updatedUser)); setCurrentPage(resolveUserPage(updatedUser)); };
   const handleAdminLogin = (adminData) => { setUser(null); setAdmin(adminData); localStorage.removeItem('token'); localStorage.removeItem('user'); localStorage.setItem('admin', JSON.stringify(adminData)); setCurrentPage('admin-dashboard'); };
-  const handleAdminLogout = () => {
-    try {
-      localStorage.removeItem('adminToken');
-      localStorage.removeItem('admin');
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      sessionStorage.clear();
-    } catch (_) {}
-    setAdmin(null);
-    setUser(null);
-    setCurrentPage('home');
-    window.location.assign('/?loggedOut=1');
-  };
+  const handleAdminLogout = () => { try { localStorage.removeItem('adminToken'); localStorage.removeItem('admin'); localStorage.removeItem('token'); localStorage.removeItem('user'); sessionStorage.clear(); } catch (_) {} setAdmin(null); setUser(null); setCurrentPage('home'); window.location.assign('/?loggedOut=1'); };
   const navigate = (page) => setCurrentPage(page);
-  const handleRideCreate = (ride) => { const rideId = ride?.id; const token = localStorage.getItem('token'); if (!rideId || !token) return; void dispatchRideSearch(rideId, token); };
+  // Ride creation is now dispatched authoritatively by the unified backend.
+  // Keeping a second client-side dispatcher caused duplicate requests and is obsolete.
+  const handleRideCreate = () => {};
   if (admin && localStorage.getItem('adminToken')) return <AdminDashboardLive admin={admin} onLogout={handleAdminLogout} />;
   if (currentPage === 'admin-login' || currentPage === 'admin-dashboard') return <AdminLogin onAdminLogin={handleAdminLogin} />;
   switch (currentPage) {
