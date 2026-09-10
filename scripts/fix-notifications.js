@@ -6,13 +6,18 @@ const root = path.join(__dirname, '..');
 function patch(filePath, replacements) {
   if (!fs.existsSync(filePath)) return;
   let source = fs.readFileSync(filePath, 'utf8');
+  let changed = false;
   for (const [from, to] of replacements) {
-    if (!source.includes(from)) continue;
+    if (!source.includes(from) || source.includes(to)) continue;
     source = source.replace(from, to);
+    changed = true;
   }
-  fs.writeFileSync(filePath, source, 'utf8');
+  if (changed) fs.writeFileSync(filePath, source, 'utf8');
 }
 
+// Keep this build-time cleanup idempotent. The app source already owns the
+// notification badge; this script only removes demo notifications and adds
+// real Socket.IO notification listeners when they are not already present.
 const notificationPath = path.join(root, 'src/pages/NotificationCenter.js');
 patch(notificationPath, [
   [
@@ -22,22 +27,18 @@ patch(notificationPath, [
   [
     "return Array.isArray(saved) ? saved : DEFAULT_NOTIFICATIONS;",
     "if (!Array.isArray(saved)) return DEFAULT_NOTIFICATIONS;\n      const simulatedTitles = new Set(['Motorista a caminho', 'Corrida concluída', 'Promoção', 'Atualização']);\n      const cleaned = saved.filter((item) => !simulatedTitles.has(item?.title));\n      if (cleaned.length !== saved.length) localStorage.setItem(key, JSON.stringify(cleaned));\n      return cleaned;"
-  ],
-  [
-    "} catch (_) { return DEFAULT_NOTIFICATIONS; }",
-    "} catch (_) { return DEFAULT_NOTIFICATIONS; }"
   ]
 ]);
 
 const websocketPath = path.join(root, 'src/services/WebSocketService.js');
 patch(websocketPath, [
   [
-    "import { BACKEND_URL } from '../config';",
-    "import { BACKEND_URL } from '../config';\nimport { addInAppNotification } from './notificationService';"
+    "import { BACKEND_URL } from '../config';\n",
+    "import { BACKEND_URL } from '../config';\nimport { addInAppNotification } from './notificationService';\n"
   ],
   [
-    "    this.passengerLastLocation = null;\n",
-    "    this.passengerLastLocation = null;\n    this.notificationsBound = false;\n"
+    "    this.notificationsBound = false;",
+    "    this.notificationsBound = false;"
   ],
   [
     "    this.bindPassengerCancellationRefresh();\n    return this.socket;",
@@ -53,28 +54,4 @@ patch(websocketPath, [
   ]
 ]);
 
-const appPath = path.join(root, 'src/App.js');
-patch(appPath, [
-  [
-    "import { dispatchRideSearch } from './services/rideDispatch';",
-    "import { dispatchRideSearch } from './services/rideDispatch';\nimport { getUnreadNotificationCount } from './services/notificationService';"
-  ],
-  [
-    "  const [menuOpen, setMenuOpen] = useState(false);",
-    "  const [menuOpen, setMenuOpen] = useState(false);\n  const [unreadNotifications, setUnreadNotifications] = useState(() => getUnreadNotificationCount());"
-  ],
-  [
-    "  const isDriver = account?.userType === 'driver' && account?.driverApprovalStatus === 'approved';",
-    "  const isDriver = account?.userType === 'driver' && account?.driverApprovalStatus === 'approved';\n\n  useEffect(() => {\n    const refresh = () => setUnreadNotifications(getUnreadNotificationCount());\n    refresh();\n    window.addEventListener('storage', refresh);\n    window.addEventListener('pf17-notifications-updated', refresh);\n    return () => { window.removeEventListener('storage', refresh); window.removeEventListener('pf17-notifications-updated', refresh); };\n  }, [account?.uid, account?.id, account?.email]);"
-  ],
-  [
-    "{ id: 'notifications', page: 'notifications', icon: '🔔', label: 'Notificações', badge: '3' },",
-    "{ id: 'notifications', page: 'notifications', icon: '🔔', label: 'Notificações' },"
-  ],
-  [
-    "                    {item.badge && <span className=\"pf-drawer-badge\">{item.badge}</span>}",
-    "                    {item.id === 'notifications' && unreadNotifications > 0 && <span className=\"pf-drawer-badge\">{unreadNotifications > 99 ? '99+' : unreadNotifications}</span>}"
-  ]
-]);
-
-console.log('[fix-notifications] Removed simulated notifications and enabled real event notifications.');
+console.log('[fix-notifications] Idempotent notification cleanup complete.');
