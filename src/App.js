@@ -21,6 +21,7 @@ import Promotions from './pages/Promotions';
 import HelpCenter from './pages/HelpCenter';
 import { logoutFirebase } from './firebase';
 import { BACKEND_URL } from './config';
+import { getUnreadNotificationCount } from './services/notificationService';
 import precoFixo17Car from './assets/precoFixo17Car';
 import './App.css';
 import './styles/VisualPolish.css';
@@ -38,14 +39,22 @@ const getInitialPage = () => { const params = new URLSearchParams(window.locatio
 
 function AccountPanel({ account, currentPage, onNavigate, onLogout, children }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [unreadNotifications, setUnreadNotifications] = useState(() => getUnreadNotificationCount());
   const isDriver = account?.userType === 'driver' && account?.driverApprovalStatus === 'approved';
+  useEffect(() => {
+    const refresh = () => setUnreadNotifications(getUnreadNotificationCount());
+    refresh();
+    window.addEventListener('storage', refresh);
+    window.addEventListener('pf17-notifications-updated', refresh);
+    return () => { window.removeEventListener('storage', refresh); window.removeEventListener('pf17-notifications-updated', refresh); };
+  }, [account?.uid, account?.id, account?.email]);
   const menuItems = [
     { id: 'home', page: isDriver ? 'driver-dashboard' : 'ride', icon: '⌂', label: 'Início' },
     { id: 'ride', page: isDriver ? 'driver-dashboard' : 'ride', icon: '⌖', label: 'Solicitar corrida' },
     { id: 'history', page: 'ride-history', icon: '▤', label: 'Minhas corridas' },
     { id: 'payment', page: 'payment', icon: '💳', label: 'Pagamentos' },
     { id: 'promos', page: 'promos', icon: '🏷️', label: 'Promoções' },
-    { id: 'notifications', page: 'notifications', icon: '🔔', label: 'Notificações', badge: '3' },
+    { id: 'notifications', page: 'notifications', icon: '🔔', label: 'Notificações' },
     { id: 'payment-methods', page: 'payment', icon: '💳', label: 'Formas de pagamento' },
     { id: 'help', page: 'help', icon: '❓', label: 'Ajuda' },
     { id: 'settings', page: 'profile', icon: '⚙️', label: 'Configurações' }
@@ -70,7 +79,7 @@ function AccountPanel({ account, currentPage, onNavigate, onLogout, children }) 
             <nav className="pf-drawer-menu">
               {menuItems.map((item) => {
                 const isActive = (item.id === 'home' && (currentPage === 'ride' || currentPage === 'driver-dashboard')) || (item.id === 'history' && currentPage === 'ride-history') || (item.id === 'notifications' && currentPage === 'notifications') || (item.id === 'payment' && currentPage === 'payment') || (item.id === 'promos' && currentPage === 'promos') || (item.id === 'help' && currentPage === 'help') || (item.id === 'settings' && currentPage === 'profile');
-                return <button key={item.id} type="button" className={`pf-drawer-item ${isActive ? 'active' : ''}`} onClick={() => handleMenuClick(item)}><span className="pf-drawer-icon">{item.icon}</span><span>{item.label}</span>{item.badge && <span className="pf-drawer-badge">{item.badge}</span>}</button>;
+                return <button key={item.id} type="button" className={`pf-drawer-item ${isActive ? 'active' : ''}`} onClick={() => handleMenuClick(item)}><span className="pf-drawer-icon">{item.icon}</span><span>{item.label}</span>{item.id === 'notifications' && unreadNotifications > 0 && <span className="pf-drawer-badge">{unreadNotifications > 99 ? '99+' : unreadNotifications}</span>}</button>;
               })}
               <button type="button" className="pf-drawer-logout" onClick={() => { setMenuOpen(false); onLogout?.(); }}><span className="pf-drawer-icon">↪</span><span>Sair</span></button>
             </nav>
@@ -115,7 +124,8 @@ function App() {
     case 'promos': return user ? <AccountPanel account={user} currentPage="promos" onNavigate={navigate} onLogout={handleLogout}><Promotions userId={user?.uid || user?.id} onApplyCode={(promo) => { if (promo?.code) localStorage.setItem('pf_selected_promo', String(promo.code)); }} /></AccountPanel> : <Login onLoginSuccess={handleUserLogin} />;
     case 'help': return user ? <AccountPanel account={user} currentPage="help" onNavigate={navigate} onLogout={handleLogout}><HelpCenter onBack={() => setCurrentPage('ride')} /></AccountPanel> : <Login onLoginSuccess={handleUserLogin} />;
     case 'notifications': return user ? <AccountPanel account={user} currentPage="notifications" onNavigate={navigate} onLogout={handleLogout}><NotificationCenter onBack={() => setCurrentPage('ride')} /></AccountPanel> : <Login onLoginSuccess={handleUserLogin} />;
-    default: return <div className="home-page"><div className="home-hero"><div className="home-copy"><div className="home-brand-lockup"><span>PREÇO</span><strong>FIXO</strong><em>17</em></div><div className="home-tagline">📍 NA CIDADE • CORRIDA PARTICULAR</div><h1>Preço justo.<br /><strong>Sem surpresa.</strong></h1><p>Corridas particulares com preço justo, segurança, conforto e atendimento para você chegar ao seu destino.</p><div className="home-feature-row"><span>💰 Preço justo</span><span>🛡️ Segurança</span><span>⏱️ Pontualidade</span></div><div className="home-buttons"><button type="button" onClick={() => setCurrentPage('login')} className="btn-home">👤 ENTRAR</button><button type="button" onClick={() => setCurrentPage('register')} className="btn-home secondary">CRIAR MINHA CONTA</button></div><button type="button" onClick={() => setCurrentPage('admin-login')} className="home-admin-link">🔐 Acesso administrativo</button></div><div className="home-visual"><div className="home-price-card"><small>R$</small><b>17</b><span>PREÇO FIXO</span></div><div className="home-car"><div className="home-car-glow" /><img className="home-car-real" src={precoFixo17Car} alt="Carro branco oficial PreçoFixo17 com identidade visual R$17" style={{ width: '100%', maxWidth: 520, height: 'auto', objectFit: 'contain', borderRadius: 14, position: 'relative', zIndex: 3, boxShadow: '0 18px 35px rgba(0,0,0,.5)' }} /></div><div className="home-visual-caption"><b>RÁPIDO. SEGURO.</b><span>E SEM COMPLICAÇÃO.</span></div></div></div></div>;
+    default: return <div className="home-page"><div className="home-hero"><div className="home-copy"><div className="home-brand-lockup"><span>PREÇO</span><strong>FIXO</strong><em>17</em></div><div className="home-tagline">📍 NA CIDADE • CORRIDA PARTICULAR</div><h1>Preço justo.<br /><strong>Sem surpresa.</strong></h1><p>Corridas particulares com preço justo, segurança, conforto e atendimento para você chegar ao seu destino.</p><div className="home-feature-row"><span>💰 Preço justo</span><span>🛡️ Segurança</span><span>⏱️ Pontualidade</span></div><div className="home-buttons"><button type="button" onClick={() => setCurrentPage('login')} className="btn-home">👤 ENTRAR</button><button type="button" onClick={() => setCurrentPage('register')} className="btn-home secondary">CRIAR CONTA</button></div></div><div className="home-visual"><img src={precoFixo17Car} alt="PreçoFixo17" /></div></div></div>;
   }
 }
+
 export default App;
