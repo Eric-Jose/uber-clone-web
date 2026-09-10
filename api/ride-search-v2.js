@@ -62,6 +62,21 @@ function distanceKm(a, b) {
   return 2 * radius * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
 }
 
+function dispatchRadiusKm(ageMs) {
+  const first = Math.max(1, Number(process.env.DISPATCH_RADIUS_KM) || Number(process.env.RIDE_DISPATCH_RADIUS_KM) || 25);
+  const extended = Math.max(first, Number(process.env.DISPATCH_RADIUS_EXTENDED_KM) || 50);
+  const long = Math.max(extended, Number(process.env.DISPATCH_RADIUS_LONG_KM) || 100);
+  const age = Number.isFinite(ageMs) && ageMs >= 0 ? ageMs : 0;
+  if (age < 60000) return first;
+  if (age < 300000) return extended;
+  return long;
+}
+
+function rideAgeMs(ride) {
+  const createdAt = Number(ride?.createdAt);
+  return Number.isFinite(createdAt) ? Math.max(0, Date.now() - createdAt) : 0;
+}
+
 module.exports = async (req, res) => {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Método não permitido.' });
@@ -96,7 +111,7 @@ module.exports = async (req, res) => {
     const users = (await database.ref('users').get()).val() || {};
     const locations = (await database.ref('locations').get()).val() || {};
     const origin = normalizeLocation(ride.origin);
-    const radiusKm = Number(process.env.RIDE_DISPATCH_RADIUS_KM || 25);
+    const radiusKm = dispatchRadiusKm(rideAgeMs(ride));
 
     if (!origin) {
       return res.status(400).json({ error: 'A localização de embarque da corrida é inválida.' });
@@ -119,9 +134,10 @@ module.exports = async (req, res) => {
     }
 
     candidates.sort((a, b) => a.distance - b.distance);
+    const notifiedCandidates = candidates.slice(0, 20);
 
     const updates = {};
-    for (const candidate of candidates.slice(0, 20)) {
+    for (const candidate of notifiedCandidates) {
       updates[`driverNotifications/${candidate.uid}/${rideId}`] = {
         rideId,
         status: 'SEARCHING',
@@ -147,7 +163,9 @@ module.exports = async (req, res) => {
       success: true,
       rideId,
       status: 'SEARCHING',
-      driversNotified: candidates.length,
+      driversNotified: notifiedCandidates.length,
+      eligibleDrivers: candidates.length,
+      dispatchRadiusKm: radiusKm,
       nearestDriverDistanceKm: candidates.length
         ? Number(candidates[0].distance.toFixed(2))
         : null,
