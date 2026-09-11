@@ -5,7 +5,7 @@ const target = path.join(process.cwd(), 'src', 'services', 'WebSocketService.js'
 if (!fs.existsSync(target)) process.exit(0);
 
 let source = fs.readFileSync(target, 'utf8');
-const marker = 'const PRODUCTION_SOCKET_PATCH = true;';
+const marker = '// PRODUCTION_SOCKET_PATCH_APPLIED';
 if (source.includes(marker)) process.exit(0);
 
 source = source.replace(
