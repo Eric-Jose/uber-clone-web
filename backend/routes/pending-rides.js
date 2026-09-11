@@ -21,7 +21,10 @@ router.get('/', async (req, res) => {
     const [ridesSnapshot, notificationsSnapshot] = await Promise.all([db.ref('rides').get(), db.ref(`driverNotifications/${driverId}`).get()]);
     const rides = [], now = Date.now(), seen = new Set();
     notificationsSnapshot.forEach((child) => {
-      const ride = child.val();
+      const notification = child.val();
+      // The notification is only a dispatch hint. The ride record is authoritative;
+      // otherwise an old notification can keep showing a ride already accepted.
+      const ride = ridesSnapshot.child(child.key).val();
       if (!ride || ride.status !== 'SEARCHING' || ride.driverId) return;
       const origin = normalizeLocation(ride.origin), distance = distanceKm(driverLocation, origin);
       const ageMs = Math.max(0, now - Number(ride.createdAt || now)), radiusKm = dispatchRadiusKm(ageMs);
