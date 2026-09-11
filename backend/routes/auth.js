@@ -61,9 +61,37 @@ async function firebasePasswordLogin(email, password) {
   try {
     userRecord = await auth.getUserByEmail(email);
   } catch (_) {
-    const err = new Error('EMAIL_NOT_FOUND');
-    err.response = { data: { error: { message: 'EMAIL_NOT_FOUND' } } };
-    throw err;
+    // Verificar se o usuário existe no banco de dados (ex: dados semeados ou cadastrados no DB)
+    try {
+      let matchedUid = null;
+      let matchedUser = null;
+      const snap = await db.ref('users').get();
+      snap.forEach((c) => {
+        const u = c.val() || {};
+        if (String(u.email || '').toLowerCase() === email) {
+          matchedUid = c.key;
+          matchedUser = u;
+        }
+      });
+      if (matchedUid && matchedUser) {
+        try {
+          userRecord = await auth.createUser({
+            uid: matchedUid,
+            email,
+            password,
+            displayName: matchedUser.name || matchedUser.fullName || 'Usuário',
+          });
+        } catch (_) {
+          userRecord = { uid: matchedUid, email };
+        }
+      }
+    } catch (_) {}
+
+    if (!userRecord) {
+      const err = new Error('EMAIL_NOT_FOUND');
+      err.response = { data: { error: { message: 'EMAIL_NOT_FOUND' } } };
+      throw err;
+    }
   }
   if (userRecord.password && userRecord.password !== password) {
     const err = new Error('INVALID_PASSWORD');

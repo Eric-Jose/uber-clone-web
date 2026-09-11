@@ -2,14 +2,33 @@
 let app = null;
 let bootstrapError = null;
 
+function sendJson(res, statusCode, data) {
+  if (typeof res.status === 'function' && typeof res.json === 'function') {
+    return res.status(statusCode).json(data);
+  }
+  const payload = JSON.stringify(data);
+  res.writeHead(statusCode, {
+    'Content-Type': 'application/json',
+    'Content-Length': Buffer.byteLength(payload),
+  });
+  return res.end(payload);
+}
+
 function health(req, res) {
-  return res.status(200).json({ status: 'ok', service: 'precofixo17-backend', platform: 'vercel', backendInitialized: Boolean(app) && !bootstrapError, firebaseInitialized: Boolean(app) && !bootstrapError, timestamp: new Date().toISOString() });
+  return sendJson(res, 200, {
+    status: 'ok',
+    service: 'precofixo17-backend',
+    platform: 'vercel',
+    backendInitialized: Boolean(app) && !bootstrapError,
+    firebaseInitialized: Boolean(app) && !bootstrapError,
+    timestamp: new Date().toISOString(),
+  });
 }
 function cleanEnv(value) { return String(value ?? '').trim().replace(/^['\"]|['\"]$/g, '').replace(/\\n/g, '\n').replace(/\\r/g, '\r'); }
 function normalizeDatabaseUrl() {
   const fallback = 'https://uber-clone-eric-f4327-default-rtdb.firebaseio.com/';
   const configured = cleanEnv(process.env.FIREBASE_DATABASE_URL).replace(/\/+$/, '');
-  if (!configured) return fallback;
+  if (!configured || isPlaceholder(configured)) return fallback;
   try { const parsed = new URL(configured); if (!/^https?:$/.test(parsed.protocol) || !parsed.hostname) throw new Error('Invalid protocol or hostname'); return `${parsed.protocol}//${parsed.host}${parsed.pathname.replace(/\/+$/, '')}/`; } catch (_) { return fallback; }
 }
 const DEFAULT_SERVICE_EMAIL = 'firebase-adminsdk-fbsvc@uber-clone-eric-f4327.iam.gserviceaccount.com';
@@ -34,7 +53,10 @@ function bootstrap() {
         const rawClientEmail = (!isPlaceholder(process.env.FIREBASE_CLIENT_EMAIL) && process.env.FIREBASE_CLIENT_EMAIL)
           ? process.env.FIREBASE_CLIENT_EMAIL
           : DEFAULT_SERVICE_EMAIL;
-        const projectId = cleanEnv(process.env.FIREBASE_PROJECT_ID) || 'uber-clone-eric-f4327';
+        const rawProjectId = (!isPlaceholder(process.env.FIREBASE_PROJECT_ID) && process.env.FIREBASE_PROJECT_ID)
+          ? process.env.FIREBASE_PROJECT_ID
+          : (process.env.REACT_APP_FIREBASE_PROJECT_ID || 'uber-clone-eric-f4327');
+        const projectId = cleanEnv(rawProjectId) || 'uber-clone-eric-f4327';
         const clientEmail = cleanEnv(rawClientEmail);
         const privateKey = cleanEnv(rawPrivateKey);
         const databaseURL = normalizeDatabaseUrl();
@@ -116,4 +138,15 @@ function bootstrap() {
     app = application;
   } catch (error) { bootstrapError = error instanceof Error ? error : new Error(String(error)); console.error('Falha ao inicializar backend Vercel:', bootstrapError.stack || bootstrapError.message); }
 }
-module.exports = (req, res) => { const path = String(req.url || '').split('?')[0]; if (path === '/health' || path === '/api/health') return health(req, res); bootstrap(); if (bootstrapError) return res.status(500).json({ error: 'Backend não pôde ser inicializado.', details: bootstrapError.message }); return app(req, res); };
+module.exports = (req, res) => {
+  const path = String(req.url || '').split('?')[0];
+  if (path === '/health' || path === '/api/health') return health(req, res);
+  bootstrap();
+  if (bootstrapError) {
+    return sendJson(res, 500, {
+      error: 'Backend não pôde ser inicializado.',
+      details: bootstrapError.message,
+    });
+  }
+  return app(req, res);
+};

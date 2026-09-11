@@ -166,9 +166,28 @@ router.post('/accept', async (req, res) => {
     (await db.ref('rides').get()).forEach((child) => { const ride = child.val(); if (ride && String(ride.driverId || '') === String(driverId) && ACTIVE_STATUSES.includes(ride.status)) active = ride; });
     if (active) return res.status(409).json({ error: 'Você já possui uma corrida em andamento.', ride: active });
     const accepted = { ...current, driverId, driverName: driver.name || driver.email || 'Motorista', driverProfilePhoto: driver.profilePhoto || null, driverLocation: driver.currentLocation || null, passengerLocation: current.passengerLocation || current.origin?.location || null, status: 'ACCEPTED', acceptedAt: admin.database.ServerValue.TIMESTAMP, updatedAt: admin.database.ServerValue.TIMESTAMP };
-    const tx = await ref.transaction((value) => { if (!value || value.status !== 'SEARCHING' || value.driverId) return; return accepted; });
-    if (!tx.committed) return res.status(409).json({ error: 'Corrida já foi aceita ou não existe.', ride: tx.snapshot.val() || null });
-    const confirmed = tx.snapshot.val();
+    let committed = false;
+    try {
+      const tx = await ref.transaction((value) => {
+        const v = value || current;
+        if (!v || v.status !== 'SEARCHING' || (v.driverId && v.driverId !== driverId)) return;
+        return accepted;
+      });
+      committed = Boolean(tx && tx.committed);
+    } catch (_) {
+      committed = false;
+    }
+
+    if (!committed) {
+      const fresh = (await ref.get()).val();
+      if (fresh && fresh.status === 'SEARCHING' && !fresh.driverId) {
+        await ref.set(accepted);
+      } else {
+        return res.status(409).json({ error: 'Corrida já foi aceita ou não existe.', ride: fresh || null });
+      }
+    }
+
+    const confirmed = (await ref.get()).val() || accepted;
     await db.ref(`driverNotifications/${driverId}/${rideId}`).remove();
     emitToRide(rideId, 'ride-accepted', { rideId, driverId, ride: confirmed });
     if (io) { io.emit('ride-unavailable', { rideId, driverId, source: 'ride-accepted' }); io.to(`driver_${driverId}`).emit('ride-accepted', { rideId, driverId, ride: confirmed, source: 'server-confirmation' }); }
