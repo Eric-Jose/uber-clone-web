@@ -1,9 +1,0 @@
-[build]
-builder = "RAILPACK"
-buildCommand = "cd backend && npm install"
-
-[deploy]
-startCommand = "cd backend && npm start"
-healthcheckPath = "/health"
-restartPolicyType = "ON_FAILURE"
-restartPolicyMaxRetries = 3
