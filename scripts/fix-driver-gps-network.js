@@ -36,39 +36,39 @@ const newLocation = `  async function getFreshLocation() {
   }
 
   function clearRide`;
-if (!oldLocation.test(source)) throw new Error('getFreshLocation block not found');
-source = source.replace(oldLocation, newLocation);
+if (oldLocation.test(source)) source = source.replace(oldLocation, newLocation);
 
 const oldSync = /  async function syncDriverLocationToServer\(loc\) \{[\s\S]*?\n  \}\n\n  useEffect\(function \(\) \{/;
 const newSync = `  async function syncDriverLocationToServer(loc) {
     if (!loc || !uid) return;
     var lastError = null;
-    // Prefer the same-origin Vercel API. If the serverless function is temporarily
-    // unreachable, retry and then use the Railway backend as a controlled fallback.
-    var endpoints = [BACKEND_URL + '/api/drivers/status', 'https://uber-clone-backend-production.up.railway.app/api/drivers/status'];
-    for (var endpointIndex = 0; endpointIndex < endpoints.length; endpointIndex += 1) {
-      var endpoint = endpoints[endpointIndex];
-      for (var attempt = 1; attempt <= 2; attempt += 1) {
-        try {
-          var response = await axios.post(endpoint, { isOnline: true, currentLocation: loc }, { headers: headers, timeout: 30000 });
-          if (!response || response.status < 200 || response.status >= 300) throw new Error('Não foi possível sincronizar a localização do motorista.');
-          onlineRef.current = true;
-          setOnline(true);
-          return response;
-        } catch (error) {
-          lastError = error;
-          // HTTP errors are authoritative; do not hide approval/authentication errors as network failures.
-          if (error && error.response) throw error;
-          if (attempt < 2) await new Promise(function (resolve) { setTimeout(resolve, 1200); });
-        }
+    // O backend oficial é sempre a API da mesma origem (/api).
+    // Não existe fallback para Railway ou qualquer backend externo.
+    var endpoint = BACKEND_URL + '/api/drivers/status';
+    for (var attempt = 1; attempt <= 3; attempt += 1) {
+      try {
+        var response = await axios.post(endpoint, { isOnline: true, currentLocation: loc }, { headers: headers, timeout: 15000 });
+        if (!response || response.status < 200 || response.status >= 300) throw new Error('Não foi possível sincronizar a localização do motorista.');
+        onlineRef.current = true;
+        setOnline(true);
+        return response;
+      } catch (error) {
+        lastError = error;
+        // Erros HTTP (401/403/4xx) são definitivos e devem aparecer ao usuário.
+        if (error && error.response) throw error;
+        if (attempt < 3) await new Promise(function (resolve) { setTimeout(resolve, 1000 * attempt); });
       }
     }
-    throw lastError || new Error('Não foi possível conectar ao servidor do motorista.');
+    throw lastError || new Error('Não foi possível conectar ao backend do PreçoFixo17.');
   }
 
   useEffect(function () {`;
 if (!oldSync.test(source)) throw new Error('syncDriverLocationToServer block not found');
 source = source.replace(oldSync, newSync);
+
+const oldUid = /  var uid = user && user\.uid;/;
+const newUid = `  var uid = user && (user.uid || user.id);`;
+if (oldUid.test(source)) source = source.replace(oldUid, newUid);
 
 const oldToggle = /        var loc = await getFreshLocation\(\);\n        await axios\.post\(BACKEND_URL \+ '\/api\/drivers\/' \+ uid \+ '\/status', \{ isOnline: true, currentLocation: loc \}, \{ headers: headers, timeout: 12000 \}\);/;
 const newToggle = `        var loc = await getFreshLocation();
@@ -83,13 +83,12 @@ const newCatch = `    } catch (error) {
         error.code === 'ERR_NETWORK' ||
         error.code === 'ECONNABORTED' ||
         error.message === 'Network Error' ||
-        error.message === 'timeout of 30000ms exceeded'
+        String(error.message || '').includes('timeout')
       ));
       if (networkFailure && !navigator.onLine) serverMessage = 'Seu dispositivo está sem internet. Conecte-se à internet e tente novamente.';
-      else if (networkFailure) serverMessage = 'Não foi possível conectar ao servidor. Tente novamente em alguns segundos.';
+      else if (networkFailure) serverMessage = 'Não foi possível conectar ao backend do PreçoFixo17. Tente novamente em alguns segundos.';
       setMessage(serverMessage);`;
-if (!oldCatch.test(source)) throw new Error('toggle error handler not found');
-source = source.replace(oldCatch, newCatch);
+if (oldCatch.test(source)) source = source.replace(oldCatch, newCatch);
 
 fs.writeFileSync(target, source);
-console.log('Driver GPS/network resilience patch applied.');
+console.log('Driver GPS/network resilience patch applied with same-origin backend only.');
