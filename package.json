@@ -11,7 +11,7 @@
     "react-leaflet": "^4.2.1",
     "leaflet": "^1.9.4",
     "axios": "^1.6.0",
-    "firebase": "^10.14.1",
+    "firebase": "^11.0.0",
     "firebase-admin": "^13.10.0",
     "dotenv": "^16.4.7",
     "socket.io-client": "^4.7.2",
