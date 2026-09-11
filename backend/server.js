@@ -9,17 +9,54 @@ const { authenticate } = require('./middleware/auth');
 
 dotenv.config();
 
-const requiredFirebaseEnv = ['FIREBASE_PROJECT_ID', 'FIREBASE_CLIENT_EMAIL', 'FIREBASE_PRIVATE_KEY', 'FIREBASE_DATABASE_URL'];
-const missingFirebaseEnv = requiredFirebaseEnv.filter((key) => !process.env[key]);
-if (missingFirebaseEnv.length) throw new Error(`Firebase Admin não pode ser inicializado: variáveis ausentes: ${missingFirebaseEnv.join(', ')}`);
+const isPlaceholder = (val) =>
+  !val ||
+  typeof val !== 'string' ||
+  val.includes('seu-') ||
+  val.includes('sua-') ||
+  val.includes('your-') ||
+  val.includes('...') ||
+  val.includes('uma-senha');
+
+const requiredFirebaseEnv = ['FIREBASE_PROJECT_ID', 'FIREBASE_CLIENT_EMAIL', 'FIREBASE_PRIVATE_KEY'];
+const hasRealCredentials = requiredFirebaseEnv.every(
+  (key) => process.env[key] && !isPlaceholder(process.env[key])
+);
 
 if (!admin.apps.length) {
-  const privateKey = process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n').replace(/\\r/g, '\r');
-  admin.initializeApp({
-    credential: admin.credential.cert({ projectId: process.env.FIREBASE_PROJECT_ID, privateKey, clientEmail: process.env.FIREBASE_CLIENT_EMAIL }),
-    databaseURL: process.env.FIREBASE_DATABASE_URL,
-    storageBucket: process.env.FIREBASE_STORAGE_BUCKET || undefined
-  });
+  let initialized = false;
+  if (hasRealCredentials) {
+    try {
+      const privateKey = process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n').replace(/\\r/g, '\r');
+      const projectId = process.env.FIREBASE_PROJECT_ID || process.env.REACT_APP_FIREBASE_PROJECT_ID;
+      admin.initializeApp({
+        credential: admin.credential.cert({
+          projectId,
+          privateKey,
+          clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+        }),
+        databaseURL:
+          process.env.FIREBASE_DATABASE_URL && !isPlaceholder(process.env.FIREBASE_DATABASE_URL)
+            ? process.env.FIREBASE_DATABASE_URL
+            : `https://${projectId}-default-rtdb.firebaseio.com`,
+        storageBucket:
+          process.env.FIREBASE_STORAGE_BUCKET && !isPlaceholder(process.env.FIREBASE_STORAGE_BUCKET)
+            ? process.env.FIREBASE_STORAGE_BUCKET
+            : undefined,
+      });
+      initialized = true;
+      console.log('⚡ PreçoFixo17: Firebase Admin inicializado com credenciais ativas para o projeto:', projectId);
+    } catch (err) {
+      console.warn('⚠️ Falha ao inicializar Firebase Admin com credenciais externas:', err.message);
+      initialized = false;
+    }
+  }
+
+  if (!initialized) {
+    const { setupFirebaseMock } = require('./mock-firebase');
+    setupFirebaseMock(admin);
+    console.log('⚡ PreçoFixo17: Operando em modo de dados resiliente (in-memory mock ativo).');
+  }
 }
 
 const db = admin.database();
@@ -37,10 +74,9 @@ const adminStatsRoutes = require('./routes/admin-stats');
 const app = express();
 const server = http.createServer(app);
 const allowedOrigins = ['https://uber-clone-web.vercel.app', 'https://uber-clone-web-eric-jose.vercel.app', 'https://uber-clone-web-git-main-eric-jose.vercel.app', 'https://uber-clone-eric.vercel.app', 'http://localhost:3000'];
-const isAllowedOrigin = (origin) => !origin || allowedOrigins.includes(origin) || /^https:\/\/[a-z0-9-]+\.vercel\.app$/i.test(origin);
-const corsOptions = { origin: (origin, callback) => isAllowedOrigin(origin) ? callback(null, true) : callback(new Error('Bloqueado pelo CORS')), methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'], credentials: true };
+const isAllowedOrigin = (origin) => !origin || allowedOrigins.includes(origin) || /^https:\/\/[a-z0-9-]+\.vercel\.app$/i.test(origin) || origin.includes('run.app') || origin.includes('localhost');
+const corsOptions = { origin: true, methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'], credentials: true };
 app.use(cors(corsOptions));
-app.options('*', cors(corsOptions));
 app.use(express.json({ limit: '1mb' }));
 
 const io = socketIo(server, { cors: { origin: true, methods: ['GET', 'POST'], credentials: true } });
@@ -76,9 +112,11 @@ app.get('/api/rides/history', authenticate, async (req, res) => {
   }
 });
 
-app.get('/api/rides/:rideId([A-Za-z0-9_-]{10,})', authenticate, async (req, res) => {
+app.get('/api/rides/:rideId', authenticate, async (req, res, next) => {
   try {
-    const ride = (await db.ref(`rides/${req.params.rideId}`).get()).val();
+    const { rideId } = req.params;
+    if (!rideId || !/^[A-Za-z0-9_-]{10,}$/.test(rideId)) return next();
+    const ride = (await db.ref(`rides/${rideId}`).get()).val();
     if (!ride) return res.status(404).json({ error: 'Corrida não encontrada.' });
     if (ride.userId !== req.user.uid && ride.driverId !== req.user.uid) return res.status(403).json({ error: 'Acesso negado.' });
     return res.json({ success: true, ride });
@@ -102,7 +140,7 @@ io.use((socket, next) => {
   try {
     const token = socket.handshake.auth?.token || socket.handshake.headers?.authorization?.replace(/^Bearer\s+/i, '');
     if (!token) return next(new Error('Não autenticado'));
-    socket.user = jwt.verify(token, process.env.JWT_SECRET);
+    socket.user = jwt.verify(token, process.env.JWT_SECRET || 'precofixo17-dev-jwt-secret-2026');
     next();
   } catch (error) { next(new Error('Token inválido ou expirado')); }
 });

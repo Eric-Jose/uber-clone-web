@@ -10,7 +10,7 @@ async function readJson(response) {
   catch { throw new Error(`Servidor retornou uma resposta inválida (${response.status}). Verifique o backend.`); }
 }
 
-function AdminLogin({ onAdminLogin }) {
+function AdminLogin({ onAdminLogin, onBack }) {
   const [email, setEmail] = useState(DEFAULT_ADMIN_EMAIL);
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -63,6 +63,25 @@ function AdminLogin({ onAdminLogin }) {
           <button type="submit" className="btn-login" disabled={loading}>
             {loading ? '⏳ Verificando...' : '🚀 Entrar como Admin'}
           </button>
+          {onBack && (
+            <button
+              type="button"
+              onClick={onBack}
+              style={{
+                marginTop: '10px',
+                width: '100%',
+                background: 'transparent',
+                border: '1px solid #374151',
+                borderRadius: '8px',
+                color: '#9ca3af',
+                padding: '10px',
+                cursor: 'pointer',
+                fontWeight: '600'
+              }}
+            >
+              ← Voltar ao Início
+            </button>
+          )}
         </form>
         <div className="login-footer">
           <p>🔒 Acesso administrativo protegido</p>

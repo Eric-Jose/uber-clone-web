@@ -7,7 +7,7 @@ import { loginWithFirebasePassword, signInWithSocialProvider, syncBackendSession
 import { BACKEND_URL } from '../config';
 import precoFixo17Car from '../assets/precoFixo17Car';
 
-function Login({ onLoginSuccess }) {
+function Login({ onLoginSuccess, onAdminClick, onDriverRegisterClick, onBack }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -129,6 +129,35 @@ function Login({ onLoginSuccess }) {
           <button type="button" className="pf-social-btn" onClick={()=>handleSocialLogin('facebook')} disabled={loading||!!socialLoading}>{socialLoading==='facebook'?'Abrindo…':'f  Facebook'}</button>
         </div>
         <p className="pf-footer-register">Não tem conta?<button type="button" onClick={()=>setShowRegister(true)}>Cadastre-se</button></p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '16px', paddingTop: '16px', borderTop: '1px solid #2a313c', textAlign: 'center', fontSize: '13px' }}>
+          {onDriverRegisterClick && (
+            <button
+              type="button"
+              onClick={onDriverRegisterClick}
+              style={{ background: 'none', border: 'none', color: '#ff5a00', cursor: 'pointer', fontWeight: 'bold' }}
+            >
+              🚗 Quero ser um motorista parceiro
+            </button>
+          )}
+          {onAdminClick && (
+            <button
+              type="button"
+              onClick={onAdminClick}
+              style={{ background: 'none', border: 'none', color: '#9ca3af', cursor: 'pointer' }}
+            >
+              🔐 Acesso Administrativo
+            </button>
+          )}
+          {onBack && (
+            <button
+              type="button"
+              onClick={onBack}
+              style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', marginTop: '4px' }}
+            >
+              ← Voltar ao Início
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );

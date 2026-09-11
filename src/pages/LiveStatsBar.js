@@ -1,7 +1,6 @@
 /* eslint-disable no-unused-vars */
 import React, { useEffect, useState } from 'react';
-
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:5000';
+import { BACKEND_URL } from '../config';
 
 function LiveStatsBar() {
   const [, setStats] = useState({ total: 0, completed: 0, cancelled: 0, ongoing: 0, distance: 0, rating: 5.0 });

@@ -2,8 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import WebSocketService from '../services/WebSocketService';
-
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:5000';
+import { BACKEND_URL } from '../config';
 const box = { background: '#fff', borderRadius: 16, boxShadow: '0 4px 18px rgba(0,0,0,.16)' };
 const DEFAULT_CENTER = [-24.5345, -55.7221];
 const NOMINATIM = 'https://nominatim.openstreetmap.org';

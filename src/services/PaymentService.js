@@ -1,6 +1,5 @@
 import React from 'react';
-
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:5000';
+import { BACKEND_URL } from '../config';
 
 class PaymentService {
   // Processar pagamento com cartão

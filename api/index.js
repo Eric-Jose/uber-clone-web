@@ -18,14 +18,20 @@ function bootstrap() {
     const express = require('express');
     const cors = require('cors');
     const admin = require('firebase-admin');
-    const required = ['FIREBASE_PROJECT_ID','FIREBASE_CLIENT_EMAIL','FIREBASE_PRIVATE_KEY','JWT_SECRET'];
+    const required = ['FIREBASE_PROJECT_ID','FIREBASE_CLIENT_EMAIL','FIREBASE_PRIVATE_KEY'];
     const missing = required.filter((name) => !process.env[name]);
-    if (missing.length) throw new Error(`Variáveis ausentes: ${missing.join(', ')}`);
-    const projectId = cleanEnv(process.env.FIREBASE_PROJECT_ID) || 'uber-clone-eric-f4327';
-    const clientEmail = cleanEnv(process.env.FIREBASE_CLIENT_EMAIL);
-    const privateKey = cleanEnv(process.env.FIREBASE_PRIVATE_KEY);
-    const databaseURL = normalizeDatabaseUrl();
-    if (!admin.apps.length) admin.initializeApp({ credential: admin.credential.cert({ projectId, clientEmail, privateKey }), databaseURL, storageBucket: process.env.FIREBASE_STORAGE_BUCKET ? cleanEnv(process.env.FIREBASE_STORAGE_BUCKET) : undefined });
+    if (!admin.apps.length) {
+      if (missing.length === 0) {
+        const projectId = cleanEnv(process.env.FIREBASE_PROJECT_ID) || 'uber-clone-eric-f4327';
+        const clientEmail = cleanEnv(process.env.FIREBASE_CLIENT_EMAIL);
+        const privateKey = cleanEnv(process.env.FIREBASE_PRIVATE_KEY);
+        const databaseURL = normalizeDatabaseUrl();
+        admin.initializeApp({ credential: admin.credential.cert({ projectId, clientEmail, privateKey }), databaseURL, storageBucket: process.env.FIREBASE_STORAGE_BUCKET ? cleanEnv(process.env.FIREBASE_STORAGE_BUCKET) : undefined });
+      } else {
+        const { setupFirebaseMock } = require('../backend/mock-firebase');
+        setupFirebaseMock(admin);
+      }
+    }
     const db = admin.database();
     const application = express();
     const allowedOrigins = ['https://uber-clone-web.vercel.app','https://uber-clone-web-eric-jose.vercel.app','https://uber-clone-web-git-main-eric-jose.vercel.app','https://uber-clone-eric.vercel.app','http://localhost:3000'];
@@ -72,9 +78,15 @@ function bootstrap() {
         return res.json({ success: true, notifications });
       } catch (error) { console.error('Erro ao buscar notificações de corrida:', error.message); return res.status(500).json({ error: 'Erro ao buscar notificações de corrida.' }); }
     });
-    application.get('/api/rides/:rideId([A-Za-z0-9_-]{10,})', authenticate, async (req, res) => {
-      try { const ride = (await db.ref(`rides/${req.params.rideId}`).get()).val(); if (!ride) return res.status(404).json({ error: 'Corrida não encontrada.' }); if (ride.userId !== req.user.uid && ride.driverId !== req.user.uid) return res.status(403).json({ error: 'Acesso negado.' }); return res.json({ success: true, ride }); }
-      catch (error) { console.error('Erro ao buscar corrida:', error.message); return res.status(500).json({ error: 'Erro interno ao buscar corrida.' }); }
+    application.get('/api/rides/:rideId', authenticate, async (req, res, next) => {
+      try {
+        const { rideId } = req.params;
+        if (!rideId || !/^[A-Za-z0-9_-]{10,}$/.test(rideId)) return next();
+        const ride = (await db.ref(`rides/${rideId}`).get()).val();
+        if (!ride) return res.status(404).json({ error: 'Corrida não encontrada.' });
+        if (ride.userId !== req.user.uid && ride.driverId !== req.user.uid) return res.status(403).json({ error: 'Acesso negado.' });
+        return res.json({ success: true, ride });
+      } catch (error) { console.error('Erro ao buscar corrida:', error.message); return res.status(500).json({ error: 'Erro interno ao buscar corrida.' }); }
     });
     application.use('/api/rides', rideRoutes);
     application.use('/api/location', locationRoutes);

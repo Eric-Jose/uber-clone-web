@@ -5,11 +5,15 @@
 // o erro genérico "Failed to fetch" no login e nas demais chamadas.
 import './styles/PassengerTouchFix.css';
 
-const configuredBackend = process.env.REACT_APP_BACKEND_URL;
-const isProduction = process.env.NODE_ENV === 'production';
+let configuredBackend = (process.env.REACT_APP_BACKEND_URL || '').trim().replace(/\/+$/, '');
+if (configuredBackend === '/api' || configuredBackend === 'api') {
+  configuredBackend = '';
+} else if (configuredBackend.endsWith('/api')) {
+  configuredBackend = configuredBackend.slice(0, -4);
+}
 
-export const BACKEND_URL = (
-  isProduction ? '' : (configuredBackend || 'http://localhost:5000')
-).replace(/\/+$/, '');
+// Usamos a string vazia '' como fallback para que o frontend use rotas relativas (/api/...)
+// na mesma origem do app, eliminando erros de CORS e conexão em localhost:5000.
+export const BACKEND_URL = configuredBackend;
 
 export default BACKEND_URL;

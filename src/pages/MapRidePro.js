@@ -29,7 +29,7 @@ export default function MapRidePro({ onRideCreate, onBack, onNavigate, onOpenMen
   const searchDebounceRef = useRef(null);
 
   const [stage, setStage] = useState('plan');
-  const [origin, setOrigin] = useState(null);
+  const [origin, setOrigin] = useState(() => ({ lat: MARACAJU_CENTER.lat, lng: MARACAJU_CENTER.lng, address: 'Centro, Maracaju - MS' }));
   const [destination, setDestination] = useState('');
   const [destinationCoords, setDestinationCoords] = useState(null);
   const [suggestions, setSuggestions] = useState([]);
@@ -116,6 +116,8 @@ export default function MapRidePro({ onRideCreate, onBack, onNavigate, onOpenMen
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap contributors', updateWhenIdle: true }).addTo(mapInstance);
     L.control.zoom({ position: 'bottomright' }).addTo(mapInstance);
     map.current = mapInstance;
+    const initialOriginIcon = L.divIcon({ className: 'pf-origin-pin-icon', html: '<div style="width:18px;height:18px;border-radius:50%;background:#22c55e;border:3px solid #fff;box-shadow:0 0 12px rgba(34,197,94,.8)"></div>', iconSize: [18, 18], iconAnchor: [9, 9] });
+    userMarker.current = L.marker([MARACAJU_CENTER.lat, MARACAJU_CENTER.lng], { icon: initialOriginIcon }).addTo(mapInstance);
 
     let watchId = null;
     const applyDeviceLocation = (pos) => {

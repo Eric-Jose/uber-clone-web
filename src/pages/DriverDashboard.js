@@ -1,8 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import WebSocketService from '../services/WebSocketService';
-
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:5000';
+import { BACKEND_URL } from '../config';
 
 const styles = {
   page: { minHeight: '100vh', background: '#f5f5f5', padding: 20, fontFamily: 'Arial, sans-serif' },
