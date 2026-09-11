@@ -12,15 +12,25 @@ jobs:
   verify-production:
     runs-on: ubuntu-latest
     steps:
-      - name: Verify Vercel production backend
+      - name: Wait for Vercel and verify backend is on this commit
+        env:
+          EXPECTED_COMMIT: ${{ github.sha }}
         run: |
           set -e
-          echo "Checking Vercel production backend..."
-          response=$(curl -fsS --retry 5 --retry-delay 3 https://uber-clone-web.vercel.app/api/backend-check)
-          echo "$response"
-          echo "$response" | grep -q '"status":"ok"'
-          echo "$response" | grep -q '"backendInitialized":true'
-          echo "$response" | grep -q '"firebaseInitialized":true'
-          echo "$response" | grep -q '"databaseConfigured":true'
-          echo "$response" | grep -q '"databaseURLValid":true'
-          echo "Production backend is healthy. Vercel Git Integration handles the deployment from main."
+          echo "Waiting for Vercel production to publish commit $EXPECTED_COMMIT..."
+          for attempt in $(seq 1 36); do
+            response=$(curl -fsS https://uber-clone-web.vercel.app/api/backend-check || true)
+            echo "Attempt $attempt: $response"
+            if echo "$response" | grep -q '"status":"ok"' \
+              && echo "$response" | grep -q '"backendInitialized":true' \
+              && echo "$response" | grep -q '"firebaseInitialized":true' \
+              && echo "$response" | grep -q '"databaseConfigured":true' \
+              && echo "$response" | grep -q '"databaseURLValid":true' \
+              && echo "$response" | grep -q "\"deploymentCommit\":\"$EXPECTED_COMMIT\""; then
+              echo "Production backend is healthy and synchronized with $EXPECTED_COMMIT."
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "ERROR: Vercel production backend did not publish the GitHub commit $EXPECTED_COMMIT within the expected window."
+          exit 1
