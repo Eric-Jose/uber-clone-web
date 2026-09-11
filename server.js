@@ -16,28 +16,34 @@ const requiredFirebaseEnv = ['FIREBASE_PROJECT_ID', 'FIREBASE_CLIENT_EMAIL', 'FI
 const missingFirebaseEnv = requiredFirebaseEnv.filter((key) => !process.env[key]);
 
 let realFirebaseInitialized = false;
-if (missingFirebaseEnv.length === 0 && !process.env.FIREBASE_PROJECT_ID.includes('seu-projeto')) {
+if (admin.apps && admin.apps.length > 0) {
+  realFirebaseInitialized = admin.apps[0]?.options?.databaseURL !== 'in-memory://precofixo17';
+}
+
+if (!realFirebaseInitialized && missingFirebaseEnv.length === 0 && !process.env.FIREBASE_PROJECT_ID.includes('seu-projeto')) {
   try {
     const privateKey = process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n').replace(/\\r/g, '\r');
-    admin.initializeApp({
-      credential: admin.credential.cert({
-        projectId: process.env.FIREBASE_PROJECT_ID,
-        privateKey,
-        clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-      }),
-      databaseURL:
-        process.env.FIREBASE_DATABASE_URL ||
-        `https://${process.env.FIREBASE_PROJECT_ID}-default-rtdb.firebaseio.com`,
-      storageBucket: process.env.FIREBASE_STORAGE_BUCKET || undefined,
-    });
+    if (!admin.apps || admin.apps.length === 0) {
+      admin.initializeApp({
+        credential: admin.credential.cert({
+          projectId: process.env.FIREBASE_PROJECT_ID,
+          privateKey,
+          clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+        }),
+        databaseURL:
+          process.env.FIREBASE_DATABASE_URL ||
+          `https://${process.env.FIREBASE_PROJECT_ID}-default-rtdb.firebaseio.com`,
+        storageBucket: process.env.FIREBASE_STORAGE_BUCKET || undefined,
+      });
+    }
     realFirebaseInitialized = true;
     console.log('✅ PreçoFixo17: Firebase Admin conectado ao projeto:', process.env.FIREBASE_PROJECT_ID);
   } catch (err) {
-    console.warn('⚠️ Credenciais Firebase Admin inválidas (' + err.message + '). Ativando modo mock em memória...');
+    console.warn('⚠️ Falha ao inicializar Firebase Admin (' + err.message + ').');
   }
 }
 
-if (!realFirebaseInitialized) {
+if (!realFirebaseInitialized && (!admin.apps || admin.apps.length === 0)) {
   const { setupFirebaseMock } = require('./backend/mock-firebase');
   setupFirebaseMock(admin);
 }
