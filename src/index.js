@@ -5,6 +5,7 @@ import './home-enhancements.css';
 import './map-dark-theme.css';
 import './search-bottom.css';
 import './styles/PassengerTouchFix.css';
+import './styles/PrototypeUX.css';
 import App from './App';
 
 // GPS resilience: Chrome/mobile location providers can occasionally return
