@@ -1,0 +1,223 @@
+/* PreçoFixo17 — refinamento visual inspirado no protótipo, sem alterar o fluxo real. */
+:root {
+  --pf17-orange: #ff5a00;
+  --pf17-bg: #070707;
+  --pf17-surface: #101214;
+  --pf17-surface-2: #171a1f;
+  --pf17-border: rgba(255,255,255,.10);
+  --pf17-muted: #9aa2ad;
+}
+
+/* Passageiro: bottom-sheet com aparência de app de mobilidade. */
+.rp .panel > .card,
+.account-content .panel > .card {
+  background: linear-gradient(180deg, rgba(18,20,24,.985), rgba(9,10,12,.985)) !important;
+  color: #fff !important;
+  border: 1px solid var(--pf17-border) !important;
+  border-radius: 24px !important;
+  box-shadow: 0 24px 70px rgba(0,0,0,.52), 0 0 0 1px rgba(255,90,0,.05) !important;
+}
+
+.rp .panel > .card::after,
+.account-content .panel > .card::after {
+  content: '';
+  display: block;
+  width: 38px;
+  height: 4px;
+  margin: 10px auto 0;
+  border-radius: 999px;
+  background: rgba(255,255,255,.20);
+}
+
+/* Hierarquia visual: preço fixo e dados da viagem ganham destaque. */
+.rp .panel .info,
+.account-content .panel .info {
+  color: #fff !important;
+  background: linear-gradient(135deg, rgba(255,90,0,.12), rgba(255,255,255,.035)) !important;
+  border: 1px solid rgba(255,90,0,.28) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.04) !important;
+}
+
+.rp .panel .info strong,
+.rp .panel .info b,
+.account-content .panel .info strong,
+.account-content .panel .info b {
+  color: #fff !important;
+}
+
+.rp .panel .info .price,
+.rp .panel .info [class*="price"],
+.account-content .panel .info .price,
+.account-content .panel .info [class*="price"] {
+  color: var(--pf17-orange) !important;
+  font-weight: 900 !important;
+  letter-spacing: -.03em;
+}
+
+/* Inputs com acabamento mais próximo do protótipo. */
+.rp .panel input,
+.rp .panel textarea,
+.rp .panel select,
+.account-content .panel input,
+.account-content .panel textarea,
+.account-content .panel select {
+  color: #fff !important;
+  background: var(--pf17-surface-2) !important;
+  border-color: rgba(255,255,255,.10) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.03) !important;
+}
+
+.rp .panel input:focus,
+.rp .panel textarea:focus,
+.rp .panel select:focus,
+.account-content .panel input:focus,
+.account-content .panel textarea:focus,
+.account-content .panel select:focus {
+  border-color: rgba(255,90,0,.72) !important;
+  box-shadow: 0 0 0 3px rgba(255,90,0,.12) !important;
+}
+
+/* Opções de pagamento / seleção ficam mais parecidas com cards tocáveis. */
+.rp .panel label,
+.account-content .panel label {
+  color: #e8eaed;
+}
+
+.rp .panel button,
+.account-content .panel button {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.rp .panel .btn.primary,
+.rp .panel button.primary,
+.account-content .panel .btn.primary,
+.account-content .panel button.primary {
+  min-height: 54px !important;
+  border-radius: 16px !important;
+  font-weight: 900 !important;
+  box-shadow: 0 12px 30px rgba(255,90,0,.24) !important;
+}
+
+.rp .panel .btn.primary:not(:disabled):active,
+.rp .panel button.primary:not(:disabled):active,
+.account-content .panel .btn.primary:not(:disabled):active,
+.account-content .panel button.primary:not(:disabled):active {
+  transform: translateY(1px) scale(.99);
+}
+
+/* Estados de busca/corrida: feedback visual mais claro sem criar estado falso. */
+.rp .panel .loading,
+.rp .panel [aria-busy="true"],
+.account-content .panel .loading,
+.account-content .panel [aria-busy="true"] {
+  position: relative;
+}
+
+.rp .panel .loading::before,
+.rp .panel [aria-busy="true"]::before,
+.account-content .panel .loading::before,
+.account-content .panel [aria-busy="true"]::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  margin-right: 8px;
+  border-radius: 50%;
+  background: var(--pf17-orange);
+  box-shadow: 0 0 14px rgba(255,90,0,.65);
+  display: inline-block;
+  animation: pf17Pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes pf17Pulse {
+  0%, 100% { opacity: .35; transform: scale(.85); }
+  50% { opacity: 1; transform: scale(1.1); }
+}
+
+/* Melhor leitura de mensagens, avisos e erro. */
+.rp .panel .error,
+.account-content .panel .error {
+  border-radius: 14px !important;
+  border: 1px solid rgba(239,68,68,.28) !important;
+  background: rgba(239,68,68,.10) !important;
+  color: #fecaca !important;
+}
+
+/* Cards de motorista/histórico já existentes recebem acabamento consistente. */
+.pf-glass-card,
+.pf-driver-card,
+.pf-ride-card,
+.pf-status-card,
+.pf-price-card,
+.pf-payment-card {
+  border: 1px solid var(--pf17-border);
+  background: linear-gradient(145deg, rgba(17,19,23,.98), rgba(8,9,11,.98));
+  box-shadow: 0 16px 42px rgba(0,0,0,.38);
+}
+
+.pf-driver-card,
+.pf-status-card,
+.pf-ride-card {
+  border-radius: 20px;
+}
+
+/* Pequena barra de progresso para estados sequenciais do protótipo. */
+.pf-ride-progress {
+  height: 4px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(255,255,255,.10);
+}
+
+.pf-ride-progress > * {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--pf17-orange);
+  box-shadow: 0 0 14px rgba(255,90,0,.55);
+}
+
+/* Driver: cards de chamada/viagem com leitura rápida. */
+.pf-driver-card img,
+.pf-driver-avatar {
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.pf-driver-rating {
+  color: #fbbf24;
+  font-weight: 800;
+}
+
+.pf-ride-price {
+  color: var(--pf17-orange);
+  font-size: 28px;
+  font-weight: 950;
+  letter-spacing: -.04em;
+}
+
+/* Respeita telas pequenas e safe-area dos aparelhos. */
+@media (max-width: 640px) {
+  .rp .panel > .card,
+  .account-content .panel > .card {
+    border-radius: 22px !important;
+    padding-left: 14px !important;
+    padding-right: 14px !important;
+  }
+
+  .pf-glass-card,
+  .pf-driver-card,
+  .pf-status-card,
+  .pf-ride-card,
+  .pf-price-card,
+  .pf-payment-card {
+    border-radius: 18px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: .01ms !important;
+  }
+}
