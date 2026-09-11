@@ -41,9 +41,7 @@
 .rp .panel .info strong,
 .rp .panel .info b,
 .account-content .panel .info strong,
-.account-content .panel .info b {
-  color: #fff !important;
-}
+.account-content .panel .info b { color: #fff !important; }
 
 .rp .panel .info .price,
 .rp .panel .info [class*="price"],
@@ -77,16 +75,10 @@
   box-shadow: 0 0 0 3px rgba(255,90,0,.12) !important;
 }
 
-/* Opções de pagamento / seleção ficam mais parecidas com cards tocáveis. */
 .rp .panel label,
-.account-content .panel label {
-  color: #e8eaed;
-}
-
+.account-content .panel label { color: #e8eaed; }
 .rp .panel button,
-.account-content .panel button {
-  -webkit-tap-highlight-color: transparent;
-}
+.account-content .panel button { -webkit-tap-highlight-color: transparent; }
 
 .rp .panel .btn.primary,
 .rp .panel button.primary,
@@ -101,17 +93,13 @@
 .rp .panel .btn.primary:not(:disabled):active,
 .rp .panel button.primary:not(:disabled):active,
 .account-content .panel .btn.primary:not(:disabled):active,
-.account-content .panel button.primary:not(:disabled):active {
-  transform: translateY(1px) scale(.99);
-}
+.account-content .panel button.primary:not(:disabled):active { transform: translateY(1px) scale(.99); }
 
 /* Estados de busca/corrida: feedback visual mais claro sem criar estado falso. */
 .rp .panel .loading,
 .rp .panel [aria-busy="true"],
 .account-content .panel .loading,
-.account-content .panel [aria-busy="true"] {
-  position: relative;
-}
+.account-content .panel [aria-busy="true"] { position: relative; }
 
 .rp .panel .loading::before,
 .rp .panel [aria-busy="true"]::before,
@@ -133,7 +121,6 @@
   50% { opacity: 1; transform: scale(1.1); }
 }
 
-/* Melhor leitura de mensagens, avisos e erro. */
 .rp .panel .error,
 .account-content .panel .error {
   border-radius: 14px !important;
@@ -142,7 +129,6 @@
   color: #fecaca !important;
 }
 
-/* Cards de motorista/histórico já existentes recebem acabamento consistente. */
 .pf-glass-card,
 .pf-driver-card,
 .pf-ride-card,
@@ -156,11 +142,8 @@
 
 .pf-driver-card,
 .pf-status-card,
-.pf-ride-card {
-  border-radius: 20px;
-}
+.pf-ride-card { border-radius: 20px; }
 
-/* Pequena barra de progresso para estados sequenciais do protótipo. */
 .pf-ride-progress {
   height: 4px;
   border-radius: 999px;
@@ -175,42 +158,69 @@
   box-shadow: 0 0 14px rgba(255,90,0,.55);
 }
 
-/* Driver: cards de chamada/viagem com leitura rápida. */
 .pf-driver-card img,
-.pf-driver-avatar {
-  border-radius: 50%;
-  object-fit: cover;
+.pf-driver-avatar { border-radius: 50%; object-fit: cover; }
+.pf-driver-rating { color: #fbbf24; font-weight: 800; }
+.pf-ride-price { color: var(--pf17-orange); font-size: 28px; font-weight: 950; letter-spacing: -.04em; }
+
+/* Refinamento do fluxo real do mapa: cartões mais legíveis e com hierarquia do protótipo. */
+.pf-map-screen .pf-map-topbar {
+  padding-top: env(safe-area-inset-top, 0px);
+  height: calc(56px + env(safe-area-inset-top, 0px));
 }
 
-.pf-driver-rating {
-  color: #fbbf24;
-  font-weight: 800;
+.pf-map-screen .pf-route-card,
+.pf-map-screen .pf-driver-arriving-card,
+.pf-map-screen .pf-progress-banner {
+  border-color: rgba(255,255,255,.12);
+  box-shadow: 0 18px 48px rgba(0,0,0,.48), 0 0 0 1px rgba(255,90,0,.035);
 }
 
-.pf-ride-price {
-  color: var(--pf17-orange);
-  font-size: 28px;
-  font-weight: 950;
-  letter-spacing: -.04em;
+.pf-map-screen .pf-route-card { animation: pf17CardIn .24s ease-out; }
+.pf-map-screen .pf-bottom-sheet,
+.pf-map-screen .pf-arriving-sheet,
+.pf-map-screen .pf-progress-sheet { animation: pf17SheetIn .28s ease-out; }
+
+.pf-map-screen .pf-route-val::placeholder { color: #7f8997; opacity: 1; }
+.pf-map-screen .pf-chip { transition: transform .16s ease, border-color .16s ease, background .16s ease; }
+.pf-map-screen .pf-chip:not(:disabled):active { transform: scale(.98); border-color: rgba(255,90,0,.55); }
+.pf-map-screen .pf-request-btn:not(:disabled):active,
+.pf-map-screen .pf-arriving-cancel-btn:not(:disabled):active,
+.pf-map-screen .pf-finish-btn:not(:disabled):active { transform: translateY(1px) scale(.99); }
+.pf-map-screen button:focus-visible,
+.pf-map-screen input:focus-visible { outline: 2px solid rgba(255,90,0,.9); outline-offset: 2px; }
+
+.pf-map-screen .pf-sheet-price-val { text-shadow: 0 0 20px rgba(255,90,0,.18); }
+.pf-map-screen .pf-driver-info-name { letter-spacing: -.015em; }
+.pf-map-screen .pf-progress-fill { transition: width .45s ease; }
+
+@keyframes pf17CardIn {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
-/* Respeita telas pequenas e safe-area dos aparelhos. */
+@keyframes pf17SheetIn {
+  from { opacity: 0; transform: translateY(18px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 @media (max-width: 640px) {
   .rp .panel > .card,
-  .account-content .panel > .card {
-    border-radius: 22px !important;
-    padding-left: 14px !important;
-    padding-right: 14px !important;
-  }
-
+  .account-content .panel > .card { border-radius: 22px !important; padding-left: 14px !important; padding-right: 14px !important; }
   .pf-glass-card,
   .pf-driver-card,
   .pf-status-card,
   .pf-ride-card,
   .pf-price-card,
-  .pf-payment-card {
-    border-radius: 18px;
-  }
+  .pf-payment-card { border-radius: 18px; }
+  .pf-map-screen .pf-route-card,
+  .pf-map-screen .pf-driver-arriving-card,
+  .pf-map-screen .pf-progress-banner { left: 12px; right: 12px; }
+  .pf-map-screen .pf-bottom-sheet,
+  .pf-map-screen .pf-arriving-sheet,
+  .pf-map-screen .pf-progress-sheet { left: 12px; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); }
+  .pf-map-screen .pf-sheet-car-thumb { width: 88px; }
+  .pf-map-screen .pf-sheet-price-val { font-size: 26px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
