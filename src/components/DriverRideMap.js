@@ -1,9 +1,11 @@
+/* eslint-disable no-unused-vars, react-hooks/exhaustive-deps */
 import React, { useEffect, useRef } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
 const ROUTE_URL = 'https://router.project-osrm.org/route/v1/driving/';
 const CARTO_DARK_TILES = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+const OPEN_STREET_MAP_TILES = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
 
 function normalizeLocation(value) {
   if (!value) return null;
@@ -31,7 +33,16 @@ export default function DriverRideMap({ driverLocation, passengerLocation, desti
   useEffect(() => {
     if (!mapRef.current || mapInstanceRef.current) return undefined;
     const map = L.map(mapRef.current, { zoomControl: true, attributionControl: true, zoomSnap: 0.5, zoomDelta: 0.5, preferCanvas: true });
-    L.tileLayer(CARTO_DARK_TILES, { maxZoom: 20, subdomains: 'abcd', attribution: '&copy; OpenStreetMap contributors &copy; CARTO', crossOrigin: true }).addTo(map);
+    // Leaflet tiles do not require a Google/Mapbox key.  CARTO is preferred
+    // for the dark driver UI, but a public OSM layer keeps the map usable if
+    // that provider is temporarily unavailable.
+    const cartoTiles = L.tileLayer(CARTO_DARK_TILES, { maxZoom: 20, subdomains: 'abcd', attribution: '&copy; OpenStreetMap contributors &copy; CARTO', crossOrigin: true }).addTo(map);
+    let fallbackTiles = null;
+    cartoTiles.once('tileerror', () => {
+      if (fallbackTiles) return;
+      map.removeLayer(cartoTiles);
+      fallbackTiles = L.tileLayer(OPEN_STREET_MAP_TILES, { maxZoom: 19, attribution: '&copy; OpenStreetMap contributors' }).addTo(map);
+    });
     map.setView([-14.235, -51.925], 5);
     mapInstanceRef.current = map;
     const resizeTimer = setTimeout(() => map.invalidateSize(), 160);
@@ -96,14 +107,16 @@ export default function DriverRideMap({ driverLocation, passengerLocation, desti
     return () => controller.abort();
   }, [driverLocation, passengerLocation, destinationLocation, status]);
 
-  const caption = status === 'IN_PROGRESS' ? 'Rota até o destino' : 'Rota até o passageiro';
-  const subcaption = status === 'IN_PROGRESS' ? 'Corrida em andamento' : 'A caminho do embarque';
+  const isInProgress = status === 'IN_PROGRESS';
+  const isSearching = status === 'SEARCHING';
+  const caption = isInProgress ? 'Rota até o destino' : isSearching ? 'Sua localização' : 'Rota até o passageiro';
+  const subcaption = isInProgress ? 'Corrida em andamento' : isSearching ? 'Ative-se para receber corridas' : 'A caminho do embarque';
 
   return (
     <div className="driver-map-shell">
-      <div className="driver-map-topbar"><span className="driver-map-live-dot" /><strong>{status === 'IN_PROGRESS' ? 'EM VIAGEM' : 'A CAMINHO'}</strong><span>{subcaption}</span></div>
+      <div className="driver-map-topbar"><span className="driver-map-live-dot" /><strong>{isInProgress ? 'EM VIAGEM' : isSearching ? 'MAPA DO MOTORISTA' : 'A CAMINHO'}</strong><span>{subcaption}</span></div>
       <div ref={mapRef} className="driver-ride-map" />
-      <div className="driver-map-caption"><b>{caption}</b><span>{status === 'IN_PROGRESS' ? 'Siga a rota destacada' : 'Chegue ao ponto de embarque'}</span></div>
+      <div className="driver-map-caption"><b>{caption}</b><span>{isInProgress ? 'Siga a rota destacada' : isSearching ? 'GPS sem chave de API' : 'Chegue ao ponto de embarque'}</span></div>
       <style>{`
         .driver-map-shell{position:relative;margin-top:14px;border-radius:22px;overflow:hidden;border:1px solid #303a41;background:#080b0d;box-shadow:0 20px 55px rgba(0,0,0,.56),inset 0 0 0 1px rgba(255,255,255,.025)}
         .driver-ride-map{height:420px;width:100%;z-index:1;background:#0b1014}

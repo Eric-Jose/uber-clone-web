@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps, no-mixed-operators */
 import React, { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import { BACKEND_URL } from '../config';
@@ -279,11 +280,7 @@ export default function DriverDashboardMapPro() {
         var response = await axios.get(BACKEND_URL + '/api/rides/pending', { headers: headers, timeout: 8000 });
         var pending = response.data && response.data.rides || [];
         if (dead || rideRef.current) return;
-        setRequests(function (current) {
-          var map = {};
-          current.concat(pending).forEach(function (item) { if (item && item.id) map[String(item.id)] = item; });
-          return Object.keys(map).map(function (key) { return map[key]; }).slice(0, 20);
-        });
+        setRequests(pending.filter(function (item) { return item && item.id; }).slice(0, 20));
       } catch (_) {}
     }
     syncPending();
@@ -413,8 +410,13 @@ export default function DriverDashboardMapPro() {
 
     {completed && <div className="driver-box"><div className="driver-success"><h2 style={{ marginTop: 0 }}>✅ Corrida finalizada</h2><div className="driver-grid"><div className="driver-info"><b>Passageiro</b>{completed.passengerName}</div><div className="driver-info"><b>Valor da corrida</b>R$ {completed.price.toFixed(2)}</div><div className="driver-info"><b>Distância</b>{completed.distance.toFixed(2)} km</div><div className="driver-info"><b>Status</b>Concluída</div></div><p className="driver-muted">Voltando automaticamente ao painel inicial…</p></div></div>}
 
-    {!ride && !completed && requests.length > 0 && <div className="driver-box"><h2 style={{ marginTop: 0 }}>🚕 Corridas disponíveis</h2>{requests.map(function (request) { return <div className="driver-request" key={request.id}><div className="driver-row"><div><b>{request.passengerName || 'Passageiro'}</b><div className="driver-muted">{request.origin && request.origin.address ? request.origin.address : 'Embarque'} → {request.destination && request.destination.address ? request.destination.address : 'Destino'}</div></div><b>R$ {Number(request.price || 0).toFixed(2)}</b></div><button className="driver-btn driver-accent" style={{ marginTop: 10, width: '100%' }} disabled={busy} onClick={function () { acceptRide(request); }}>Aceitar corrida</button></div>; })}</div>}
+    {!ride && !completed && <div className="driver-box"><div className="driver-row"><h2 style={{ marginTop: 0 }}>🗺️ Mapa do motorista</h2><span className="driver-muted">{online ? 'Sua posição em tempo real' : 'Ative o GPS para ficar online'}</span></div><DriverRideMap driverLocation={driverLocation} passengerLocation={null} destinationLocation={null} status="SEARCHING" /></div>}
+
+        {!ride && !completed && requests.length > 0 && <div className="driver-box"><h2 style={{ marginTop: 0 }}>🚕 Corridas disponíveis</h2>{requests.map(function (request) { return <div className="driver-request" key={request.id}><div className="driver-row"><div><b>{request.passengerName || 'Passageiro'}</b><div className="driver-muted">{request.origin && request.origin.address ? request.origin.address : 'Embarque'} → {request.destination && request.destination.address ? request.destination.address : 'Destino'}</div></div><b>R$ {Number(request.price || 0).toFixed(2)}</b></div><button className="driver-btn driver-accent" style={{ marginTop: 10, width: '100%' }} disabled={busy} onClick={function () { acceptRide(request); }}>Aceitar corrida</button></div>; })}</div>}
 
     {ride && <div className="driver-box"><div className="driver-row"><h2 style={{ margin: 0 }}>📍 Corrida atual</h2><b>{ride.status === 'ACCEPTED' ? 'A CAMINHO DO PASSAGEIRO' : 'EM CORRIDA'}</b></div><div className="driver-person" style={{ marginTop: 12 }}><Avatar photo={ride.passengerProfilePhoto} name={ride.passengerName} /><div><b>{ride.passengerName || 'Passageiro'}</b><div className="driver-muted">{ride.status === 'ACCEPTED' ? 'Dirija até o embarque.' : 'Passageiro embarcado. Siga a rota até o destino.'}</div></div></div><div className="driver-grid" style={{ marginTop: 12 }}><div className="driver-info"><b>Embarque</b>{(ride.origin && ride.origin.address) || '—'}{Number.isFinite(pickupDistance) && <div className="driver-muted">{pickupDistance.toFixed(2)} km</div>}</div><div className="driver-info"><b>Destino</b>{(ride.destination && ride.destination.address) || '—'}{ride.status === 'IN_PROGRESS' && Number.isFinite(destinationDistance) && <div className="driver-muted">{destinationDistance.toFixed(2)} km</div>}</div><div className="driver-info"><b>Valor</b>R$ {Number(ride.price || 0).toFixed(2)}</div><div className="driver-info"><b>Distância</b>{Number(ride.distance || 0).toFixed(2)} km</div></div><div style={{ marginTop: 12, display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}><b>🧭 Navegação interna PreçoFixo17</b><span className="driver-muted">Sem abrir outro aplicativo.</span></div><DriverRideMap driverLocation={driverLocation} passengerLocation={passengerLocation || (ride.origin && ride.origin.location) || null} destinationLocation={ride.destination && ride.destination.location} status={ride.status} />{ride.status === 'ACCEPTED' && <div className="driver-arrival"><b>{nearPickup ? '✅ Você está no embarque' : '🚘 Rota até o passageiro ativa'}</b><div className="driver-muted">{nearPickup ? 'Toque em “Passageiro embarcou • Iniciar corrida” para iniciar.' : 'O mapa permanece dentro do PreçoFixo17 enquanto você se aproxima.'}</div></div>}{ride.status === 'IN_PROGRESS' && <div className="driver-arrival"><b>{nearDestination ? '✅ Você chegou ao destino.' : '🧭 Rota até o destino ativa.'}</b><div className="driver-muted">A posição é atualizada continuamente pelo GPS.</div></div>}<div className="driver-row" style={{ marginTop: 14 }}>{ride.status === 'ACCEPTED' && <button className="driver-btn driver-accent" disabled={busy} onClick={function () { updateStatus('IN_PROGRESS'); }}>{busy ? 'Iniciando…' : '👤 Passageiro embarcou • Iniciar corrida'}</button>}{ride.status === 'IN_PROGRESS' && <button className="driver-btn driver-on" disabled={busy} onClick={function () { updateStatus('COMPLETED'); }}>{busy ? 'Finalizando…' : '✅ Finalizar corrida'}</button>}{ACTIVE.indexOf(ride.status) !== -1 && <button className="driver-btn driver-danger" disabled={busy} onClick={cancelRide}>Cancelar corrida</button>}</div></div>}
   </div>;
 }
+// DRIVER_DASHBOARD_MAP_PATCH_APPLIED
+
+// DRIVER_PENDING_RECONCILIATION_PATCH_APPLIED

@@ -1,10 +1,13 @@
 import io from 'socket.io-client';
 import { BACKEND_URL } from '../config';
+import { addInAppNotification } from './notificationService';
 
 // Vercel does not provide a persistent Socket.IO server for this app. Keep
 // Socket.IO as an optional enhancement, but make HTTP/Firebase-backed API
 // polling the reliable production transport for ride state and notifications.
 const POLL_MS = 2000;
+const SOCKET_ENABLED = process.env.NODE_ENV !== 'production';
+// PRODUCTION_SOCKET_PATCH_APPLIED
 
 class WebSocketService {
   constructor() {
@@ -119,6 +122,7 @@ class WebSocketService {
     if (this.socket && this.authToken && this.authToken !== token) this.disconnect();
     this.authToken = token;
     this._startPolling();
+    if (!SOCKET_ENABLED) { this._emit('connect'); return null; }
     if (this.socket) { if (!this.socket.connected && !this.socket.active) this.socket.connect(); return this.socket; }
     // Optional Socket.IO: useful only when a persistent compatible server is
     // present. Failure never disables the HTTP realtime path above.
@@ -127,6 +131,26 @@ class WebSocketService {
     this.socket.on('connect_error', (error) => console.warn('Socket.IO opcional indisponível; usando sincronização HTTP:', error?.message || 'falha'));
     ['new-ride-request','ride-unavailable','ride-accepted','ride-started','ride_in_progress','ride-ended','ride-completed','ride-cancelled','update-driver-location','passenger-location-update','ride-status'].forEach((event) => this.socket.on(event, (payload) => this._emit(event, payload)));
     return this.socket;
+  }
+
+  bindNotificationEvents() {
+    if (this.notificationsBound || !this.socket) return;
+    this.notificationsBound = true;
+    const user = (() => { try { return JSON.parse(localStorage.getItem('user') || 'null'); } catch (_) { return null; } })();
+    const isPassenger = user?.userType !== 'driver';
+    const add = (event, type, title, message, allowed = true) => {
+      this.socket.on(event, (payload) => {
+        if (!allowed) return;
+        const rideId = payload?.rideId || payload?.ride?.id || 'unknown';
+        addInAppNotification({ id: `${event}-${rideId}`, type, title, message: typeof message === 'function' ? message(payload) : message });
+      });
+    };
+    add('ride-accepted', 'driver', 'Motorista encontrado', 'Um motorista aceitou sua corrida.', isPassenger);
+    add('ride-started', 'driver', 'Corrida iniciada', 'Sua corrida foi iniciada pelo motorista.', isPassenger);
+    add('ride-ended', 'completed', 'Corrida concluída', 'Sua corrida foi concluída com sucesso.', isPassenger);
+    add('ride-completed', 'completed', 'Corrida concluída', 'Sua corrida foi concluída com sucesso.', isPassenger);
+    add('ride-cancelled', 'system', 'Corrida cancelada', 'A corrida foi cancelada.', true);
+    add('new-ride-request', 'driver', 'Nova corrida', 'Você recebeu uma nova solicitação de corrida.', !isPassenger);
   }
 
   requestDriverRoom() {
