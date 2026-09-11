@@ -53,7 +53,7 @@ function bootstrap() {
     rideRoutes.setSocketIo(null);
     application.get('/health', health);
     application.get('/api/health', health);
-    application.get('/api/backend-check', (req, res) => res.status(200).json({ status: 'ok', backendInitialized: true, firebaseInitialized: admin.apps.length > 0, databaseConfigured: Boolean(admin.app().options.databaseURL), databaseURLValid: (() => { try { const value = admin.app().options.databaseURL; const parsed = new URL(value); return /^https?:$/.test(parsed.protocol) && Boolean(parsed.hostname); } catch (_) { return false; } })(), timestamp: new Date().toISOString() }));
+    application.get('/api/backend-check', (req, res) => res.status(200).json({ status: 'ok', backendInitialized: true, firebaseInitialized: admin.apps.length > 0, databaseConfigured: Boolean(admin.app().options.databaseURL), databaseURLValid: (() => { try { const value = admin.app().options.databaseURL; const parsed = new URL(value); return /^https?:$/.test(parsed.protocol) && Boolean(parsed.hostname); } catch (_) { return false; } })(), deploymentCommit: process.env.VERCEL_GIT_COMMIT_SHA || null, timestamp: new Date().toISOString() }));
     application.use('/api/auth', authRoutes);
     application.use('/api/auth/firebase-session', firebaseSessionRoutes);
     application.use('/api/auth/password-reset', passwordResetRoutes);
