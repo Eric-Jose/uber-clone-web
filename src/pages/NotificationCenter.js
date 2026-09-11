@@ -1,12 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import '../styles/PrecoFixo17Reference.css';
 
-const DEFAULT_NOTIFICATIONS = [
-  { id: 1, type: 'driver', title: 'Motorista a caminho', message: 'O motorista Carlos está a caminho do seu local.', timeAgo: 'agora', read: false },
-  { id: 2, type: 'completed', title: 'Corrida concluída', message: 'Sua corrida foi concluída com sucesso.', timeAgo: 'há 10 min', read: false },
-  { id: 3, type: 'promo', title: 'Promoção', message: 'Ganhe desconto especial na sua próxima viagem pelo PreçoFixo17.', timeAgo: 'há 2 h', read: true },
-  { id: 4, type: 'system', title: 'Atualização', message: 'Nova versão disponível com melhorias.', timeAgo: 'há 1 dia', read: true }
-];
+const DEFAULT_NOTIFICATIONS = [];
 
 function currentAccountKey() {
   try {
@@ -20,7 +15,11 @@ function NotificationCenter({ onBack }) {
   const [notifications, setNotifications] = useState(() => {
     try {
       const saved = JSON.parse(localStorage.getItem(key) || 'null');
-      return Array.isArray(saved) ? saved : DEFAULT_NOTIFICATIONS;
+      if (!Array.isArray(saved)) return DEFAULT_NOTIFICATIONS;
+      const simulatedTitles = new Set(['Motorista a caminho', 'Corrida concluída', 'Promoção', 'Atualização']);
+      const cleaned = saved.filter((item) => !simulatedTitles.has(item?.title));
+      if (cleaned.length !== saved.length) localStorage.setItem(key, JSON.stringify(cleaned));
+      return cleaned;
     } catch (_) { return DEFAULT_NOTIFICATIONS; }
   });
 

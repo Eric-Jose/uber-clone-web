@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 import React, { useEffect, useMemo, useState } from 'react';
 import { BACKEND_URL } from '../config';
 import '../styles/PrecoFixo17Reference.css';
@@ -54,6 +55,8 @@ export default function AdminDashboardLive({ admin, onLogout }) {
   const [totals, setTotals] = useState(EMPTY_TOTALS);
   const [users, setUsers] = useState([]);
   const [drivers, setDrivers] = useState([]);
+  const [driverApplications, setDriverApplications] = useState([]);
+  const [approvalBusy, setApprovalBusy] = useState('');
   const [rides, setRides] = useState([]);
   const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -72,18 +75,22 @@ export default function AdminDashboardLive({ admin, onLogout }) {
     setLoading(true);
     setError('');
     try {
-      const [overviewResponse, dataResponse] = await Promise.all([
+      const [overviewResponse, dataResponse, applicationsResponse] = await Promise.all([
         fetch(`${BACKEND_URL}/api/admin-stats/overview`, { headers: authHeaders, cache: 'no-store' }),
         fetch(`${BACKEND_URL}/api/admin-stats/data`, { headers: authHeaders, cache: 'no-store' }),
+        fetch(`${BACKEND_URL}/api/drivers/applications`, { headers: authHeaders, cache: 'no-store' }),
       ]);
       const overview = await overviewResponse.json().catch(() => ({}));
       const data = await dataResponse.json().catch(() => ({}));
+      const applicationsData = await applicationsResponse.json().catch(() => ({}));
+      if (!applicationsResponse.ok) throw new Error(applicationsData.error || 'Não foi possível carregar os cadastros de motoristas.');
       if (!overviewResponse.ok) throw new Error(overview.error || 'Não foi possível carregar o painel.');
       if (!dataResponse.ok) throw new Error(data.error || 'Não foi possível carregar os dados administrativos.');
       const liveTotals = overview.totals || EMPTY_TOTALS;
       setTotals({ ...EMPTY_TOTALS, ...liveTotals });
       setUsers(Array.isArray(data.users) ? data.users : []);
       setDrivers(Array.isArray(data.drivers) ? data.drivers : []);
+      setDriverApplications(Array.isArray(applicationsData.applications) ? applicationsData.applications : []);
       setRides(Array.isArray(data.rides) ? data.rides : []);
       setReviews(Array.isArray(data.reviews) ? data.reviews : []);
     } catch (loadError) {
@@ -128,6 +135,28 @@ export default function AdminDashboardLive({ admin, onLogout }) {
     URL.revokeObjectURL(url);
   };
 
+  const updateDriverApproval = async (driverId, status, reviewReason = '') => {
+    if (!driverId || !['approved', 'rejected'].includes(status) || approvalBusy) return;
+    setApprovalBusy(driverId);
+    setError('');
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/drivers/${encodeURIComponent(driverId)}/approval`, {
+        method: 'PATCH',
+        headers: { ...authHeaders, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status, reviewReason: String(reviewReason || '').trim().slice(0, 500) }),
+        cache: 'no-store',
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || 'Não foi possível atualizar a aprovação.');
+      await loadDashboard();
+      setSelected(null);
+    } catch (approvalError) {
+      setError(approvalError.message || 'Erro ao atualizar a aprovação.');
+    } finally {
+      setApprovalBusy('');
+    }
+  };
+
   const toggleReview = (id) => setReadReviews((current) => {
     const next = new Set(current);
     if (next.has(id)) next.delete(id); else next.add(id);
@@ -151,10 +180,45 @@ export default function AdminDashboardLive({ admin, onLogout }) {
       <div className="pf-admin-table-card"><div className="pf-admin-chart-title">Usuários reais</div><div style={{ overflowX: 'auto' }}><table className="pf-admin-table"><thead><tr><th>Nome</th><th>E-mail</th><th>Perfil</th><th>Status</th><th>Ação</th></tr></thead><tbody>{users.map((item) => <tr key={item.uid}><td style={{ fontWeight: 800 }}>{item.name}</td><td>{item.email || '—'}</td><td>{item.role}</td><td><span className={`pf-admin-status-badge ${statusClass(item.status)}`}>{item.status}</span></td><td><ActionButton onClick={() => setSelected({ title: 'Usuário', data: item })}>Ver detalhes</ActionButton></td></tr>)}</tbody></table></div></div>
     );
 
-    if (activeTab === 'motoristas') return (
-      <div className="pf-admin-table-card"><div className="pf-admin-chart-title">Motoristas reais</div><div style={{ overflowX: 'auto' }}><table className="pf-admin-table"><thead><tr><th>Motorista</th><th>Veículo</th><th>Nota</th><th>Operação</th><th>Aprovação</th><th>Ação</th></tr></thead><tbody>{drivers.map((item) => <tr key={item.uid}><td style={{ fontWeight: 800 }}>{item.name}</td><td>{item.vehicle}{item.plate ? ` • ${item.plate}` : ''}</td><td>★ {item.rating}</td><td><span className={`pf-admin-status-badge ${statusClass(item.status)}`}>{item.status}</span></td><td><span className={`pf-admin-status-badge ${statusClass(item.approvalStatus)}`}>{formatStatus(item.approvalStatus)}</span></td><td><ActionButton onClick={() => setSelected({ title: 'Motorista', data: item })}>Ver detalhes</ActionButton></td></tr>)}</tbody></table></div></div>
-    );
-
+    if (activeTab === 'motoristas') {
+      const pendingApplications = driverApplications.filter((item) => item.status === 'pending');
+      return (
+        <div className="pf-admin-table-card" data-admin-driver-approval="v1">
+          <div className="pf-admin-chart-title">Cadastros de motoristas</div>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 16 }}>
+            <span className="pf-admin-status-badge andamento">{pendingApplications.length} pendente(s)</span>
+            <span className="pf-admin-status-badge concluida">{totals.approvedDrivers} aprovado(s)</span>
+            <span className="pf-admin-status-badge cancelada">{totals.rejectedDrivers} rejeitado(s)</span>
+          </div>
+          {pendingApplications.length === 0 ? (
+            <div style={{ padding: 20, border: '1px solid #222831', borderRadius: 12, color: '#9aa4b2' }}>Nenhum cadastro pendente de aprovação.</div>
+          ) : (
+            <div style={{ display: 'grid', gap: 12 }}>
+              {pendingApplications.map((item) => (
+                <div key={item.uid} style={{ border: '1px solid #2a313c', borderRadius: 14, padding: 16, background: '#101318' }}>
+                  <div style={{ display: 'grid', gap: 5 }}>
+                    <div style={{ fontWeight: 900, fontSize: 18 }}>{item.fullName || 'Motorista'}</div>
+                    <div style={{ color: '#aab3bf', fontSize: 13 }}>{item.email || '—'} • {item.phone || '—'}</div>
+                    <div style={{ color: '#fff', marginTop: 6, fontWeight: 700 }}>{item.vehicleModel || 'Veículo não informado'}{item.licensePlate ? ' • ' + item.licensePlate : ''}</div>
+                    <div style={{ color: '#aab3bf', fontSize: 13 }}>{item.city || '—'}{item.state ? ' / ' + item.state : ''} • {item.documentCount || 0} documentos</div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 14 }}>
+                    <ActionButton onClick={() => setSelected({ title: 'Cadastro de motorista', data: item })}>Ver cadastro</ActionButton>
+                    <ActionButton disabled={approvalBusy === item.uid} onClick={() => { const reason = window.prompt('Motivo da aprovação (opcional):', 'Documentos validados com sucesso'); void updateDriverApproval(item.uid, 'approved', reason); }}>{approvalBusy === item.uid ? 'Processando…' : '✅ Aprovar'}</ActionButton>
+                    <ActionButton disabled={approvalBusy === item.uid} onClick={() => { const reason = window.prompt('Motivo da rejeição:', 'Documentação precisa ser corrigida'); if (reason === null) return; void updateDriverApproval(item.uid, 'rejected', reason); }}>{approvalBusy === item.uid ? 'Processando…' : '❌ Rejeitar'}</ActionButton>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          <div style={{ marginTop: 22, overflowX: 'auto' }}>
+            <table className="pf-admin-table"><thead><tr><th>Motorista</th><th>Veículo</th><th>Operação</th><th>Aprovação</th><th>Ação</th></tr></thead><tbody>
+              {drivers.map((item) => <tr key={item.uid}><td style={{ fontWeight: 800 }}>{item.name}</td><td>{item.vehicle}{item.plate ? ' • ' + item.plate : ''}</td><td><span className={`pf-admin-status-badge ${statusClass(item.status)}`}>{item.status}</span></td><td><span className={`pf-admin-status-badge ${statusClass(item.approvalStatus)}`}>{formatStatus(item.approvalStatus)}</span></td><td><ActionButton onClick={() => { const application = driverApplications.find((candidate) => candidate.uid === item.uid); setSelected({ title: 'Motorista', data: application || item }); }}>Ver detalhes</ActionButton></td></tr>)}
+            </tbody></table>
+          </div>
+        </div>
+      );
+    }
     if (activeTab === 'corridas') return (
       <div className="pf-admin-table-card"><div className="pf-admin-chart-title">Corridas reais</div><div style={{ overflowX: 'auto' }}><table className="pf-admin-table"><thead><tr><th>ID</th><th>Passageiro</th><th>Motorista</th><th>Valor</th><th>Status</th><th>Data</th></tr></thead><tbody>{rides.map((ride) => <tr key={ride.id}><td style={{ fontWeight: 800 }}>{String(ride.id).slice(0, 12)}</td><td>{ride.passengerName}</td><td>{ride.driverName}</td><td style={{ fontWeight: 800 }}>{money(ride.price)}</td><td><span className={`pf-admin-status-badge ${statusClass(ride.status)}`}>{formatStatus(ride.status)}</span></td><td>{new Date(Number(ride.createdAt) || Date.now()).toLocaleString('pt-BR')}</td></tr>)}</tbody></table></div></div>
     );

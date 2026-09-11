@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 /* Navegação autenticada: perfil e corrida usam rotas independentes. */
 // Fluxo do passageiro: Procurar corrida, Histórico e Perfil permanecem independentes.
 import React, { useEffect, useState } from 'react';
