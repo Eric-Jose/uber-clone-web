@@ -54,7 +54,7 @@ const newSync = `  async function syncDriverLocationToServer(loc) {
     var lastError = null;
     for (var attempt = 1; attempt <= 3; attempt += 1) {
       try {
-        var response = await axios.post(BACKEND_URL + '/api/drivers/' + uid + '/status', { isOnline: true, currentLocation: loc }, { headers: headers, timeout: 10000 });
+        var response = await axios.post(BACKEND_URL + '/api/drivers/' + uid + '/status', { isOnline: true, currentLocation: loc }, { headers: headers, timeout: 15000 });
         if (!response || response.status < 200 || response.status >= 300) throw new Error('Não foi possível sincronizar a localização do motorista.');
         onlineRef.current = true;
         setOnline(true);
@@ -79,7 +79,12 @@ source = source.replace(oldToggle, newToggle);
 
 const oldCatch = /    \} catch \(error\) \{\n      setMessage\(errorMessage\(error, 'Não foi possível alterar o status\.'\)\);/;
 const newCatch = `    } catch (error) {
-      var networkFailure = error && (error.message === 'Network Error' || !error.response);
+      var networkFailure = !!(error && (
+        error.code === 'ERR_NETWORK' ||
+        error.code === 'ECONNABORTED' ||
+        error.message === 'Network Error' ||
+        (error.config && !error.response)
+      ));
       setMessage(networkFailure ? 'Sem conexão com o servidor. Verifique sua internet e tente ficar online novamente.' : errorMessage(error, 'Não foi possível alterar o status.'));`;
 if (!oldCatch.test(source)) throw new Error('toggle error handler not found');
 source = source.replace(oldCatch, newCatch);
