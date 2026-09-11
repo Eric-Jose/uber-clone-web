@@ -53,25 +53,17 @@ async function notifyDriversHttpFallback(ride) {
     await Promise.all(drivers.slice(0, 20).map(async (driver) => {
       try {
         await db.ref(`driverNotifications/${driver.uid}/${ride.id}`).set({ ...payload, estimatedDistanceKm: Number(driver.distance.toFixed(2)), createdAt: admin.database.ServerValue.TIMESTAMP, type: 'new-ride-request' });
-      } catch (error) {
-        console.error('Falha ao publicar notificação de corrida ao motorista:', error.message);
-      }
+      } catch (error) { console.error('Falha ao publicar notificação de corrida ao motorista:', error.message); }
     }));
     return drivers;
-  } catch (error) {
-    console.error('Erro no fallback HTTP do despacho:', error.message);
-    return [];
-  }
+  } catch (error) { console.error('Erro no fallback HTTP do despacho:', error.message); return []; }
 }
 async function dispatchRide(ride) {
   if (!ride?.id || ride.status !== 'SEARCHING' || dispatchingRideIds.has(ride.id)) return;
   dispatchingRideIds.add(ride.id);
   try {
     const radiusKm = dispatchRadiusKm(rideAgeMs(ride)), drivers = await findEligibleDrivers(ride.origin, radiusKm);
-    if (!io || !io.sockets?.adapter?.rooms) {
-      await notifyDriversHttpFallback(ride);
-      return;
-    }
+    if (!io || !io.sockets?.adapter?.rooms) { await notifyDriversHttpFallback(ride); return; }
     for (const driver of drivers.slice(0, 10)) {
       const current = (await db.ref(`rides/${ride.id}`).get()).val();
       if (!current || current.status !== 'SEARCHING' || current.driverId) break;
@@ -81,12 +73,8 @@ async function dispatchRide(ride) {
       const after = (await db.ref(`rides/${ride.id}`).get()).val();
       if (!after || after.status !== 'SEARCHING' || after.driverId) break;
     }
-  } catch (error) {
-    console.error('Erro no despacho automático:', error.message);
-  } finally {
-    await notifyDriversHttpFallback(ride);
-    dispatchingRideIds.delete(ride.id);
-  }
+  } catch (error) { console.error('Erro no despacho automático:', error.message); }
+  finally { await notifyDriversHttpFallback(ride); dispatchingRideIds.delete(ride.id); }
 }
 router.use(authenticate);
 router.post('/request', async (req, res) => {
@@ -146,6 +134,42 @@ router.get('/active', async (req, res) => {
   try { let active = null; (await db.ref('rides').get()).forEach((child) => { const ride = child.val(); if (ride && (ride.userId === req.user.uid || ride.driverId === req.user.uid) && ACTIVE_STATUSES.includes(ride.status)) active = ride; }); return res.json({ success: true, ride: active }); }
   catch (_) { return res.status(500).json({ error: 'Erro ao buscar corrida ativa.' }); }
 });
+router.get('/pending', async (req, res) => {
+  try {
+    const uid = req.user.uid;
+    const user = (await db.ref(`users/${uid}`).get()).val();
+    if (!user || user.userType !== 'driver') return res.status(403).json({ error: 'Somente motoristas podem consultar corridas pendentes.' });
+    if (user.driverApprovalStatus !== 'approved') return res.status(403).json({ error: 'Motorista ainda não foi aprovado.' });
+    if (user.isOnline !== true) return res.json({ success: true, rides: [] });
+    const driverLocation = normalizeLocation(user.currentLocation || (await db.ref(`locations/${uid}`).get()).val());
+    if (!driverLocation) return res.json({ success: true, rides: [] });
+    const [ridesSnapshot, notificationsSnapshot] = await Promise.all([db.ref('rides').get(), db.ref(`driverNotifications/${uid}`).get()]);
+    const rides = ridesSnapshot.val() || {};
+    const notifications = notificationsSnapshot.val() || {};
+    const candidates = new Map();
+    Object.entries(notifications).forEach(([rideId, item]) => { if (item?.status === 'SEARCHING' && item?.id === rideId) candidates.set(rideId, item); });
+    Object.entries(rides).forEach(([rideId, ride]) => {
+      if (!ride || ride.status !== 'SEARCHING' || ride.driverId) return;
+      const pickup = normalizeLocation(ride.passengerLocation || ride.origin);
+      const radius = dispatchRadiusKm(rideAgeMs(ride));
+      const distance = distanceKm(driverLocation, pickup);
+      if (Number.isFinite(distance) && distance <= radius) candidates.set(rideId, { ...ride, rideId, estimatedDistanceKm: Number(distance.toFixed(2)), dispatchRadiusKm: radius, source: 'driver-pending-poll' });
+    });
+    const result = Array.from(candidates.values()).filter((ride) => ride?.id).sort((a, b) => Number(a.estimatedDistanceKm ?? 999999) - Number(b.estimatedDistanceKm ?? 999999)).slice(0, 20);
+    return res.json({ success: true, rides: result });
+  } catch (error) { console.error('Erro ao buscar corridas pendentes:', error.message); return res.status(500).json({ error: 'Não foi possível buscar corridas pendentes.' }); }
+});
+router.get('/:rideId', async (req, res) => {
+  try {
+    const rideId = String(req.params.rideId || '');
+    if (!rideId) return res.status(400).json({ error: 'ID da corrida é obrigatório.' });
+    const ride = (await db.ref(`rides/${rideId}`).get()).val();
+    if (!ride) return res.status(404).json({ error: 'Corrida não encontrada.' });
+    const uid = req.user.uid;
+    if (String(ride.userId || '') !== String(uid) && String(ride.driverId || '') !== String(uid)) return res.status(403).json({ error: 'Acesso negado.' });
+    return res.json({ success: true, ride });
+  } catch (error) { return res.status(500).json({ error: 'Erro ao buscar corrida.', details: error?.message || 'Erro desconhecido' }); }
+});
 router.post('/accept', async (req, res) => {
   const { rideId } = req.body || {}, driverId = req.user.uid;
   if (!rideId) return res.status(400).json({ error: 'ID da corrida é obrigatório.' });
@@ -174,19 +198,12 @@ router.post('/accept', async (req, res) => {
         return accepted;
       });
       committed = Boolean(tx && tx.committed);
-    } catch (_) {
-      committed = false;
-    }
-
+    } catch (_) { committed = false; }
     if (!committed) {
       const fresh = (await ref.get()).val();
-      if (fresh && fresh.status === 'SEARCHING' && !fresh.driverId) {
-        await ref.set(accepted);
-      } else {
-        return res.status(409).json({ error: 'Corrida já foi aceita ou não existe.', ride: fresh || null });
-      }
+      if (fresh && fresh.status === 'SEARCHING' && !fresh.driverId) await ref.set(accepted);
+      else return res.status(409).json({ error: 'Corrida já foi aceita ou não existe.', ride: fresh || null });
     }
-
     const confirmed = (await ref.get()).val() || accepted;
     await db.ref(`driverNotifications/${driverId}/${rideId}`).remove();
     emitToRide(rideId, 'ride-accepted', { rideId, driverId, ride: confirmed });
@@ -210,18 +227,9 @@ router.patch('/:rideId/status', async (req, res) => {
       const driver = (await db.ref(`users/${ride.driverId}`).get()).val();
       let driverLocation = normalizeLocation(driver?.currentLocation || (await db.ref(`locations/${ride.driverId}`).get()).val());
       const target = status === 'IN_PROGRESS' ? normalizeLocation(ride.passengerLocation || ride.origin) : normalizeLocation(ride.destination);
-      if (!driverLocation && target) {
-        driverLocation = target;
-        await db.ref(`users/${ride.driverId}`).update({ currentLocation: target });
-      }
+      if (!driverLocation && target) { driverLocation = target; await db.ref(`users/${ride.driverId}`).update({ currentLocation: target }); }
       const dist = distanceKm(driverLocation, target);
-      if (req.body.force !== true && (!Number.isFinite(dist) || dist > ARRIVAL_RADIUS_KM)) {
-        return res.status(409).json({
-          error: status === 'IN_PROGRESS' ? 'Aproxime-se do passageiro para iniciar a corrida.' : 'Aproxime-se do destino para finalizar a corrida.',
-          distanceKm: Number.isFinite(dist) ? Number(dist.toFixed(2)) : null,
-          maxRadiusKm: ARRIVAL_RADIUS_KM
-        });
-      }
+      if (req.body.force !== true && (!Number.isFinite(dist) || dist > ARRIVAL_RADIUS_KM)) return res.status(409).json({ error: status === 'IN_PROGRESS' ? 'Aproxime-se do passageiro para iniciar a corrida.' : 'Aproxime-se do destino para finalizar a corrida.', distanceKm: Number.isFinite(dist) ? Number(dist.toFixed(2)) : null, maxRadiusKm: ARRIVAL_RADIUS_KM });
     }
     const now = admin.database.ServerValue.TIMESTAMP, updates = { status, updatedAt: now };
     if (status === 'IN_PROGRESS') updates.startedAt = now;
@@ -230,11 +238,8 @@ router.patch('/:rideId/status', async (req, res) => {
     await ref.update(updates);
     const updated = (await ref.get()).val();
     if (status === 'CANCELLED') {
-      const notifications = await db.ref('driverNotifications').get();
-      const cleanup = {};
-      notifications.forEach((driverNode) => {
-        if (driverNode.hasChild(id)) cleanup[`driverNotifications/${driverNode.key}/${id}`] = null;
-      });
+      const notifications = await db.ref('driverNotifications').get(), cleanup = {};
+      notifications.forEach((driverNode) => { if (driverNode.hasChild(id)) cleanup[`driverNotifications/${driverNode.key}/${id}`] = null; });
       if (Object.keys(cleanup).length) await db.ref().update(cleanup);
     }
     emitToRide(id, status === 'IN_PROGRESS' ? 'ride-started' : status === 'COMPLETED' ? 'ride-ended' : status === 'CANCELLED' ? 'ride-cancelled' : 'ride-status', { rideId: id, ride: updated, cancelledBy: updated.cancelledBy || null, cancellationReason: updated.cancellationReason || null });
