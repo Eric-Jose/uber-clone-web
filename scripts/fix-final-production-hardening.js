@@ -11,11 +11,9 @@ if (!fs.existsSync(adminFile)) throw new Error('AdminDashboardLive.js not found'
 let app = fs.readFileSync(appFile, 'utf8');
 let admin = fs.readFileSync(adminFile, 'utf8');
 
-// Remove the obsolete legacy admin entry from source as well as from the build-time unifier.
 app = app.replace("import AdminPanel from './pages/AdminPanel';\n", '');
 app = app.replace("    case 'admin-panel': return <AdminPanel />;\n", '');
 
-// Keep the live admin dashboard fresh without disturbing any ride lifecycle code.
 if (!admin.includes('data-final-admin-refresh="v1"')) {
   const marker = "  useEffect(() => { void loadDashboard(); }, []);";
   const replacement = `  useEffect(() => { void loadDashboard(); }, []);\n  useEffect(() => {\n    const refresh = () => { if (document.visibilityState === 'visible') void loadDashboard(); };\n    const timer = window.setInterval(refresh, 30000);\n    window.addEventListener('focus', refresh);\n    document.addEventListener('visibilitychange', refresh);\n    return () => { window.clearInterval(timer); window.removeEventListener('focus', refresh); document.removeEventListener('visibilitychange', refresh); };\n  }, [token]);\n  // data-final-admin-refresh="v1"`;
@@ -34,6 +32,25 @@ button { touch-action: manipulation; }
   button { min-height: 42px; }
   input, select, textarea { min-height: 44px; }
   .pf-app-layout { width: 100%; max-width: 100%; overflow-x: hidden; }
+  .pf-map-screen { min-height: 100dvh; height: 100dvh; }
+  .pf-map-topbar { height: calc(56px + env(safe-area-inset-top)); padding-top: env(safe-area-inset-top); }
+  .pf-route-card, .pf-driver-arriving-card { left: 10px; right: 10px; }
+  .pf-route-card { top: calc(64px + env(safe-area-inset-top)); border-radius: 18px; }
+  .pf-bottom-sheet, .pf-arriving-sheet, .pf-progress-sheet { left: 8px; right: 8px; bottom: max(8px, env(safe-area-inset-bottom)); max-width: none; border-radius: 22px; padding: 14px; }
+  .pf-driver-arriving-card { top: calc(64px + env(safe-area-inset-top)); }
+  .pf-sheet-car-thumb { width: 84px; }
+  .pf-sheet-price-val { font-size: 24px; }
+  .pf-route-input-group { min-width: 0; }
+  .pf-route-val { font-size: 13px; }
+  .pf-chip { min-height: 42px; padding: 9px 12px; }
+  .pf-request-btn, .pf-arriving-cancel-btn, .pf-finish-btn { min-height: 50px; padding: 13px 15px; }
+  .pf-map-screen * { box-sizing: border-box; }
+}
+@media (max-width: 380px) {
+  .pf-map-topbar { padding-left: 10px; padding-right: 10px; }
+  .pf-route-card { left: 6px; right: 6px; padding: 12px; }
+  .pf-bottom-sheet, .pf-arriving-sheet, .pf-progress-sheet { left: 6px; right: 6px; padding: 12px; }
+  .pf-sheet-car-thumb { width: 72px; }
 }
 `;
 if (!fs.existsSync(cssFile) || fs.readFileSync(cssFile, 'utf8') !== css) fs.writeFileSync(cssFile, css, 'utf8');
