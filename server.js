@@ -225,18 +225,29 @@ async function saveDriverLocation(driverId, latitude, longitude) {
 
 io.on('connection', (socket) => {
   const uid = socket.user.uid;
+  // Compatibility rooms: the ride routes use ride_<id>, while the main server
+  // historically used ride:<id>. Join both so real-time events are never lost.
   socket.join(`user:${uid}`);
+  socket.join(`driver:${uid}`);
+  socket.join(`driver_${uid}`);
   socket.on('join-ride-room', (rideId, ack) => {
     if (!rideId) return typeof ack === 'function' && ack({ ok: false });
     socket.join(`ride:${rideId}`);
+    socket.join(`ride_${rideId}`);
     if (typeof ack === 'function') ack({ ok: true });
   });
-  socket.on('leave-ride-room', (rideId) => { if (rideId) socket.leave(`ride:${rideId}`); });
+  socket.on('leave-ride-room', (rideId) => {
+    if (!rideId) return;
+    socket.leave(`ride:${rideId}`);
+    socket.leave(`ride_${rideId}`);
+  });
   socket.on('join-drivers-room', async (ack) => {
     try {
       const user = (await db.ref(`users/${uid}`).get()).val();
       if (!user || user.userType !== 'driver' || user.driverApprovalStatus !== 'approved') return typeof ack === 'function' && ack({ ok: false, error: 'Motorista não aprovado.' });
       socket.join('drivers');
+      socket.join(`driver:${uid}`);
+      socket.join(`driver_${uid}`);
       if (typeof ack === 'function') ack({ ok: true });
     } catch (e) {
       if (typeof ack === 'function') ack({ ok: false, error: 'Não foi possível entrar na fila.' });
@@ -263,6 +274,7 @@ io.on('connection', (socket) => {
       if (!ride || String(ride.driverId) !== String(uid)) return;
       await db.ref(`rides/${rideId}`).update({ driverLocation: { lat, lng }, updatedAt: Date.now() });
       io.to(`ride:${rideId}`).emit('update-driver-location', { rideId, driverId: uid, location: { lat, lng }, latitude: lat, longitude: lng });
+      io.to(`ride_${rideId}`).emit('update-driver-location', { rideId, driverId: uid, location: { lat, lng }, latitude: lat, longitude: lng });
     } catch (e) { console.error('driver-location:', e.message); }
   });
   socket.on('passenger-location', async (payload) => {
@@ -275,6 +287,7 @@ io.on('connection', (socket) => {
       if (!ride || String(ride.userId) !== String(uid)) return;
       await db.ref(`rides/${rideId}`).update({ passengerLocation: { lat, lng }, updatedAt: Date.now() });
       io.to(`ride:${rideId}`).emit('update-passenger-location', { rideId, userId: uid, location: { lat, lng }, latitude: lat, longitude: lng });
+      io.to(`ride_${rideId}`).emit('update-passenger-location', { rideId, userId: uid, location: { lat, lng }, latitude: lat, longitude: lng });
     } catch (e) { console.error('passenger-location:', e.message); }
   });
   socket.on('request-ride', async (payload, ack) => {
@@ -287,6 +300,8 @@ io.on('connection', (socket) => {
       const nearest = drivers.slice(0, 10);
       for (const driver of nearest) {
         io.to('drivers').emit('new-ride-request', { ...ride, id: rideId, driverDistance: Number(driver.distance.toFixed(2)) });
+        io.to(`driver:${driver.uid}`).emit('new-ride-request', { ...ride, id: rideId, driverDistance: Number(driver.distance.toFixed(2)) });
+        io.to(`driver_${driver.uid}`).emit('new-ride-request', { ...ride, id: rideId, driverDistance: Number(driver.distance.toFixed(2)) });
         await db.ref(`driverNotifications/${driver.uid}/${rideId}`).set({ ...ride, rideId, status: 'SEARCHING', createdAt: Date.now() });
       }
       if (nearest.length === 0) await db.ref(`rides/${rideId}`).update({ status: 'SEARCHING', noDriversAvailable: true, updatedAt: Date.now() });
@@ -303,14 +318,27 @@ io.on('connection', (socket) => {
       if (ride.driverId && String(ride.driverId) !== String(uid)) return typeof ack === 'function' && ack({ ok: false, error: 'Corrida já aceita por outro motorista.' });
       await db.ref(`rides/${rideId}`).update({ driverId: uid, status: 'ACCEPTED', updatedAt: Date.now() });
       io.to(`ride:${rideId}`).emit('ride-accepted', { ...ride, id: rideId, driverId: uid, status: 'ACCEPTED' });
+      io.to(`ride_${rideId}`).emit('ride-accepted', { ...ride, id: rideId, driverId: uid, status: 'ACCEPTED' });
       if (typeof ack === 'function') ack({ ok: true });
     } catch (error) {
       if (typeof ack === 'function') ack({ ok: false, error: 'Não foi possível aceitar a corrida.' });
     }
   });
-  socket.on('ride-cancelled', (rideId) => { if (rideId) io.to(`ride:${rideId}`).emit('ride-cancelled', { rideId }); });
-  socket.on('start-ride', (rideId) => { if (rideId) io.to(`ride:${rideId}`).emit('ride-started', { rideId, status: 'IN_PROGRESS' }); });
-  socket.on('end-ride', (rideId) => { if (rideId) io.to(`ride:${rideId}`).emit('ride-ended', { rideId, status: 'COMPLETED' }); });
+  socket.on('ride-cancelled', (rideId) => {
+    if (!rideId) return;
+    io.to(`ride:${rideId}`).emit('ride-cancelled', { rideId });
+    io.to(`ride_${rideId}`).emit('ride-cancelled', { rideId });
+  });
+  socket.on('start-ride', (rideId) => {
+    if (!rideId) return;
+    io.to(`ride:${rideId}`).emit('ride-started', { rideId, status: 'IN_PROGRESS' });
+    io.to(`ride_${rideId}`).emit('ride-started', { rideId, status: 'IN_PROGRESS' });
+  });
+  socket.on('end-ride', (rideId) => {
+    if (!rideId) return;
+    io.to(`ride:${rideId}`).emit('ride-ended', { rideId, status: 'COMPLETED' });
+    io.to(`ride_${rideId}`).emit('ride-ended', { rideId, status: 'COMPLETED' });
+  });
 });
 
 const buildDir = path.join(__dirname, 'build');
