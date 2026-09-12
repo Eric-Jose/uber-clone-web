@@ -5,6 +5,7 @@
   "private": true,
   "homepage": "https://uber-clone-web.vercel.app",
   "dependencies": {
+    "@vercel/speed-insights": "^2.0.0",
     "axios": "^1.6.0",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.6",
@@ -35,10 +36,19 @@
     "eject": "eject"
   },
   "eslintConfig": {
-    "extends": ["react-app"]
+    "extends": [
+      "react-app"
+    ]
   },
   "browserslist": {
-    "production": [">0.2%", "not dead", "not op_mini all"],
-    "development": ["last 1 chrome version", "last 1 safari version"]
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 safari version"
+    ]
   }
 }

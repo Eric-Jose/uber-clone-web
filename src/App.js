@@ -24,6 +24,7 @@ import { logoutFirebase } from './firebase';
 import { BACKEND_URL } from './config';
 import { getUnreadNotificationCount } from './services/notificationService';
 import precoFixo17Car from './assets/precoFixo17Car';
+import { SpeedInsights } from '@vercel/speed-insights/react';
 import './App.css';
 import './styles/VisualPolish.css';
 import './styles/UnifiedVisual.css';
@@ -129,4 +130,13 @@ function App() {
   }
 }
 
-export default App;
+function AppWithInsights() {
+  return (
+    <>
+      <App />
+      <SpeedInsights />
+    </>
+  );
+}
+
+export default AppWithInsights;
