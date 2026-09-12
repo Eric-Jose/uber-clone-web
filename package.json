@@ -4,6 +4,9 @@
   "description": "App tipo Uber com mapa e sistema de corridas",
   "private": true,
   "homepage": "https://uber-clone-web.vercel.app",
+  "engines": {
+    "node": "20.x"
+  },
   "dependencies": {
     "@vercel/speed-insights": "^2.0.0",
     "axios": "^1.6.0",
