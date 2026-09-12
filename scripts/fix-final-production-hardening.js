@@ -21,13 +21,35 @@ if (!admin.includes('data-final-admin-refresh="v1"')) {
   admin = admin.replace(marker, replacement);
 }
 
-const css = `/* Final production hardening: safe touch targets, no horizontal bleed, and mobile map stability. */
+const css = `/* Final production hardening: mobile stability, accessibility and visual polish. */
 html, body, #root { min-height: 100%; }
 html, body { background: #050505; }
-body { overflow-x: hidden; -webkit-text-size-adjust: 100%; }
+body { overflow-x: hidden; -webkit-text-size-adjust: 100%; -webkit-font-smoothing: antialiased; }
 button, input, select, textarea { font: inherit; }
-button { touch-action: manipulation; }
-.leaflet-container { touch-action: pan-x pan-y; }
+button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; }
+button, a { touch-action: manipulation; }
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid #ff5a00; outline-offset: 2px; }
+button:disabled { cursor: not-allowed; }
+img { max-width: 100%; height: auto; }
+.leaflet-container { touch-action: pan-x pan-y; background: #d9d9d9; }
+.leaflet-control-zoom a { min-width: 40px; min-height: 40px; line-height: 40px; }
+
+/* Shared Preço Fixo 17 finish */
+.pf-glass-card { -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); }
+.pf-btn-orange, .pf-btn-dark, .pf-btn-danger { min-height: 46px; }
+.pf-btn-orange:active:not(:disabled), .pf-btn-dark:active:not(:disabled), .pf-btn-danger:active:not(:disabled) { transform: translateY(1px); }
+.pf-toast, [role="alert"] { max-width: min(92vw, 520px); }
+
+/* Admin data surfaces stay usable on narrow screens. */
+.pf-admin-content, .pf-admin-main, .pf-admin-page { min-width: 0; }
+.pf-admin-table-wrap, .pf-admin-table-container { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.pf-admin-table-wrap table, .pf-admin-table-container table { min-width: 680px; }
+
+@media (max-width: 900px) {
+  .pf-admin-content, .pf-admin-main { padding-left: 14px !important; padding-right: 14px !important; }
+  .pf-admin-card, .pf-admin-stat-card { min-width: 0; }
+}
+
 @media (max-width: 680px) {
   button { min-height: 42px; }
   input, select, textarea { min-height: 44px; }
@@ -45,12 +67,19 @@ button { touch-action: manipulation; }
   .pf-chip { min-height: 42px; padding: 9px 12px; }
   .pf-request-btn, .pf-arriving-cancel-btn, .pf-finish-btn { min-height: 50px; padding: 13px 15px; }
   .pf-map-screen * { box-sizing: border-box; }
+  .pf-admin-table-wrap table, .pf-admin-table-container table { min-width: 620px; }
+  .pf-drawer { width: min(310px, 88vw); padding-bottom: calc(18px + env(safe-area-inset-bottom)); }
 }
+
 @media (max-width: 380px) {
   .pf-map-topbar { padding-left: 10px; padding-right: 10px; }
   .pf-route-card { left: 6px; right: 6px; padding: 12px; }
   .pf-bottom-sheet, .pf-arriving-sheet, .pf-progress-sheet { left: 6px; right: 6px; padding: 12px; }
   .pf-sheet-car-thumb { width: 72px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
 }
 `;
 if (!fs.existsSync(cssFile) || fs.readFileSync(cssFile, 'utf8') !== css) fs.writeFileSync(cssFile, css, 'utf8');
