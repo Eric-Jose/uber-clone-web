@@ -15,14 +15,31 @@ process.env.JWT_SECRET = JWT_SECRET;
 const requiredFirebaseEnv = ['FIREBASE_PROJECT_ID', 'FIREBASE_CLIENT_EMAIL', 'FIREBASE_PRIVATE_KEY'];
 const missingFirebaseEnv = requiredFirebaseEnv.filter((key) => !process.env[key]);
 
+function getValidFirebaseDatabaseUrl() {
+  const fallback = `https://${process.env.FIREBASE_PROJECT_ID}-default-rtdb.firebaseio.com`;
+  const configured = String(process.env.FIREBASE_DATABASE_URL || '').trim();
+  if (!configured) return fallback;
+  try {
+    const parsed = new URL(configured);
+    if (parsed.protocol !== 'https:' || !parsed.hostname) throw new Error('Firebase Database URL must use https://');
+    return parsed.toString().replace(/\/$/, '');
+  } catch (error) {
+    console.warn(`⚠️ FIREBASE_DATABASE_URL inválida (${error.message}). Usando URL padrão do projeto.`);
+    return fallback;
+  }
+}
+
 let realFirebaseInitialized = false;
 if (admin.apps && admin.apps.length > 0) {
   realFirebaseInitialized = admin.apps[0]?.options?.databaseURL !== 'in-memory://precofixo17';
 }
 
-if (!realFirebaseInitialized && missingFirebaseEnv.length === 0 && !process.env.FIREBASE_PROJECT_ID.includes('seu-projeto')) {
+if (!realFirebaseInitialized && missingFirebaseEnv.length === 0 && !String(process.env.FIREBASE_PROJECT_ID).includes('seu-projeto')) {
   try {
-    const privateKey = process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n').replace(/\\r/g, '\r');
+    const privateKey = String(process.env.FIREBASE_PRIVATE_KEY)
+      .replace(/\\n/g, '\n')
+      .replace(/\\r/g, '\r');
+    const databaseURL = getValidFirebaseDatabaseUrl();
     if (!admin.apps || admin.apps.length === 0) {
       admin.initializeApp({
         credential: admin.credential.cert({
@@ -30,9 +47,7 @@ if (!realFirebaseInitialized && missingFirebaseEnv.length === 0 && !process.env.
           privateKey,
           clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
         }),
-        databaseURL:
-          process.env.FIREBASE_DATABASE_URL ||
-          `https://${process.env.FIREBASE_PROJECT_ID}-default-rtdb.firebaseio.com`,
+        databaseURL,
         storageBucket: process.env.FIREBASE_STORAGE_BUCKET || undefined,
       });
     }
@@ -181,82 +196,37 @@ io.use((socket, next) => {
   try {
     const token = socket.handshake.auth?.token || socket.handshake.headers?.authorization?.replace(/^Bearer\s+/i, '');
     if (!token) return next(new Error('Não autenticado'));
-    socket.user = jwt.verify(token, JWT_SECRET);
+    const decoded = jwt.verify(token, JWT_SECRET);
+    socket.user = decoded;
     next();
   } catch (error) {
     next(new Error('Token inválido'));
   }
 });
 
-function distanceKm(a, b) {
-  const lat1 = Number(a?.lat ?? a?.latitude);
-  const lon1 = Number(a?.lng ?? a?.longitude);
-  const lat2 = Number(b?.lat ?? b?.latitude);
-  const lon2 = Number(b?.lng ?? b?.longitude);
-  if (![lat1, lon1, lat2, lon2].every(Number.isFinite)) return Infinity;
-  const R = 6371;
-  const dLat = ((lat2 - lat1) * Math.PI) / 180;
-  const dLon = ((lon2 - lon1) * Math.PI) / 180;
-  const x = Math.sin(dLat / 2) ** 2 + Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLon / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
-}
-
-async function findNearestDrivers(origin) {
-  const [usersSnapshot, locationsSnapshot] = await Promise.all([db.ref('users').get(), db.ref('locations').get()]);
-  const users = usersSnapshot.val() || {};
-  const locations = locationsSnapshot.val() || {};
-  const originLocation = origin?.location || origin?.currentLocation || origin;
-  const drivers = [];
-  for (const [uid, user] of Object.entries(users)) {
-    if (user?.userType !== 'driver' || user?.driverApprovalStatus !== 'approved' || user?.isOnline !== true) continue;
-    const location = user.currentLocation || locations[uid];
-    const distance = distanceKm(originLocation, location);
-    if (Number.isFinite(distance)) drivers.push({ uid, distance });
-  }
-  return drivers.sort((a, b) => a.distance - b.distance);
-}
-
-async function saveDriverLocation(driverId, latitude, longitude) {
-  const location = { latitude, longitude, lat: latitude, lng: longitude, timestamp: Date.now() };
-  await db.ref(`locations/${driverId}`).set(location);
-  await db.ref(`users/${driverId}`).update({ currentLocation: { lat: latitude, lng: longitude }, lastLocationUpdate: new Date().toISOString() });
-  return location;
-}
-
 io.on('connection', (socket) => {
-  const uid = socket.user.uid;
-  // Compatibility rooms: the ride routes use ride_<id>, while the main server
-  // historically used ride:<id>. Join both so real-time events are never lost.
+  const uid = socket.user?.uid;
+  if (!uid) return;
   socket.join(`user:${uid}`);
-  socket.join(`driver:${uid}`);
-  socket.join(`driver_${uid}`);
-  socket.on('join-ride-room', (rideId, ack) => {
-    if (!rideId) return typeof ack === 'function' && ack({ ok: false });
+  socket.join(`user_${uid}`);
+  socket.on('join-ride-room', (rideId) => {
+    if (!rideId) return;
     socket.join(`ride:${rideId}`);
     socket.join(`ride_${rideId}`);
-    if (typeof ack === 'function') ack({ ok: true });
   });
   socket.on('leave-ride-room', (rideId) => {
     if (!rideId) return;
     socket.leave(`ride:${rideId}`);
     socket.leave(`ride_${rideId}`);
   });
-  socket.on('join-drivers-room', async (ack) => {
+  socket.on('join-drivers-room', async () => {
     try {
       const user = (await db.ref(`users/${uid}`).get()).val();
-      if (!user || user.userType !== 'driver' || user.driverApprovalStatus !== 'approved') return typeof ack === 'function' && ack({ ok: false, error: 'Motorista não aprovado.' });
-      socket.join('drivers');
-      socket.join(`driver:${uid}`);
-      socket.join(`driver_${uid}`);
-      if (typeof ack === 'function') ack({ ok: true });
-    } catch (e) {
-      if (typeof ack === 'function') ack({ ok: false, error: 'Não foi possível entrar na fila.' });
-    }
+      if (user?.userType === 'driver' && user?.driverApprovalStatus === 'approved') socket.join('drivers');
+    } catch (error) { console.error('join-drivers-room:', error.message); }
   });
   socket.on('driver-presence-location', async (payload) => {
     try {
-      const user = (await db.ref(`users/${uid}`).get()).val();
-      if (!user || user.userType !== 'driver' || user.driverApprovalStatus !== 'approved') return;
       const lat = Number(payload?.latitude ?? payload?.lat);
       const lng = Number(payload?.longitude ?? payload?.lng);
       if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
