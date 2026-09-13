@@ -101,6 +101,18 @@ async function handleDriverStatusUpdate(req, res) {
       if (!Number.isFinite(lat) || !Number.isFinite(lng)) return res.status(400).json({ error: 'Localização inválida.' });
       update.currentLocation = { lat, lng };
       await db.ref(`locations/${driverId}`).set({ lat, lng, latitude: lat, longitude: lng, timestamp: new Date().toISOString() });
+      // O polling HTTP do passageiro precisa enxergar a posição do motorista
+      // mesmo quando o Socket.IO não está disponível no ambiente serverless.
+      const activeRides = await db.ref('rides').get();
+      const rideUpdates = {};
+      activeRides.forEach((child) => {
+        const ride = child.val();
+        if (ride && String(ride.driverId || '') === String(driverId) && ['ACCEPTED', 'IN_PROGRESS'].includes(ride.status)) {
+          rideUpdates[`rides/${child.key}/driverLocation`] = { lat, lng };
+          rideUpdates[`rides/${child.key}/updatedAt`] = Date.now();
+        }
+      });
+      if (Object.keys(rideUpdates).length) await db.ref('/').update(rideUpdates);
     }
     await ref.update(update);
     return res.json({ success: true, message: 'Status atualizado', isOnline: effectiveOnline, currentLocation: update.currentLocation || d.currentLocation || null });

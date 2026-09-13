@@ -11,7 +11,7 @@ const ACTIVE_STATUSES = ['SEARCHING', 'ACCEPTED', 'IN_PROGRESS'];
 const DISPATCH_RADIUS_KM = Math.max(1, Number(process.env.DISPATCH_RADIUS_KM) || 25);
 const DISPATCH_RADIUS_EXTENDED_KM = Math.max(DISPATCH_RADIUS_KM, Number(process.env.DISPATCH_RADIUS_EXTENDED_KM) || 50);
 const DISPATCH_RADIUS_LONG_KM = Math.max(DISPATCH_RADIUS_EXTENDED_KM, Number(process.env.DISPATCH_RADIUS_LONG_KM) || 100);
-const ARRIVAL_RADIUS_KM = Math.max(0.5, Number(process.env.ARRIVAL_RADIUS_KM) || (process.env.NODE_ENV === 'production' && process.env.STRICT_PROXIMITY === 'true' ? 0.5 : 25));
+const ARRIVAL_RADIUS_KM = Math.max(0.5, Number(process.env.ARRIVAL_RADIUS_KM) || 0.5);
 const FIXED_RIDE_PRICE = 17;
 router.setSocketIo = (value) => { io = value; };
 const emitToRide = (id, event, payload) => { if (io && id) io.to(`ride_${id}`).emit(event, payload); };
@@ -189,7 +189,7 @@ router.post('/accept', async (req, res) => {
     let active = null;
     (await db.ref('rides').get()).forEach((child) => { const ride = child.val(); if (ride && String(ride.driverId || '') === String(driverId) && ACTIVE_STATUSES.includes(ride.status)) active = ride; });
     if (active) return res.status(409).json({ error: 'Você já possui uma corrida em andamento.', ride: active });
-    const accepted = { ...current, driverId, driverName: driver.name || driver.email || 'Motorista', driverProfilePhoto: driver.profilePhoto || null, driverLocation: driver.currentLocation || null, passengerLocation: current.passengerLocation || current.origin?.location || null, status: 'ACCEPTED', acceptedAt: admin.database.ServerValue.TIMESTAMP, updatedAt: admin.database.ServerValue.TIMESTAMP };
+    const accepted = { ...current, driverId, driverName: driver.name || driver.email || 'Motorista', driverProfilePhoto: driver.profilePhoto || null, driverLocation, passengerLocation: current.passengerLocation || current.origin?.location || null, status: 'ACCEPTED', acceptedAt: admin.database.ServerValue.TIMESTAMP, updatedAt: admin.database.ServerValue.TIMESTAMP };
     let committed = false;
     try {
       const tx = await ref.transaction((value) => {
@@ -223,17 +223,24 @@ router.patch('/:rideId/status', async (req, res) => {
     if (!transitions[ride.status]?.includes(status)) return res.status(409).json({ error: `Transição inválida: ${ride.status} → ${status}.` });
     if (status === 'IN_PROGRESS' && ride.driverId !== uid) return res.status(403).json({ error: 'Somente o motorista pode iniciar a corrida.' });
     if (status === 'COMPLETED' && ride.driverId !== uid) return res.status(403).json({ error: 'Somente o motorista pode finalizar a corrida.' });
+    let driverLocation = null;
     if (status === 'IN_PROGRESS' || status === 'COMPLETED') {
       const driver = (await db.ref(`users/${ride.driverId}`).get()).val();
-      let driverLocation = normalizeLocation(driver?.currentLocation || (await db.ref(`locations/${ride.driverId}`).get()).val());
+      driverLocation = normalizeLocation(driver?.currentLocation || (await db.ref(`locations/${ride.driverId}`).get()).val());
       const target = status === 'IN_PROGRESS' ? normalizeLocation(ride.passengerLocation || ride.origin) : normalizeLocation(ride.destination);
       if (!driverLocation && target) { driverLocation = target; await db.ref(`users/${ride.driverId}`).update({ currentLocation: target }); }
       const dist = distanceKm(driverLocation, target);
       if (req.body.force !== true && (!Number.isFinite(dist) || dist > ARRIVAL_RADIUS_KM)) return res.status(409).json({ error: status === 'IN_PROGRESS' ? 'Aproxime-se do passageiro para iniciar a corrida.' : 'Aproxime-se do destino para finalizar a corrida.', distanceKm: Number.isFinite(dist) ? Number(dist.toFixed(2)) : null, maxRadiusKm: ARRIVAL_RADIUS_KM });
     }
     const now = admin.database.ServerValue.TIMESTAMP, updates = { status, updatedAt: now };
-    if (status === 'IN_PROGRESS') updates.startedAt = now;
-    if (status === 'COMPLETED') updates.completedAt = now;
+    if (status === 'IN_PROGRESS') {
+      updates.startedAt = now;
+      if (driverLocation) updates.driverLocation = driverLocation;
+    }
+    if (status === 'COMPLETED') {
+      updates.completedAt = now;
+      if (driverLocation) updates.driverLocation = driverLocation;
+    }
     if (status === 'CANCELLED') { updates.cancelledAt = now; updates.cancelledBy = uid; updates.cancellationReason = String(cancellationReason || 'Cancelada').slice(0, 240); }
     await ref.update(updates);
     const updated = (await ref.get()).val();

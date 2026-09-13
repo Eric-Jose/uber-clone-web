@@ -76,6 +76,7 @@ const pendingRideRoutes = require('./backend/routes/pending-rides');
 const locationRoutes = require('./backend/routes/location');
 const ratingRoutes = require('./backend/routes/ratings');
 const adminStatsRoutes = require('./backend/routes/admin-stats');
+const promotionRoutes = require('./backend/routes/promotions');
 
 const app = express();
 const server = http.createServer(app);
@@ -191,6 +192,7 @@ app.use('/api/rides', rideRoutes);
 app.use('/api/location', locationRoutes);
 app.use('/api/ratings', ratingRoutes);
 app.use('/api/admin-stats', adminStatsRoutes);
+app.use('/api/promotions', promotionRoutes);
 
 io.use((socket, next) => {
   try {
