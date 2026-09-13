@@ -29,7 +29,7 @@ export default function MapRidePro({ onRideCreate, onBack, onNavigate, onOpenMen
   const searchDebounceRef = useRef(null);
 
   const [stage, setStage] = useState('plan');
-  const [origin, setOrigin] = useState(() => ({ lat: MARACAJU_CENTER.lat, lng: MARACAJU_CENTER.lng, address: 'Centro, Maracaju - MS' }));
+  const [origin, setOrigin] = useState(null);
   const [destination, setDestination] = useState('');
   const [destinationCoords, setDestinationCoords] = useState(null);
   const [suggestions, setSuggestions] = useState([]);
@@ -37,7 +37,8 @@ export default function MapRidePro({ onRideCreate, onBack, onNavigate, onOpenMen
   const [distanceKm, setDistanceKm] = useState(0);
   const [durationMin, setDurationMin] = useState(0);
   const [paymentMethod, setPaymentMethod] = useState('Dinheiro');
-  const [promoCode, setPromoCode] = useState(() => { try { return localStorage.getItem('pf_selected_promo') || 'Nenhuma'; } catch (_) { return 'Nenhuma'; } });
+  const [promoCode, setPromoCode] = useState('Nenhuma');
+  const [promoInput, setPromoInput] = useState('');
   const [passengerCount, setPassengerCount] = useState(1);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -46,9 +47,7 @@ export default function MapRidePro({ onRideCreate, onBack, onNavigate, onOpenMen
   const [toastMessage, setToastMessage] = useState('');
   const [modalType, setModalType] = useState(null);
   const [chatMessage, setChatMessage] = useState('');
-  const [chatMessages, setChatMessages] = useState([
-    { from: 'driver', text: 'Olá! Estou a caminho do seu local de embarque.', time: '14:28' }
-  ]);
+  const [chatMessages, setChatMessages] = useState([]);
   const [driver, setDriver] = useState(null);
   const [etaMinutes, setEtaMinutes] = useState(2);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
@@ -64,6 +63,24 @@ export default function MapRidePro({ onRideCreate, onBack, onNavigate, onOpenMen
     setToastMessage(msg);
     clearTimeout(toastTimer.current);
     toastTimer.current = setTimeout(() => setToastMessage(''), 3500);
+  };
+
+  const applyRealPromoCode = async () => {
+    const code = promoInput.trim().toUpperCase();
+    if (!code) return showToast('Digite um código de cupom.');
+    if (!token) return showToast('Faça login para usar um cupom.');
+    try {
+      const response = await fetch(`${B}/api/promotions`, { headers: authHeaders, cache: 'no-store' });
+      const data = await response.json().catch(() => ({}));
+      const promo = (Array.isArray(data.promotions) ? data.promotions : []).find((item) => item.code === code);
+      if (!response.ok || !promo) return showToast('Código de cupom inválido ou expirado.');
+      setPromoCode(promo.code);
+      setPromoInput('');
+      try { localStorage.setItem('pf_selected_promo', promo.code); } catch (_) {}
+      setModalType(null);
+    } catch (_) {
+      showToast('Não foi possível validar o cupom agora.');
+    }
   };
 
   const normalizeRide = (value) => value?.ride || value || null;
@@ -116,9 +133,8 @@ export default function MapRidePro({ onRideCreate, onBack, onNavigate, onOpenMen
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap contributors', updateWhenIdle: true }).addTo(mapInstance);
     L.control.zoom({ position: 'bottomright' }).addTo(mapInstance);
     map.current = mapInstance;
-    const initialOriginIcon = L.divIcon({ className: 'pf-origin-pin-icon', html: '<div style="width:18px;height:18px;border-radius:50%;background:#22c55e;border:3px solid #fff;box-shadow:0 0 12px rgba(34,197,94,.8)"></div>', iconSize: [18, 18], iconAnchor: [9, 9] });
-    userMarker.current = L.marker([MARACAJU_CENTER.lat, MARACAJU_CENTER.lng], { icon: initialOriginIcon }).addTo(mapInstance);
-
+    // O centro do mapa é apenas uma área inicial de visualização; nenhum
+    // ponto é tratado como origem até o GPS do dispositivo responder.
     let watchId = null;
     const applyDeviceLocation = (pos) => {
       const lat = Number(pos.coords.latitude);
@@ -457,7 +473,7 @@ export default function MapRidePro({ onRideCreate, onBack, onNavigate, onOpenMen
     <div className="pf-map-screen">
       <style>{`.pf-map-screen{position:relative;width:100%;height:100vh;overflow:hidden;background:#050505;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;color:#fff}.pf-map-canvas{position:absolute;inset:0;z-index:1}.pf-map-topbar{position:absolute;top:0;left:0;right:0;height:56px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;background:rgba(5,5,5,.85);backdrop-filter:blur(12px);border-bottom:1px solid rgba(255,255,255,.08);z-index:1000}.pf-map-icon-btn{width:40px;height:40px;border-radius:50%;background:#111418;border:1px solid #242a34;color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative}.pf-map-bell-badge{position:absolute;top:4px;right:4px;background:#ef4444;color:#fff;font-size:10px;font-weight:800;min-width:16px;height:16px;border-radius:8px;display:flex;align-items:center;justify-content:center;padding:0 4px}.pf-map-logo{font-size:19px;font-weight:900;font-style:italic}.pf-map-logo span{color:#fff}.pf-map-logo b{color:#ff5a00}.pf-route-card,.pf-bottom-sheet,.pf-driver-arriving-card,.pf-arriving-sheet,.pf-progress-banner,.pf-progress-sheet{position:absolute;left:16px;right:16px;max-width:480px;margin:0 auto;background:rgba(15,18,22,.96);backdrop-filter:blur(16px);border:1px solid #242a34;border-radius:20px;z-index:1000;box-shadow:0 16px 40px rgba(0,0,0,.6)}.pf-route-card{top:68px;padding:14px 16px}.pf-route-row{display:flex;align-items:center;gap:12px;position:relative}.pf-route-pin{width:12px;height:12px;border-radius:50%;flex-shrink:0}.pf-route-pin.green{background:#22c55e;box-shadow:0 0 0 3px rgba(34,197,94,.25)}.pf-route-pin.orange{background:#ff5a00;box-shadow:0 0 0 3px rgba(255,90,0,.25)}.pf-route-line{width:2px;height:20px;background:#2d3644;margin:2px 0 2px 5px}.pf-route-input-group{flex:1;display:flex;flex-direction:column}.pf-route-label,.pf-sheet-price-label,.pf-stat-box-label{font-size:11px;color:#7e8b9b;font-weight:600;text-transform:uppercase;letter-spacing:.05em}.pf-route-val{background:transparent;border:none;color:#fff;font-size:14px;font-weight:600;outline:none;padding:2px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.pf-route-add-btn{width:28px;height:28px;border-radius:50%;background:#19202a;border:1px solid #333d4e;color:#8e98a5;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:16px}.pf-bottom-sheet,.pf-arriving-sheet,.pf-progress-sheet{bottom:16px;padding:18px}.pf-sheet-top,.pf-driver-left,.pf-arriving-header{display:flex;align-items:center}.pf-sheet-top{justify-content:space-between;margin-bottom:14px}.pf-sheet-car-thumb{width:105px;height:auto;filter:drop-shadow(0 6px 12px rgba(0,0,0,.7));border-radius:8px}.pf-sheet-price-box{text-align:right}.pf-sheet-price-val{font-size:28px;font-weight:900;color:#ff5a00}.pf-sheet-chips{display:flex;gap:8px;margin-bottom:16px;overflow-x:auto;padding-bottom:4px}.pf-chip{display:flex;align-items:center;gap:6px;background:#111418;border:1px solid #242a34;border-radius:999px;padding:8px 14px;color:#d1d5db;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap}.pf-request-btn,.pf-arriving-cancel-btn,.pf-finish-btn{width:100%;border:none;border-radius:999px;color:#fff;font-size:16px;font-weight:800;padding:15px;cursor:pointer}.pf-request-btn,.pf-arriving-cancel-btn{background:#ff5a00;box-shadow:0 8px 24px rgba(255,90,0,.35)}.pf-driver-arriving-card{top:68px;padding:14px 16px;display:flex;align-items:center;justify-content:space-between}.pf-driver-left{gap:12px}.pf-driver-avatar{width:50px;height:50px;border-radius:50%;border:2px solid #ff5a00;object-fit:cover;background:#1c212a}.pf-driver-info-name,.pf-progress-banner .pf-banner-title{font-size:16px;font-weight:800}.pf-driver-info-meta,.pf-driver-info-car,.pf-arriving-sub,.pf-banner-dest{font-size:12px;color:#8e98a5;margin-top:2px}.pf-driver-info-meta span{color:#fbbf24;font-weight:700}.pf-driver-call-btn{width:44px;height:44px;border-radius:50%;background:#ff5a00;color:#fff;border:none;display:flex;align-items:center;justify-content:center;font-size:18px;cursor:pointer}.pf-arriving-header{gap:10px;margin-bottom:12px}.pf-arriving-pin{color:#38bdf8;font-size:18px}.pf-arriving-title{font-size:16px;font-weight:800}.pf-progress-bar{width:100%;height:6px;background:#202733;border-radius:999px;overflow:hidden;margin-bottom:16px}.pf-progress-fill{height:100%;background:#ff5a00;border-radius:999px;box-shadow:0 0 10px rgba(255,90,0,.6)}.pf-arriving-actions{display:grid;grid-template-columns:1fr 1fr;gap:12px}.pf-arriving-msg-btn{background:#111418;border:1px solid #28313e;border-radius:999px;color:#fff;font-size:14px;font-weight:700;padding:13px;cursor:pointer}.pf-progress-banner{top:68px;padding:14px 16px;display:flex;align-items:center;gap:12px}.pf-banner-pin{width:36px;height:36px;border-radius:50%;background:rgba(255,90,0,.15);color:#ff5a00;display:flex;align-items:center;justify-content:center;font-size:18px}.pf-stats-cols{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;text-align:center;padding-bottom:14px;border-bottom:1px solid #1e2530;margin-bottom:14px}.pf-stat-box-val{font-size:18px;font-weight:800;color:#fff}.pf-stat-box-val.orange{color:#ff5a00}.pf-pay-indicator-row{display:flex;align-items:center;gap:8px;font-size:13px;color:#a4b0bf;margin-bottom:16px}.pf-finish-btn{background:#dc2626;box-shadow:0 8px 24px rgba(220,38,38,.35)}.pf-suggest-dropdown{position:absolute;top:100%;left:0;right:0;background:#0f1216;border:1px solid #242a34;border-radius:14px;margin-top:8px;max-height:220px;overflow-y:auto;box-shadow:0 12px 32px rgba(0,0,0,.8);z-index:2000}.pf-suggest-item{display:block;width:100%;padding:12px 14px;background:transparent;border:none;border-bottom:1px solid #1a2029;color:#fff;text-align:left;cursor:pointer;font-size:13px}.pf-modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.75);backdrop-filter:blur(4px);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px}.pf-modal-card{width:100%;max-width:380px;background:#111418;border:1px solid #28313e;border-radius:20px;padding:20px}`}</style>
       <div className="pf-map-canvas" ref={mapEl} />
-      <header className="pf-map-topbar"><button type="button" className="pf-map-icon-btn" onClick={() => (stage === 'plan' ? onOpenMenu?.() : setStage('plan'))}>{stage === 'plan' ? '☰' : '‹'}</button><div className="pf-map-logo"><span>PREÇO </span><b>FIXO 17</b></div><button type="button" className="pf-map-icon-btn" onClick={() => onOpenNotifications?.()}>🔔<span className="pf-map-bell-badge">3</span></button></header>
+      <header className="pf-map-topbar"><button type="button" className="pf-map-icon-btn" onClick={() => (stage === 'plan' ? onOpenMenu?.() : setStage('plan'))}>{stage === 'plan' ? '☰' : '‹'}</button><div className="pf-map-logo"><span>PREÇO </span><b>FIXO 17</b></div><button type="button" className="pf-map-icon-btn" onClick={() => onOpenNotifications?.()} aria-label="Notificações">🔔</button></header>
       {error && <div style={{ position:'absolute', top:68,left:16,right:16,zIndex:5000,background:'#291111',border:'1px solid #ef4444',color:'#fff',padding:'10px 14px',borderRadius:14,textAlign:'center',fontSize:13 }}>{error}</div>}
       {toastMessage && <div style={{ position:'absolute',top:68,left:'50%',transform:'translateX(-50%)',zIndex:5000,background:'#151921',border:'1px solid #ff5a00',color:'#fff',padding:'8px 18px',borderRadius:20,fontSize:13,fontWeight:700,whiteSpace:'nowrap' }}>ℹ️ {toastMessage}</div>}
 
@@ -468,7 +484,7 @@ export default function MapRidePro({ onRideCreate, onBack, onNavigate, onOpenMen
       {stage === 'in_progress' && <><div className="pf-progress-banner"><div className="pf-banner-pin">📍</div><div style={{minWidth:0}}><div className="pf-banner-title">Corrida em andamento</div><div className="pf-banner-dest">Destino: {destination}</div></div></div><div className="pf-progress-sheet"><div className="pf-stats-cols"><div><div className="pf-stat-box-label">Tempo</div><div className="pf-stat-box-val">{formatElapsed(elapsedSeconds)}</div></div><div><div className="pf-stat-box-label">Distância</div><div className="pf-stat-box-val">{distanceKm} km</div></div><div><div className="pf-stat-box-label">Preço fixo</div><div className="pf-stat-box-val orange">R$ 17,00</div></div></div><div className="pf-pay-indicator-row"><span>💳</span><span>Pagamento: {paymentMethod}</span></div><button type="button" className="pf-finish-btn" disabled={busy || isPassenger} onClick={handleFinishRide}>{busy?'Finalizando…':isPassenger?'Aguardando motorista finalizar':'Finalizar corrida'}</button></div></>}
 
       {modalType === 'payment' && <div className="pf-modal-backdrop" onClick={()=>setModalType(null)}><div className="pf-modal-card" onClick={(e)=>e.stopPropagation()}><h3 style={{margin:'0 0 14px'}}>Forma de Pagamento</h3>{['Dinheiro','Cartão de Crédito','PIX'].map((method)=><button key={method} type="button" className="pf-chip" style={{width:'100%',marginBottom:8,justifyContent:'space-between'}} onClick={()=>{setPaymentMethod(method);setModalType(null)}}><span>{method}</span>{paymentMethod===method&&<span style={{color:'#ff5a00'}}>✓</span>}</button>)}</div></div>}
-      {modalType === 'promo' && <div className="pf-modal-backdrop" onClick={()=>setModalType(null)}><div className="pf-modal-card" onClick={(e)=>e.stopPropagation()}><h3 style={{margin:'0 0 14px'}}>Cupom ou Promoção</h3><input type="text" placeholder="Digite seu cupom" className="pf-input-field" style={{background:'#1c212a',border:'1px solid #333d4e',borderRadius:10,padding:12,marginBottom:12}} onKeyDown={(e)=>{if(e.key==='Enter'){setPromoCode(e.currentTarget.value||'Nenhuma');setModalType(null)}}}/><button type="button" className="pf-btn-orange" onClick={()=>{setPromoCode('FIXO17VIP');setModalType(null)}}>Aplicar cupom FIXO17VIP</button></div></div>}
+      {modalType === 'promo' && <div className="pf-modal-backdrop" onClick={()=>setModalType(null)}><div className="pf-modal-card" onClick={(e)=>e.stopPropagation()}><h3 style={{margin:'0 0 14px'}}>Cupom ou Promoção</h3><input type="text" placeholder="Digite seu cupom" className="pf-input-field" value={promoInput} onChange={(e)=>setPromoInput(e.target.value.toUpperCase())} onKeyDown={(e)=>{if(e.key==='Enter') void applyRealPromoCode()}} style={{background:'#1c212a',border:'1px solid #333d4e',borderRadius:10,padding:12,marginBottom:12}}/><button type="button" className="pf-btn-orange" onClick={() => void applyRealPromoCode()}>Validar cupom</button></div></div>}
       {modalType === 'passengers' && <div className="pf-modal-backdrop" onClick={()=>setModalType(null)}><div className="pf-modal-card" onClick={(e)=>e.stopPropagation()}><h3 style={{margin:'0 0 14px'}}>Quantidade de Passageiros</h3><div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8}}>{[1,2,3,4].map((num)=><button key={num} type="button" className="pf-chip" style={{justifyContent:'center',background:passengerCount===num?'#ff5a00':'#111418',color:'#fff'}} onClick={()=>{setPassengerCount(num);setModalType(null)}}>{num}</button>)}</div></div></div>}
       {modalType === 'message' && <div className="pf-modal-backdrop" onClick={()=>setModalType(null)}><div className="pf-modal-card" style={{maxWidth:420}} onClick={(e)=>e.stopPropagation()}><div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}><h3 style={{margin:0}}>Mensagens com o motorista</h3><button type="button" style={{background:'none',border:'none',color:'#8e98a5',fontSize:18,cursor:'pointer'}} onClick={()=>setModalType(null)}>✕</button></div><div style={{height:200,overflowY:'auto',display:'flex',flexDirection:'column',gap:8,padding:8,background:'#0a0d11',borderRadius:12,marginBottom:12}}>{chatMessages.map((m,i)=><div key={i} style={{alignSelf:m.from==='me'?'flex-end':'flex-start',background:m.from==='me'?'#ff5a00':'#1c212a',color:'#fff',padding:'8px 12px',borderRadius:12,fontSize:13,maxWidth:'80%'}}>{m.text}</div>)}</div><form onSubmit={handleSendMessage} style={{display:'flex',gap:8}}><input type="text" placeholder="Enviar mensagem…" value={chatMessage} onChange={(e)=>setChatMessage(e.target.value)} style={{flex:1,background:'#1c212a',border:'1px solid #333d4e',borderRadius:999,padding:'10px 16px',color:'#fff',outline:'none'}}/><button type="submit" style={{background:'#ff5a00',border:'none',borderRadius:'50%',width:40,height:40,color:'#fff',cursor:'pointer'}}>➤</button></form></div></div>}
     </div>

@@ -64,6 +64,15 @@ if (!realFirebaseInitialized && (!admin.apps || admin.apps.length === 0)) {
 }
 
 const db = admin.database();
+// PreçoFixo17: use exactly one Realtime Database instance per Vercel function.
+// Some route modules call admin.database() while being loaded after this file;
+// returning the already-created instance prevents Firebase from opening the same
+// app with differently formatted database URLs (e.g. trailing slash).
+if (!admin.__precofixo17DatabasePatched) {
+  const sharedDatabase = db;
+  admin.database = () => sharedDatabase;
+  admin.__precofixo17DatabasePatched = true;
+}
 const auth = admin.auth();
 
 const { authenticate } = require('./backend/middleware/auth');
@@ -76,6 +85,34 @@ const pendingRideRoutes = require('./backend/routes/pending-rides');
 const locationRoutes = require('./backend/routes/location');
 const ratingRoutes = require('./backend/routes/ratings');
 const adminStatsRoutes = require('./backend/routes/admin-stats');
+const promotionRoutes = require('./backend/routes/promotions');
+const { isDriverPresenceFresh } = require('./backend/utils/driver-presence');
+
+function distanceKm(a, b) {
+  const lat1 = Number(a?.lat ?? a?.latitude), lon1 = Number(a?.lng ?? a?.longitude);
+  const lat2 = Number(b?.lat ?? b?.latitude), lon2 = Number(b?.lng ?? b?.longitude);
+  if (![lat1, lon1, lat2, lon2].every(Number.isFinite)) return Infinity;
+  const radius = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lon2 - lon1) * Math.PI / 180;
+  const value = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+  return radius * 2 * Math.atan2(Math.sqrt(value), Math.sqrt(1 - value));
+}
+
+async function findNearestDrivers(origin) {
+  const [usersSnapshot, locationsSnapshot] = await Promise.all([db.ref('users').get(), db.ref('locations').get()]);
+  const users = usersSnapshot.val() || {};
+  const locations = locationsSnapshot.val() || {};
+  const originLocation = origin?.location || origin?.currentLocation || origin;
+  return Object.entries(users)
+    .filter(([, user]) => user?.userType === 'driver' && user?.driverApprovalStatus === 'approved' && user?.isOnline === true)
+    .map(([uid, user]) => {
+      const location = user.currentLocation || locations[uid];
+      return { uid, distance: distanceKm(originLocation, location), fresh: isDriverPresenceFresh(user, locations[uid]) };
+    })
+    .filter((driver) => driver.fresh && Number.isFinite(driver.distance) && driver.distance <= Math.max(1, Number(process.env.DISPATCH_RADIUS_KM) || 25))
+    .sort((a, b) => a.distance - b.distance);
+}
 
 const app = express();
 const server = http.createServer(app);
@@ -191,6 +228,7 @@ app.use('/api/rides', rideRoutes);
 app.use('/api/location', locationRoutes);
 app.use('/api/ratings', ratingRoutes);
 app.use('/api/admin-stats', adminStatsRoutes);
+app.use('/api/promotions', promotionRoutes);
 
 io.use((socket, next) => {
   try {
@@ -227,9 +265,11 @@ io.on('connection', (socket) => {
   });
   socket.on('driver-presence-location', async (payload) => {
     try {
+      const driver = (await db.ref(`users/${uid}`).get()).val();
+      if (driver?.userType !== 'driver' || driver?.driverApprovalStatus !== 'approved') return;
       const lat = Number(payload?.latitude ?? payload?.lat);
       const lng = Number(payload?.longitude ?? payload?.lng);
-      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+      if (!Number.isFinite(lat) || !Number.isFinite(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) return;
       await db.ref(`users/${uid}`).update({ isOnline: true, currentLocation: { lat, lng }, lastLocationUpdate: new Date().toISOString() });
       await db.ref(`locations/${uid}`).set({ lat, lng, latitude: lat, longitude: lng, timestamp: new Date().toISOString() });
     } catch (e) { console.error('driver-presence-location:', e.message); }
@@ -258,6 +298,8 @@ io.on('connection', (socket) => {
       await db.ref(`rides/${rideId}`).update({ passengerLocation: { lat, lng }, updatedAt: Date.now() });
       io.to(`ride:${rideId}`).emit('update-passenger-location', { rideId, userId: uid, location: { lat, lng }, latitude: lat, longitude: lng });
       io.to(`ride_${rideId}`).emit('update-passenger-location', { rideId, userId: uid, location: { lat, lng }, latitude: lat, longitude: lng });
+      io.to(`ride:${rideId}`).emit('passenger-location-update', { rideId, passengerId: uid, location: { lat, lng } });
+      io.to(`ride_${rideId}`).emit('passenger-location-update', { rideId, passengerId: uid, location: { lat, lng } });
     } catch (e) { console.error('passenger-location:', e.message); }
   });
   socket.on('request-ride', async (payload, ack) => {
@@ -283,13 +325,23 @@ io.on('connection', (socket) => {
   });
   socket.on('accept-ride', async (rideId, ack) => {
     try {
+      const driver = (await db.ref(`users/${uid}`).get()).val();
+      const locationSnapshot = await db.ref(`locations/${uid}`).get();
+      const driverLocation = driver?.currentLocation || locationSnapshot.val();
+      if (driver?.userType !== 'driver' || driver?.driverApprovalStatus !== 'approved' || driver?.isOnline !== true || !isDriverPresenceFresh(driver, locationSnapshot.val())) {
+        return typeof ack === 'function' && ack({ ok: false, error: 'Atualize sua localização antes de aceitar esta corrida.' });
+      }
       const ride = (await db.ref(`rides/${rideId}`).get()).val();
-      if (!ride) return typeof ack === 'function' && ack({ ok: false, error: 'Corrida não encontrada.' });
+      if (!ride || ride.status !== 'SEARCHING') return typeof ack === 'function' && ack({ ok: false, error: 'Corrida já foi aceita ou não existe.' });
       if (ride.driverId && String(ride.driverId) !== String(uid)) return typeof ack === 'function' && ack({ ok: false, error: 'Corrida já aceita por outro motorista.' });
-      await db.ref(`rides/${rideId}`).update({ driverId: uid, status: 'ACCEPTED', updatedAt: Date.now() });
-      io.to(`ride:${rideId}`).emit('ride-accepted', { ...ride, id: rideId, driverId: uid, status: 'ACCEPTED' });
-      io.to(`ride_${rideId}`).emit('ride-accepted', { ...ride, id: rideId, driverId: uid, status: 'ACCEPTED' });
-      if (typeof ack === 'function') ack({ ok: true });
+      const pickupDistance = distanceKm(driverLocation, ride.origin?.location || ride.origin);
+      const dispatchRadiusKm = Math.max(1, Number(process.env.DISPATCH_RADIUS_KM) || 25);
+      if (!Number.isFinite(pickupDistance) || pickupDistance > dispatchRadiusKm) return typeof ack === 'function' && ack({ ok: false, error: 'Você está fora da área de atendimento desta corrida.' });
+      const accepted = { ...ride, id: rideId, driverId: uid, status: 'ACCEPTED', acceptedAt: new Date().toISOString(), updatedAt: Date.now() };
+      await db.ref(`rides/${rideId}`).update({ driverId: uid, status: 'ACCEPTED', acceptedAt: accepted.acceptedAt, updatedAt: accepted.updatedAt });
+      io.to(`ride:${rideId}`).emit('ride-accepted', accepted);
+      io.to(`ride_${rideId}`).emit('ride-accepted', accepted);
+      if (typeof ack === 'function') ack({ ok: true, ride: accepted });
     } catch (error) {
       if (typeof ack === 'function') ack({ ok: false, error: 'Não foi possível aceitar a corrida.' });
     }

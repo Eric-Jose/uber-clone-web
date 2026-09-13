@@ -4,71 +4,32 @@
 //
 // SEGURANÇA: este store é APENAS um fallback em memória usado quando não há
 // credenciais reais do Firebase (dev/preview). Ele é reiniciado a cada boot e
-// nunca deve conter segredos de produção. As contas administrativas semente
-// derivam das variáveis de ambiente; se ausentes, usa-se um admin de
-// desenvolvimento com senha claramente temporária.
-const SEED_ADMIN_EMAIL = (process.env.ADMIN_EMAIL || 'admin@precofixo17.dev').toLowerCase();
-const SEED_ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'ChangeMe@Dev123';
-const SEED_ADMIN_NAME = process.env.ADMIN_NAME || 'Administrador';
+// nunca deve conter segredos de produção. Uma conta administrativa só existe
+// quando suas credenciais foram fornecidas pelo ambiente.
+const configuredAdminEmail = String(process.env.ADMIN_EMAIL || '').trim().toLowerCase();
+const configuredAdminPassword = String(process.env.ADMIN_PASSWORD || '');
+const configuredAdminName = String(process.env.ADMIN_NAME || 'Administrador').trim() || 'Administrador';
 
 function createInMemoryStore() {
+  const users = {};
+  // O fallback em memória começa vazio. Um admin só é criado quando suas
+  // credenciais reais foram explicitamente configuradas no ambiente.
+  if (configuredAdminEmail && configuredAdminPassword) {
+    users.admin_configured_uid = {
+      uid: 'admin_configured_uid',
+      email: configuredAdminEmail,
+      password: configuredAdminPassword,
+      name: configuredAdminName,
+      userType: 'admin',
+      role: 'admin',
+      isOnline: false,
+      createdAt: new Date().toISOString(),
+    };
+  }
+
   const store = {
-    users: {
-      admin_default_uid: {
-        uid: 'admin_default_uid',
-        email: SEED_ADMIN_EMAIL,
-        password: SEED_ADMIN_PASSWORD,
-        name: SEED_ADMIN_NAME,
-        userType: 'admin',
-        role: 'admin',
-        isOnline: false,
-        createdAt: new Date().toISOString(),
-      },
-      driver_sample_uid: {
-        uid: 'driver_sample_uid',
-        email: 'motorista@precofixo17.com',
-        password: 'Driver@2026!',
-        name: 'Carlos Santos',
-        phone: '(67) 99999-1111',
-        userType: 'driver',
-        driverApprovalStatus: 'approved',
-        isOnline: true,
-        rating: 4.9,
-        ratingAverage: 4.9,
-        ratingCount: 15,
-        currentLocation: { lat: -21.6149, lng: -55.1683, latitude: -21.6149, longitude: -55.1683 },
-        driverProfile: {
-          fullName: 'Carlos Santos',
-          phone: '(67) 99999-1111',
-          cpf: '123***89',
-          driverLicense: '12***89',
-          vehicle: { model: 'Toyota Corolla', color: 'Prata', licensePlate: 'BRA2E19', year: 2022 },
-          address: { address: 'Rua Principal, 100', city: 'Maracaju', state: 'MS' },
-        },
-        createdAt: new Date().toISOString(),
-      },
-      passenger_sample_uid: {
-        uid: 'passenger_sample_uid',
-        email: 'passageiro@precofixo17.com',
-        password: 'User@2026!',
-        name: 'Mariana Oliveira',
-        phone: '(67) 98888-2222',
-        userType: 'passenger',
-        rating: 5.0,
-        totalRides: 2,
-        isOnline: false,
-        createdAt: new Date().toISOString(),
-      },
-    },
-    locations: {
-      driver_sample_uid: {
-        latitude: -21.6149,
-        longitude: -55.1683,
-        lat: -21.6149,
-        lng: -55.1683,
-        timestamp: Date.now(),
-      },
-    },
+    users,
+    locations: {},
     rides: {},
     driverApplications: {},
     driverNotifications: {},
@@ -327,7 +288,9 @@ function createInMemoryStore() {
           return { uid: u.uid, email: u.email, name: u.name || u.displayName };
         }
       }
-      return { uid: tokenStr || 'dev_user_1', email: 'user@precofixo17.com', name: 'Usuário' };
+      const err = new Error('Invalid token or user not found');
+      err.code = 'auth/user-not-found';
+      throw err;
     },
   });
 

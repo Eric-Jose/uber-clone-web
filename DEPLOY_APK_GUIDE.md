@@ -1,235 +1,75 @@
-# 📱 Guia Completo: Transformar em APK (Android)
+# Build nativo do PreçoFixo17
 
-## Opção 1: Capacitor (Recomendado - Mais Fácil)
+O aplicativo móvel está em `mobile/` e usa Expo SDK 50 com um WebView da aplicação oficial. O APK não usa backend local, Railway, nomes de demonstração ou uma API paralela: a URL padrão é a aplicação publicada na Vercel.
 
-### ✅ Vantagens
-- Mantém o código React
-- Funciona offline com PWA
-- Suporta plugins nativos
-- Deploy direto na Play Store
+## Pré-requisitos
 
-### 📋 Passo a Passo
+- Node.js compatível com Expo SDK 50.
+- Conta Expo/EAS para gerar um APK assinado.
+- Android Studio/ADB somente se quiser instalar e depurar localmente.
+- Firebase real configurado no projeto Vercel para preservar usuários e corridas.
 
-#### 1. Instalar Capacitor
+## Instalar e validar
+
 ```bash
-npm install @capacitor/core @capacitor/cli
-npx cap init
+cd mobile
+npm install
+npx expo config --type public
 ```
 
-#### 2. Adicionar plataforma Android
+A URL padrão é:
+
+```text
+https://uber-clone-web.vercel.app/
+```
+
+Para uma Preview específica, passe a URL no momento do build:
+
 ```bash
-npm install @capacitor/android
-npx cap add android
+EXPO_PUBLIC_WEB_APP_URL=https://sua-preview.vercel.app/ npx expo start
 ```
 
-#### 3. Build do React
+Não configure `localhost` no APK: o celular não consegue acessar o localhost do computador como se fosse o próprio aparelho.
+
+## APK de testes via EAS
+
 ```bash
-npm run build
-```
-
-#### 4. Copiar arquivos
-```bash
-npx cap sync
-```
-
-#### 5. Abrir no Android Studio
-```bash
-npx cap open android
-```
-
-#### 6. Gerar APK
-- No Android Studio:
-  1. Build > Build Bundles/APK > Build APK(s)
-  2. Aguarde o processo
-  3. APK gerado em: `android/app/release/app-release.apk`
-
----
-
-## Opção 2: React Native (Mais Profissional)
-
-### ✅ Vantagens
-- Melhor performance
-- Acesso completo a APIs nativas
-- Código separado para cada plataforma
-
-### 📋 Passo a Passo
-
-#### 1. Criar novo projeto React Native
-```bash
-npx react-native init UberCloneApp
-cd UberCloneApp
-```
-
-#### 2. Instalar dependências
-```bash
-npm install react-native-maps @react-native-async-storage/async-storage @react-native-geolocation-service
-```
-
-#### 3. Configurar build
-```bash
-cd android
-./gradlew assembleRelease
-```
-
-#### 4. APK gerado
-```
-android/app/build/outputs/apk/release/app-release.apk
-```
-
----
-
-## Opção 3: Expo (Mais Rápido)
-
-### ✅ Vantagens
-- Zero configuração
-- Deploy direto
-- Não precisa do Android Studio
-
-### 📋 Passo a Passo
-
-#### 1. Instalar Expo CLI
-```bash
+cd mobile
 npm install -g eas-cli
-```
-
-#### 2. Fazer login
-```bash
 eas login
+npx eas build --platform android --profile preview
 ```
 
-#### 3. Configurar projeto
-```bash
-eas build --platform android --local
-```
+O perfil `preview` gera um APK de distribuição interna. Baixe o artefato indicado pelo EAS e instale-o em pelo menos um aparelho de passageiro e um aparelho de motorista.
 
-#### 4. Gerar APK
-```bash
-eas build --platform android
-```
-
----
-
-## 🔧 Requisitos do Sistema
-
-### Para Windows/Mac/Linux
-- Node.js v16+
-- JDK 11+ (Java Development Kit)
-- Android SDK
-- Android Studio (opcional mas recomendado)
-
-### Instalação Rápida (Windows)
+## Versão de loja
 
 ```bash
-# 1. Instalar JDK
-# Download: https://www.oracle.com/java/technologies/javase-jdk11-downloads.html
-
-# 2. Instalar Android SDK
-# Download Android Studio: https://developer.android.com/studio
-
-# 3. Configurar variáveis de ambiente
-# Adicionar ao PATH:
-# C:\Program Files\Android\android-sdk\platform-tools
-# C:\Program Files\Android\android-sdk\tools
+cd mobile
+npx eas build --platform android --profile production
 ```
 
----
+O perfil `production` gera um AAB para a Google Play. A assinatura deve ser mantida na conta EAS da organização; não versione keystores no repositório.
 
-## 📤 Publicar na Google Play Store
+## Localização e permissões
 
-### Passo 1: Configurar App Signing
-```bash
-# Gerar keystore (chave de assinatura)
-keytool -genkey -v -keystore uber-clone-key.jks -keyalg RSA -keysize 2048 -validity 10000 -alias uber-clone
-```
+O aplicativo solicita localização em primeiro plano e, quando a sessão é autenticada, localização em segundo plano. O Android usa um serviço em primeiro plano para manter a corrida atualizada; o iOS declara o modo de background de localização.
 
-### Passo 2: Assinar APK
-```bash
-# Usar a keystore para assinar
-jarsigner -verbose -sigalg SHA1withRSA -digestalg SHA1 -keystore uber-clone-key.jks app-release.apk uber-clone
-```
+O WebView sincroniza a sessão real (`localStorage.token` e `localStorage.user`) com o módulo nativo. Durante uma corrida:
 
-### Passo 3: Criar Conta Developer
-- Acesse: https://play.google.com/console
-- Crie uma conta (custa $25)
-- Siga os passos para publicar seu app
+- motorista: envia GPS e heartbeat para `/api/drivers/:uid/status`;
+- passageiro: envia GPS para `/api/rides/:id/passenger-location` somente quando existe corrida ativa.
 
-### Passo 4: Upload
-1. Go to Console > Create app
-2. Preencha as informações
-3. Upload do APK assinado
-4. Aguarde revisão (24-48h)
+Se o usuário negar GPS, a origem da corrida não é inventada: o passageiro deve permitir a localização real do aparelho antes de solicitar.
 
----
+## Checklist antes de publicar
 
-## 🧪 Testar Localmente
+1. Confirmar `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY` e `JWT_SECRET` nos ambientes Vercel.
+2. Abrir o site publicado e confirmar login, cadastro e persistência após recarregar.
+3. Instalar o APK em dois aparelhos físicos com localização habilitada.
+4. Testar motorista aprovado online, passageiro solicitando, aceite, chegada, início e conclusão.
+5. Bloquear a tela do aparelho e confirmar que o heartbeat continua durante uma corrida ativa.
+6. Testar GPS negado, perda de internet e retomada após reconexão.
+7. Confirmar que um motorista sem heartbeat recente não recebe novas corridas.
 
-### Conectar Celular via USB
-```bash
-# Ativar Modo Desenvolvedor no celular:
-# Configurações > Sobre > Pressione 7x em "Número da compilação"
-
-# Conectar via USB e permitir depuração
-# Verificar conexão:
-adb devices
-
-# Instalar APK no celular:
-adb install app-release.apk
-```
-
-### Emulador Android
-```bash
-# Abrir emulador
-emulator -avd Pixel_4_API_30
-
-# Instalar APK
-adb install app-release.apk
-```
-
----
-
-## 🐛 Solução de Problemas
-
-### Erro: "Could not find JDK"
-```bash
-# Windows
-set JAVA_HOME=C:\Program Files\Java\jdk-11
-
-# Linux/Mac
-export JAVA_HOME=/Library/Java/JavaVirtualMachines/jdk-11.jdk/Contents/Home
-```
-
-### Erro: "Android SDK not found"
-```bash
-# Windows
-set ANDROID_HOME=C:\Users\%USERNAME%\AppData\Local\Android\sdk
-
-# Linux/Mac
-export ANDROID_HOME=~/Android/Sdk
-```
-
-### App não carrega
-- Verifique se backend está rodando
-- Altere IP do backend para o do seu PC (não localhost)
-- Exemplo: `REACT_APP_BACKEND_URL=http://192.168.1.100:5000`
-
----
-
-## 📊 Comparação das Opções
-
-| Opção | Facilidade | Performance | Tempo | Custo |
-|-------|-----------|------------|-------|-------|
-| Capacitor | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ | 30min | Grátis |
-| React Native | ⭐⭐⭐ | ⭐⭐⭐⭐⭐ | 2h | Grátis |
-| Expo | ⭐⭐⭐⭐⭐ | ⭐⭐⭐ | 15min | Grátis |
-
----
-
-## ✨ Próximos Passos
-
-1. ✅ Escolha uma opção acima
-2. ✅ Siga os passos passo a passo
-3. ✅ Teste no seu celular
-4. ✅ Publique na Play Store
-5. ✅ Compartilhe com seus amigos!
-
-**Dúvidas? Abra uma issue no repositório!** 🚀
+Pagamentos continuam fora do escopo desta versão e não são processados pelo aplicativo.
