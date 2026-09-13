@@ -84,6 +84,7 @@ const pendingRideRoutes = require('./routes/pending-rides');
 const locationRoutes = require('./routes/location');
 const ratingRoutes = require('./routes/ratings');
 const adminStatsRoutes = require('./routes/admin-stats');
+const { isDriverPresenceFresh } = require('./utils/driver-presence');
 const promotionRoutes = require('./routes/promotions');
 
 const app = express();
@@ -175,7 +176,9 @@ async function findNearestDrivers(origin) {
   const drivers = [];
   for (const [uid, user] of Object.entries(users)) {
     if (user?.userType !== 'driver' || user?.driverApprovalStatus !== 'approved' || user?.isOnline !== true) continue;
-    const location = user.currentLocation || locations[uid], distance = distanceKm(originLocation, location);
+    const location = user.currentLocation || locations[uid];
+    if (!isDriverPresenceFresh(user, locations[uid])) continue;
+    const distance = distanceKm(originLocation, location);
     if (Number.isFinite(distance)) drivers.push({ uid, distance });
   }
   return drivers.sort((a, b) => a.distance - b.distance);
@@ -281,9 +284,18 @@ io.on('connection', async (socket) => {
     } catch (error) { console.error('Erro ao encontrar motorista:', error.message); }
   });
 
-  socket.on('accept-ride', (data = {}) => {
+  socket.on('accept-ride', async (data = {}) => {
     if (!data.rideId) return;
-    io.to(`ride_${data.rideId}`).emit('ride-accepted', { rideId: data.rideId, driverId: socket.user.uid });
+    try {
+      const driverId = socket.user.uid;
+      const driverSnapshot = await db.ref(`users/${driverId}`).get();
+      const locationSnapshot = await db.ref(`locations/${driverId}`).get();
+      const driver = driverSnapshot.val();
+      if (driver?.userType !== 'driver' || driver?.driverApprovalStatus !== 'approved' || driver?.isOnline !== true || !isDriverPresenceFresh(driver, locationSnapshot.val())) return;
+      const ride = (await db.ref(`rides/${data.rideId}`).get()).val();
+      if (!ride || ride.status !== 'SEARCHING' || (ride.driverId && String(ride.driverId) !== String(driverId))) return;
+      io.to(`ride_${data.rideId}`).emit('ride-accepted', { ...ride, rideId: data.rideId, id: data.rideId, driverId, status: 'ACCEPTED' });
+    } catch (error) { console.error('Erro ao validar aceite Socket.IO:', error.message); }
   });
 
   socket.on('ride-cancelled', (data = {}) => { if (data.rideId) io.to(`ride_${data.rideId}`).emit('ride-cancelled', data); });

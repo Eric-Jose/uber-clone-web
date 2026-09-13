@@ -2,6 +2,7 @@ const express = require('express');
 const admin = require('firebase-admin');
 const router = express.Router();
 const { authenticate } = require('../middleware/auth');
+const { isDriverPresenceFresh } = require('../utils/driver-presence');
 const db = admin.database();
 const DISPATCH_RADIUS_KM = Math.max(1, Number(process.env.DISPATCH_RADIUS_KM) || 25);
 const DISPATCH_RADIUS_EXTENDED_KM = Math.max(DISPATCH_RADIUS_KM, Number(process.env.DISPATCH_RADIUS_EXTENDED_KM) || 50);
@@ -16,8 +17,9 @@ router.get('/', async (req, res) => {
     if (!driver || driver.userType !== 'driver') return res.status(403).json({ error: 'Somente motoristas podem consultar pedidos.' });
     if (driver.driverApprovalStatus !== 'approved') return res.status(403).json({ error: 'Motorista ainda não foi aprovado.' });
     if (driver.isOnline !== true) return res.json({ success: true, rides: [] });
-    const driverLocation = normalizeLocation(driver.currentLocation || (await db.ref(`locations/${driverId}`).get()).val());
-    if (!driverLocation) return res.json({ success: true, rides: [] });
+    const storedLocation = (await db.ref(`locations/${driverId}`).get()).val();
+    const driverLocation = normalizeLocation(driver.currentLocation || storedLocation);
+    if (!driverLocation || !isDriverPresenceFresh(driver, storedLocation)) return res.json({ success: true, rides: [] });
     const [ridesSnapshot, notificationsSnapshot] = await Promise.all([db.ref('rides').get(), db.ref(`driverNotifications/${driverId}`).get()]);
     const rides = [], now = Date.now(), seen = new Set();
     notificationsSnapshot.forEach((child) => {

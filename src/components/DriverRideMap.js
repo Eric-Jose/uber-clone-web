@@ -114,6 +114,8 @@ export default function DriverRideMap({ driverLocation, passengerLocation, desti
       if (mountedRef.current) setMapError('Não foi possível atualizar o mapa. A corrida continua ativa.');
     }
     return undefined;
+    // driver and target are normalized values derived from the location props.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [driverLocation, passengerLocation, destinationLocation, status]);
 
   useEffect(() => {
@@ -145,6 +147,8 @@ export default function DriverRideMap({ driverLocation, passengerLocation, desti
       })
       .catch((error) => { if (error?.name !== 'AbortError') fallback(); });
     return () => controller.abort();
+  // driver and target are normalized values derived from the location props.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [driverLocation, passengerLocation, destinationLocation, status]);
 
   const inProgress = status === 'IN_PROGRESS';

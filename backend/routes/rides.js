@@ -1,6 +1,7 @@
 const express = require('express');
 const admin = require('firebase-admin');
 const { authenticate } = require('../middleware/auth');
+const { isDriverPresenceFresh } = require('../utils/driver-presence');
 const router = express.Router();
 const db = admin.database();
 let io = null;
@@ -39,7 +40,9 @@ async function findEligibleDrivers(origin, radiusKm = DISPATCH_RADIUS_KM) {
   if (!normalizedOrigin) return drivers;
   for (const [uid, user] of Object.entries(users)) {
     if (user?.userType !== 'driver' || user?.driverApprovalStatus !== 'approved' || user?.isOnline !== true) continue;
-    const loc = normalizeLocation(user.currentLocation || locations[uid]), distance = distanceKm(normalizedOrigin, loc);
+    const loc = normalizeLocation(user.currentLocation || locations[uid]);
+    if (!isDriverPresenceFresh(user, locations[uid]) || !loc) continue;
+    const distance = distanceKm(normalizedOrigin, loc);
     if (Number.isFinite(distance) && distance <= radiusKm) drivers.push({ uid, distance });
   }
   return drivers.sort((a, b) => a.distance - b.distance);
@@ -182,8 +185,9 @@ router.post('/accept', async (req, res) => {
     if (!driver.isOnline) return res.status(409).json({ error: 'Motorista está offline.' });
     const ref = db.ref(`rides/${rideId}`), current = (await ref.get()).val();
     if (!current || current.status !== 'SEARCHING' || current.driverId) return res.status(409).json({ error: 'Corrida já foi aceita ou não existe.', ride: current || null });
-    const origin = normalizeLocation(current.origin), driverLocation = normalizeLocation(driver.currentLocation || (await db.ref(`locations/${driverId}`).get()).val());
-    if (!origin || !driverLocation) return res.status(409).json({ error: 'Localização do motorista ou embarque indisponível.' });
+    const storedLocation = await db.ref(`locations/${driverId}`).get();
+    const origin = normalizeLocation(current.origin), driverLocation = normalizeLocation(driver.currentLocation || storedLocation.val());
+    if (!origin || !driverLocation || !isDriverPresenceFresh(driver, storedLocation.val())) return res.status(409).json({ error: 'Atualize sua localização antes de aceitar esta corrida.' });
     const radiusKm = dispatchRadiusKm(rideAgeMs(current)), pickup = distanceKm(driverLocation, origin);
     if (!Number.isFinite(pickup) || pickup > radiusKm) return res.status(409).json({ error: `Você está fora da área de atendimento desta corrida (${radiusKm} km).`, estimatedDistanceKm: Number.isFinite(pickup) ? Number(pickup.toFixed(2)) : null, dispatchRadiusKm: radiusKm });
     let active = null;
