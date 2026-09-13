@@ -78,7 +78,6 @@ async function recoverUserProfile(uid, email, decoded) {
     name: String(decoded.name || decoded.email?.split('@')[0] || 'Usuário').trim(),
     phone: String(decoded.phone_number || '').trim(),
     userType: 'passenger',
-    rating: 5.0,
     totalRides: 0,
     isOnline: false,
     profilePhoto: decoded.picture || null,

@@ -62,13 +62,29 @@ export default function AdminDashboardLive({ admin, onLogout }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [selected, setSelected] = useState(null);
-  const [promoActive, setPromoActive] = useState(() => localStorage.getItem('pf17_admin_promo') !== 'off');
+  const [promotions, setPromotions] = useState([]);
+  const [promotionsLoading, setPromotionsLoading] = useState(false);
   const [maintenanceMode, setMaintenanceMode] = useState(() => localStorage.getItem('pf17_admin_maintenance') === 'on');
   const [savedMessage, setSavedMessage] = useState('');
   const [readReviews, setReadReviews] = useState(() => new Set());
 
   const token = localStorage.getItem('adminToken') || localStorage.getItem('token');
   const authHeaders = useMemo(() => (token ? { Authorization: `Bearer ${token}` } : {}), [token]);
+
+  const loadPromotions = async () => {
+    if (!token) return;
+    setPromotionsLoading(true);
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/promotions`, { headers: authHeaders, cache: 'no-store' });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || 'Não foi possível carregar as promoções.');
+      setPromotions(Array.isArray(data.promotions) ? data.promotions : []);
+    } catch (promotionError) {
+      setError(promotionError.message || 'Não foi possível carregar as promoções.');
+    } finally {
+      setPromotionsLoading(false);
+    }
+  };
 
   const loadDashboard = async () => {
     if (!token) return;
@@ -101,6 +117,7 @@ export default function AdminDashboardLive({ admin, onLogout }) {
   };
 
   useEffect(() => { void loadDashboard(); }, []);
+  useEffect(() => { void loadPromotions(); }, []);
 
   const safeLogout = () => {
     try {
@@ -115,7 +132,6 @@ export default function AdminDashboardLive({ admin, onLogout }) {
   };
 
   const saveSettings = () => {
-    localStorage.setItem('pf17_admin_promo', promoActive ? 'on' : 'off');
     localStorage.setItem('pf17_admin_maintenance', maintenanceMode ? 'on' : 'off');
     setSavedMessage('Configurações salvas neste dispositivo.');
     window.setTimeout(() => setSavedMessage(''), 2500);
@@ -232,7 +248,7 @@ export default function AdminDashboardLive({ admin, onLogout }) {
     );
 
     if (activeTab === 'promocoes') return (
-      <div className="pf-admin-charts-grid"><div className="pf-admin-chart-card"><div className="pf-admin-chart-title">Promoção</div><div style={{ fontSize: 30, fontWeight: 900 }}>BEMVINDO17</div><p style={{ color: '#8e98a5', lineHeight: 1.5 }}>Controle local da promoção enquanto o módulo promocional de servidor não estiver conectado.</p><ActionButton onClick={() => setPromoActive((value) => !value)}>{promoActive ? 'Desativar promoção' : 'Ativar promoção'}</ActionButton><div style={{ marginTop: 14 }}><span className={`pf-admin-status-badge ${promoActive ? 'concluida' : 'cancelada'}`}>{promoActive ? 'Ativa' : 'Inativa'}</span></div></div></div>
+      <div className="pf-admin-table-card"><div className="pf-admin-chart-title">Promoções reais</div>{promotionsLoading ? <div style={{ color: '#8e98a5' }}>Carregando promoções...</div> : promotions.length === 0 ? <div style={{ color: '#8e98a5' }}>Nenhuma promoção cadastrada.</div> : <div style={{ display: 'grid', gap: 10 }}>{promotions.map((promotion) => <div key={promotion.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', padding: 14, border: '1px solid #222831', borderRadius: 12 }}><div><b>{promotion.code}</b><div style={{ color: '#8e98a5', marginTop: 4 }}>{promotion.description || 'Sem descrição'}</div></div><span className="pf-admin-status-badge concluida">Ativa</span></div>)}</div>}</div>
     );
 
     if (activeTab === 'relatorios') return (

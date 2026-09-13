@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { BACKEND_URL } from '../config';
 
 function LiveStatsBar() {
-  const [, setStats] = useState({ total: 0, completed: 0, cancelled: 0, ongoing: 0, distance: 0, rating: 5.0 });
+  const [, setStats] = useState({ total: 0, completed: 0, cancelled: 0, ongoing: 0, distance: 0 });
 
   useEffect(() => {
     let cancelled = false;
@@ -23,8 +23,7 @@ function LiveStatsBar() {
           completed: rides.filter(r => r.status === 'COMPLETED').length,
           cancelled: rides.filter(r => r.status === 'CANCELLED').length,
           ongoing: rides.filter(r => ['SEARCHING', 'ACCEPTED', 'IN_PROGRESS'].includes(r.status)).length,
-          distance: rides.reduce((sum, r) => sum + (Number(r.distance) || 0), 0),
-          rating: Number(data.user?.rating ?? 5.0) || 5.0
+          distance: rides.reduce((sum, r) => sum + (Number(r.distance) || 0), 0)
         });
       } catch (_) {}
     };

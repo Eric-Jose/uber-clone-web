@@ -17,21 +17,19 @@ const isEnvPlaceholder = (val) =>
   val.includes('uma-senha') ||
   val.includes('gerada');
 
-const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 
 // SEGURANÇA: as credenciais de administrador vêm exclusivamente das variáveis
-// de ambiente (ADMIN_EMAIL / ADMIN_PASSWORD / ADMIN_NAME). Fora de produção,
-// caímos em um usuário de desenvolvimento previsível para facilitar testes
-// locais; em produção, sem ADMIN_EMAIL/ADMIN_PASSWORD não há admin padrão.
+// de ambiente (ADMIN_EMAIL / ADMIN_PASSWORD / ADMIN_NAME). Sem essas variáveis,
+// não existe conta administrativa pré-cadastrada nem credencial de demonstração.
 const rawAdminEmail = process.env.ADMIN_EMAIL;
 const DEFAULT_ADMIN_EMAIL = (!isEnvPlaceholder(rawAdminEmail) && rawAdminEmail.includes('@'))
   ? rawAdminEmail.toLowerCase()
-  : (IS_PRODUCTION ? null : 'admin@precofixo17.dev');
+  : null;
 
 const rawAdminPass = process.env.ADMIN_PASSWORD;
 const DEFAULT_ADMIN_PASSWORD = (!isEnvPlaceholder(rawAdminPass) && rawAdminPass.length >= 6)
   ? rawAdminPass
-  : (IS_PRODUCTION ? null : 'ChangeMe@Dev123');
+  : null;
 
 const DEFAULT_ADMIN_NAME = (!isEnvPlaceholder(process.env.ADMIN_NAME) && process.env.ADMIN_NAME)
   ? process.env.ADMIN_NAME
@@ -147,7 +145,7 @@ router.post('/register', async (req, res) => {
     if (password.length < 6) return res.status(400).json({ error: 'A senha deve ter pelo menos 6 caracteres' });
     if (!['passenger', 'driver'].includes(userType)) return res.status(400).json({ error: 'Tipo de usuário inválido' });
     const userRecord = await auth.createUser({ email, password, displayName: name });
-    const userData = { uid: userRecord.uid, email, name, phone, userType, createdAt: new Date().toISOString(), rating: 5.0, totalRides: 0, isOnline: false };
+    const userData = { uid: userRecord.uid, email, name, phone, userType, createdAt: new Date().toISOString(), totalRides: 0, isOnline: false };
     await db.ref(`users/${userRecord.uid}`).set(userData);
     const token = createToken(userRecord.uid, email);
     return res.status(201).json({ message: 'Usuário registrado com sucesso', uid: userRecord.uid, token, user: userData });

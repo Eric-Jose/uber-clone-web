@@ -62,9 +62,9 @@ function AccountPanel({ account, currentPage, onNavigate, onLogout, children }) 
     { id: 'settings', page: 'profile', icon: '⚙️', label: 'Configurações' }
   ];
   const handleMenuClick = (item) => { setMenuOpen(false); onNavigate(item.page); };
-  const userName = account?.name || account?.fullName || 'João Silva';
+  const userName = account?.name || account?.fullName || account?.email || 'Conta sem nome';
   const userRole = isDriver ? 'Motorista Parceiro' : 'Passageiro';
-  const userRating = account?.rating || '4.9';
+  const userRating = account?.rating ?? account?.ratingAverage;
   return (
     <div className="pf-app-layout" style={{ minHeight: '100vh', background: '#050505' }}>
       <main style={{ minHeight: '100vh', position: 'relative' }}>
@@ -75,7 +75,7 @@ function AccountPanel({ account, currentPage, onNavigate, onLogout, children }) 
           <aside className="pf-drawer" onClick={(e) => e.stopPropagation()}>
             <div className="pf-drawer-user">
               <div className="pf-drawer-avatar"><img src={account?.profilePhoto || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=160&auto=format&fit=crop&q=80'} alt={userName} /><div className="pf-drawer-online" /></div>
-              <div className="pf-drawer-user-info"><div className="pf-drawer-user-name">{userName}</div><div className="pf-drawer-user-role">{userRole}</div><div className="pf-drawer-user-rating"><span>★</span><span>{userRating}</span></div></div>
+              <div className="pf-drawer-user-info"><div className="pf-drawer-user-name">{userName}</div><div className="pf-drawer-user-role">{userRole}</div>{userRating !== undefined && userRating !== null && userRating !== '' && <div className="pf-drawer-user-rating"><span>★</span><span>{userRating}</span></div>}</div>
               <button type="button" className="pf-drawer-bell" onClick={() => { setMenuOpen(false); onNavigate('notifications'); }} aria-label="Notificações">🔔</button>
             </div>
             <nav className="pf-drawer-menu">

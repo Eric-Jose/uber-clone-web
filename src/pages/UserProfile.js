@@ -1,18 +1,15 @@
 import React, { useEffect, useRef, useState } from 'react';
 import '../styles/PrecoFixo17Reference.css';
 
-const DEFAULT_ADDRESSES = [
-  { id: 'home', label: 'Casa', address: '' },
-  { id: 'work', label: 'Trabalho', address: '' }
-];
+const DEFAULT_ADDRESSES = [];
 
 function UserProfile({ user, onLogout, onBack, onNavigate }) {
   const [userData, setUserData] = useState({
-    name: user?.name || user?.fullName || 'Usuário',
+    name: user?.name || user?.fullName || user?.email || 'Conta sem nome',
     role: user?.userType === 'driver' ? 'Motorista Parceiro' : 'Passageiro',
     email: user?.email || '',
     phone: user?.phone || '',
-    rating: user?.rating || '5.0',
+    rating: user?.rating ?? user?.ratingAverage ?? null,
     profilePhoto: user?.profilePhoto || ''
   });
   const [addresses, setAddresses] = useState(() => {
@@ -136,7 +133,7 @@ function UserProfile({ user, onLogout, onBack, onNavigate }) {
           </div>
           <h2 className="pf-prof-name">{userData.name}</h2><div className="pf-prof-role">{userData.role}</div>
           {userData.email && <div className="pf-prof-email">{userData.email}</div>}
-          <div className="pf-prof-rating"><span>★</span><span>{userData.rating}</span><span>★</span></div>
+          {userData.rating !== undefined && userData.rating !== null && userData.rating !== '' && <div className="pf-prof-rating"><span>★</span><span>{userData.rating}</span><span>★</span></div>}
         </div>
 
         <div className="pf-prof-menu">
@@ -155,9 +152,9 @@ function UserProfile({ user, onLogout, onBack, onNavigate }) {
         <div className="pf-profile-modal-backdrop" onClick={closeModal}>
           <section className="pf-profile-modal" onClick={(e) => e.stopPropagation()}>
             <div className="pf-profile-modal-head"><h3>{modal === 'addresses' ? 'Endereços salvos' : modal === 'settings' ? 'Configurações' : 'Avaliações'}</h3><button type="button" className="pf-profile-close" onClick={closeModal} aria-label="Fechar">×</button></div>
-            {modal === 'addresses' && addresses.map((item) => (
+            {modal === 'addresses' && (addresses.length ? addresses.map((item) => (
               <div className="pf-address-row" key={item.id}><div className="pf-address-copy"><div className="pf-address-label">{item.label}</div><div className="pf-address-value">{item.address || 'Nenhum endereço informado'}</div></div><button type="button" className="pf-small-btn" onClick={() => editAddress(item.id)}>Editar</button></div>
-            ))}
+            )) : <div className="pf-address-value">Nenhum endereço salvo.</div>)}
             {modal === 'settings' && (
               <>
                 <div className="pf-setting-row"><div><b>Notificações</b><div className="pf-address-value">Receber avisos de corridas e atualizações</div></div><button type="button" className={`pf-toggle ${settings.notifications ? 'on':'off'}`} onClick={() => toggleSetting('notifications')}>{settings.notifications ? 'Ativo' : 'Desligado'}</button></div>

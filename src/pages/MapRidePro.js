@@ -37,7 +37,8 @@ export default function MapRidePro({ onRideCreate, onBack, onNavigate, onOpenMen
   const [distanceKm, setDistanceKm] = useState(0);
   const [durationMin, setDurationMin] = useState(0);
   const [paymentMethod, setPaymentMethod] = useState('Dinheiro');
-  const [promoCode, setPromoCode] = useState(() => { try { return localStorage.getItem('pf_selected_promo') || 'Nenhuma'; } catch (_) { return 'Nenhuma'; } });
+  const [promoCode, setPromoCode] = useState('Nenhuma');
+  const [promoInput, setPromoInput] = useState('');
   const [passengerCount, setPassengerCount] = useState(1);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -46,9 +47,7 @@ export default function MapRidePro({ onRideCreate, onBack, onNavigate, onOpenMen
   const [toastMessage, setToastMessage] = useState('');
   const [modalType, setModalType] = useState(null);
   const [chatMessage, setChatMessage] = useState('');
-  const [chatMessages, setChatMessages] = useState([
-    { from: 'driver', text: 'Olá! Estou a caminho do seu local de embarque.', time: '14:28' }
-  ]);
+  const [chatMessages, setChatMessages] = useState([]);
   const [driver, setDriver] = useState(null);
   const [etaMinutes, setEtaMinutes] = useState(2);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
@@ -64,6 +63,24 @@ export default function MapRidePro({ onRideCreate, onBack, onNavigate, onOpenMen
     setToastMessage(msg);
     clearTimeout(toastTimer.current);
     toastTimer.current = setTimeout(() => setToastMessage(''), 3500);
+  };
+
+  const applyRealPromoCode = async () => {
+    const code = promoInput.trim().toUpperCase();
+    if (!code) return showToast('Digite um código de cupom.');
+    if (!token) return showToast('Faça login para usar um cupom.');
+    try {
+      const response = await fetch(`${B}/api/promotions`, { headers: authHeaders, cache: 'no-store' });
+      const data = await response.json().catch(() => ({}));
+      const promo = (Array.isArray(data.promotions) ? data.promotions : []).find((item) => item.code === code);
+      if (!response.ok || !promo) return showToast('Código de cupom inválido ou expirado.');
+      setPromoCode(promo.code);
+      setPromoInput('');
+      try { localStorage.setItem('pf_selected_promo', promo.code); } catch (_) {}
+      setModalType(null);
+    } catch (_) {
+      showToast('Não foi possível validar o cupom agora.');
+    }
   };
 
   const normalizeRide = (value) => value?.ride || value || null;
@@ -468,7 +485,7 @@ export default function MapRidePro({ onRideCreate, onBack, onNavigate, onOpenMen
       {stage === 'in_progress' && <><div className="pf-progress-banner"><div className="pf-banner-pin">📍</div><div style={{minWidth:0}}><div className="pf-banner-title">Corrida em andamento</div><div className="pf-banner-dest">Destino: {destination}</div></div></div><div className="pf-progress-sheet"><div className="pf-stats-cols"><div><div className="pf-stat-box-label">Tempo</div><div className="pf-stat-box-val">{formatElapsed(elapsedSeconds)}</div></div><div><div className="pf-stat-box-label">Distância</div><div className="pf-stat-box-val">{distanceKm} km</div></div><div><div className="pf-stat-box-label">Preço fixo</div><div className="pf-stat-box-val orange">R$ 17,00</div></div></div><div className="pf-pay-indicator-row"><span>💳</span><span>Pagamento: {paymentMethod}</span></div><button type="button" className="pf-finish-btn" disabled={busy || isPassenger} onClick={handleFinishRide}>{busy?'Finalizando…':isPassenger?'Aguardando motorista finalizar':'Finalizar corrida'}</button></div></>}
 
       {modalType === 'payment' && <div className="pf-modal-backdrop" onClick={()=>setModalType(null)}><div className="pf-modal-card" onClick={(e)=>e.stopPropagation()}><h3 style={{margin:'0 0 14px'}}>Forma de Pagamento</h3>{['Dinheiro','Cartão de Crédito','PIX'].map((method)=><button key={method} type="button" className="pf-chip" style={{width:'100%',marginBottom:8,justifyContent:'space-between'}} onClick={()=>{setPaymentMethod(method);setModalType(null)}}><span>{method}</span>{paymentMethod===method&&<span style={{color:'#ff5a00'}}>✓</span>}</button>)}</div></div>}
-      {modalType === 'promo' && <div className="pf-modal-backdrop" onClick={()=>setModalType(null)}><div className="pf-modal-card" onClick={(e)=>e.stopPropagation()}><h3 style={{margin:'0 0 14px'}}>Cupom ou Promoção</h3><input type="text" placeholder="Digite seu cupom" className="pf-input-field" style={{background:'#1c212a',border:'1px solid #333d4e',borderRadius:10,padding:12,marginBottom:12}} onKeyDown={(e)=>{if(e.key==='Enter'){setPromoCode(e.currentTarget.value||'Nenhuma');setModalType(null)}}}/><button type="button" className="pf-btn-orange" onClick={()=>{setPromoCode('FIXO17VIP');setModalType(null)}}>Aplicar cupom FIXO17VIP</button></div></div>}
+      {modalType === 'promo' && <div className="pf-modal-backdrop" onClick={()=>setModalType(null)}><div className="pf-modal-card" onClick={(e)=>e.stopPropagation()}><h3 style={{margin:'0 0 14px'}}>Cupom ou Promoção</h3><input type="text" placeholder="Digite seu cupom" className="pf-input-field" value={promoInput} onChange={(e)=>setPromoInput(e.target.value.toUpperCase())} onKeyDown={(e)=>{if(e.key==='Enter') void applyRealPromoCode()}} style={{background:'#1c212a',border:'1px solid #333d4e',borderRadius:10,padding:12,marginBottom:12}}/><button type="button" className="pf-btn-orange" onClick={() => void applyRealPromoCode()}>Validar cupom</button></div></div>}
       {modalType === 'passengers' && <div className="pf-modal-backdrop" onClick={()=>setModalType(null)}><div className="pf-modal-card" onClick={(e)=>e.stopPropagation()}><h3 style={{margin:'0 0 14px'}}>Quantidade de Passageiros</h3><div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8}}>{[1,2,3,4].map((num)=><button key={num} type="button" className="pf-chip" style={{justifyContent:'center',background:passengerCount===num?'#ff5a00':'#111418',color:'#fff'}} onClick={()=>{setPassengerCount(num);setModalType(null)}}>{num}</button>)}</div></div></div>}
       {modalType === 'message' && <div className="pf-modal-backdrop" onClick={()=>setModalType(null)}><div className="pf-modal-card" style={{maxWidth:420}} onClick={(e)=>e.stopPropagation()}><div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}><h3 style={{margin:0}}>Mensagens com o motorista</h3><button type="button" style={{background:'none',border:'none',color:'#8e98a5',fontSize:18,cursor:'pointer'}} onClick={()=>setModalType(null)}>✕</button></div><div style={{height:200,overflowY:'auto',display:'flex',flexDirection:'column',gap:8,padding:8,background:'#0a0d11',borderRadius:12,marginBottom:12}}>{chatMessages.map((m,i)=><div key={i} style={{alignSelf:m.from==='me'?'flex-end':'flex-start',background:m.from==='me'?'#ff5a00':'#1c212a',color:'#fff',padding:'8px 12px',borderRadius:12,fontSize:13,maxWidth:'80%'}}>{m.text}</div>)}</div><form onSubmit={handleSendMessage} style={{display:'flex',gap:8}}><input type="text" placeholder="Enviar mensagem…" value={chatMessage} onChange={(e)=>setChatMessage(e.target.value)} style={{flex:1,background:'#1c212a',border:'1px solid #333d4e',borderRadius:999,padding:'10px 16px',color:'#fff',outline:'none'}}/><button type="submit" style={{background:'#ff5a00',border:'none',borderRadius:'50%',width:40,height:40,color:'#fff',cursor:'pointer'}}>➤</button></form></div></div>}
     </div>

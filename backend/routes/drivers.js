@@ -11,6 +11,76 @@ router.post('/register',async(req,res)=>{try{const uid=req.user.uid,data=req.bod
 router.get('/applications',requireAdmin,async(req,res)=>{try{const[a,u]=await Promise.all([db.ref('driverApplications').get(),db.ref('users').get()]),map=new Map();a.forEach(c=>map.set(c.key,sanitizeApplication(c.val()||{})));u.forEach(c=>{const user=c.val()||{};if(user.userType==='driver'&&!map.has(c.key))map.set(c.key,sanitizeApplication(applicationFromUser(c.key,user)));});const applications=Array.from(map.values()).sort((x,y)=>String(y.submittedAt||'').localeCompare(String(x.submittedAt||'')));return res.json({total:applications.length,applications});}catch(e){return res.status(500).json({error:'Erro ao listar cadastros de motoristas.'});}});
 router.get('/online-count',requireAdmin,async(req,res)=>{try{const s=await db.ref('users').get();let online=0,approved=0;s.forEach(c=>{const d=c.val()||{};if(d.userType==='driver'&&d.driverApprovalStatus==='approved'){approved++;if(d.isOnline===true)online++;}});return res.json({online,approved});}catch(e){return res.status(500).json({error:'Erro ao consultar motoristas online.'});}});
 router.patch('/:driverId/approval',requireAdmin,async(req,res)=>{try{const driverId=req.params.driverId,status=String(req.body?.status||'').toLowerCase();if(!['pending','approved','rejected'].includes(status))return res.status(400).json({error:'Status deve ser pending, approved ou rejected.'});const userRef=db.ref(`users/${driverId}`),appRef=db.ref(`driverApplications/${driverId}`),[us,as]=await Promise.all([userRef.get(),appRef.get()]);if(!us.exists()||us.val()?.userType!=='driver')return res.status(404).json({error:'Motorista não encontrado.'});const user=us.val(),existing=as.exists()?as.val():applicationFromUser(driverId,user),now=new Date().toISOString(),approved=status==='approved',updatedApplication={...existing,uid:driverId,status,reviewedAt:status==='pending'?null:now,reviewedBy:status==='pending'?null:req.user.uid,recoveredFromUser:!as.exists()},userUpdate={driverApprovalStatus:status,isOnline:false,driverApprovedAt:approved?now:null,driverApprovedBy:approved?req.user.uid:null,driverApplication:updatedApplication};await Promise.all([userRef.update(userUpdate),appRef.set(updatedApplication)]);return res.json({success:true,driverId,status,application:updatedApplication});}catch(e){return res.status(500).json({error:'Erro ao atualizar aprovação do motorista.'});}});
+
+function favoriteDriverIds(user = {}) {
+  const ids = new Set();
+  const raw = Array.isArray(user.favoriteDriverIds) ? user.favoriteDriverIds : [];
+  raw.forEach((value) => {
+    const id = typeof value === 'object' ? value?.uid || value?.id : value;
+    if (id) ids.add(String(id));
+  });
+  if (Array.isArray(user.favoriteDrivers)) {
+    user.favoriteDrivers.forEach((value) => {
+      const id = typeof value === 'object' ? value?.uid || value?.id : value;
+      if (id) ids.add(String(id));
+    });
+  }
+  return Array.from(ids);
+}
+
+function publicFavoriteDriver(uid, driver = {}) {
+  const vehicle = driver.driverProfile?.vehicle || {};
+  return {
+    uid,
+    name: driver.driverProfile?.fullName || driver.fullName || driver.name || driver.email || 'Motorista',
+    rating: Number(driver.ratingAverage ?? driver.rating ?? 0),
+    ratingCount: Number(driver.ratingCount || 0),
+    totalRides: Number(driver.totalRides || 0),
+    vehicle: { model: vehicle.model || '', color: vehicle.color || '', year: vehicle.year || null },
+    currentLocation: driver.currentLocation || null,
+  };
+}
+
+router.get('/favorites', async (req, res) => {
+  try {
+    const user = (await db.ref(`users/${req.user.uid}`).get()).val() || {};
+    const ids = favoriteDriverIds(user);
+    if (!ids.length) return res.json({ total: 0, drivers: [] });
+    const drivers = [];
+    for (const driverId of ids) {
+      const driver = (await db.ref(`users/${driverId}`).get()).val();
+      if (!driver || driver.userType !== 'driver') continue;
+      drivers.push(publicFavoriteDriver(driverId, driver));
+    }
+    return res.json({ total: drivers.length, drivers });
+  } catch (error) {
+    console.error('Erro ao listar motoristas favoritos:', error.message);
+    return res.status(500).json({ error: 'Erro ao listar motoristas favoritos.' });
+  }
+});
+
+router.delete('/favorites/:driverId', async (req, res) => {
+  try {
+    const driverId = String(req.params.driverId || '').trim();
+    if (!driverId) return res.status(400).json({ error: 'Motorista inválido.' });
+    const userRef = db.ref(`users/${req.user.uid}`);
+    const user = (await userRef.get()).val() || {};
+    const favoriteIds = favoriteDriverIds(user).filter((id) => id !== driverId);
+    const update = { favoriteDriverIds: favoriteIds };
+    if (Array.isArray(user.favoriteDrivers)) {
+      update.favoriteDrivers = user.favoriteDrivers.filter((value) => {
+        const id = typeof value === 'object' ? value?.uid || value?.id : value;
+        return String(id || '') !== driverId;
+      });
+    }
+    await userRef.update(update);
+    return res.json({ success: true, driverId });
+  } catch (error) {
+    console.error('Erro ao remover motorista favorito:', error.message);
+    return res.status(500).json({ error: 'Erro ao remover motorista favorito.' });
+  }
+});
+
 router.get('/available',async(req,res)=>{try{const lat=Number(req.query.lat),lng=Number(req.query.lng),radius=Number(req.query.radius??5);if(!Number.isFinite(lat)||!Number.isFinite(lng)||!Number.isFinite(radius)||radius<=0)return res.status(400).json({error:'Latitude, longitude e raio válidos são obrigatórios.'});const snap=await db.ref('users').orderByChild('userType').equalTo('driver').get(),drivers=[];snap.forEach(c=>{const d=c.val();if(d.driverApprovalStatus!=='approved'||!d.isOnline||!d.currentLocation)return;const a=Number(d.currentLocation.lat??d.currentLocation.latitude),b=Number(d.currentLocation.lng??d.currentLocation.longitude),dist=calculateDistance(lat,lng,a,b);if(Number.isFinite(dist)&&dist<=radius)drivers.push({uid:c.key,fullName:d.driverProfile?.fullName||d.fullName||'Motorista',ratingAverage:Number(d.ratingAverage??d.rating??0),ratingCount:Number(d.ratingCount||0),vehicle:{model:d.driverProfile?.vehicle?.model||'',color:d.driverProfile?.vehicle?.color||'',year:d.driverProfile?.vehicle?.year||null},location:{lat:a,lng:b},distance:Number(dist.toFixed(2))});});drivers.sort((a,b)=>a.distance-b.distance);return res.json({total:drivers.length,drivers});}catch(e){return res.status(500).json({error:'Erro ao listar motoristas.'});}});
 router.get('/me',async(req,res)=>{try{const uid=req.user.uid,d=(await db.ref(`users/${uid}`).get()).val();if(!d||d.userType!=='driver')return res.status(403).json({error:'Usuário não é motorista.'});return res.json({success:true,driver:{uid,name:d.driverProfile?.fullName||d.fullName||d.name||d.email||'Motorista',email:d.email||'',status:d.driverApprovalStatus||'pending',isOnline:d.isOnline===true,currentLocation:d.currentLocation||null,vehicle:d.driverProfile?.vehicle||null,ratingAverage:Number(d.ratingAverage??d.rating??0),ratingCount:Number(d.ratingCount||0)}});}catch(e){return res.status(500).json({error:'Erro ao buscar dados do motorista.'});}});
 async function handleDriverStatusUpdate(req, res) {
