@@ -2,6 +2,7 @@ const express = require('express');
 const admin = require('firebase-admin');
 const axios = require('axios');
 const jwt = require('jsonwebtoken');
+const { JWT_SECRET, JWT_EXPIRE } = require('../config/secrets');
 const router = express.Router();
 
 const db = admin.database();
@@ -16,25 +17,32 @@ const isEnvPlaceholder = (val) =>
   val.includes('uma-senha') ||
   val.includes('gerada');
 
+const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+
+// SEGURANÇA: as credenciais de administrador vêm exclusivamente das variáveis
+// de ambiente (ADMIN_EMAIL / ADMIN_PASSWORD / ADMIN_NAME). Fora de produção,
+// caímos em um usuário de desenvolvimento previsível para facilitar testes
+// locais; em produção, sem ADMIN_EMAIL/ADMIN_PASSWORD não há admin padrão.
 const rawAdminEmail = process.env.ADMIN_EMAIL;
 const DEFAULT_ADMIN_EMAIL = (!isEnvPlaceholder(rawAdminEmail) && rawAdminEmail.includes('@'))
-  ? rawAdminEmail
-  : 'admin@uberclone.com';
+  ? rawAdminEmail.toLowerCase()
+  : (IS_PRODUCTION ? null : 'admin@precofixo17.dev');
 
 const rawAdminPass = process.env.ADMIN_PASSWORD;
 const DEFAULT_ADMIN_PASSWORD = (!isEnvPlaceholder(rawAdminPass) && rawAdminPass.length >= 6)
   ? rawAdminPass
-  : 'UberClone@2026!';
+  : (IS_PRODUCTION ? null : 'ChangeMe@Dev123');
 
 const DEFAULT_ADMIN_NAME = (!isEnvPlaceholder(process.env.ADMIN_NAME) && process.env.ADMIN_NAME)
   ? process.env.ADMIN_NAME
   : 'Administrador';
 
-const JWT_FALLBACK_SECRET = 'precofixo17-dev-jwt-secret-2026';
+// Lista de e-mails reconhecidos como administradores (apenas os configurados
+// por ambiente). Nunca contém senhas.
+const KNOWN_ADMIN_EMAILS = [DEFAULT_ADMIN_EMAIL].filter(Boolean);
 
 function createToken(uid, email) {
-  const secret = process.env.JWT_SECRET || JWT_FALLBACK_SECRET;
-  return jwt.sign({ uid, email }, secret, { expiresIn: '7d' });
+  return jwt.sign({ uid, email }, JWT_SECRET, { expiresIn: JWT_EXPIRE });
 }
 
 async function firebasePasswordLogin(email, password) {
@@ -204,7 +212,7 @@ router.post('/change-password', async (req, res) => {
     const header = req.headers.authorization || '';
     const token = header.startsWith('Bearer ') ? header.slice(7) : null;
     if (!token) return res.status(401).json({ error: 'Token não fornecido' });
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || JWT_FALLBACK_SECRET);
+    const decoded = jwt.verify(token, JWT_SECRET);
     const snapshot = await db.ref(`users/${decoded.uid}`).get();
     const userData = snapshot.val();
     if (!userData?.email) return res.status(404).json({ error: 'Usuário não encontrado' });
@@ -229,7 +237,7 @@ router.post('/profile-photo', async (req, res) => {
     const header = req.headers.authorization || '';
     const token = header.startsWith('Bearer ') ? header.slice(7) : null;
     if (!token) return res.status(401).json({ error: 'Token não fornecido' });
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || JWT_FALLBACK_SECRET);
+    const decoded = jwt.verify(token, JWT_SECRET);
     const profilePhoto = String(req.body?.profilePhoto || '');
     if (profilePhoto && !/^data:image\/(jpeg|jpg|png|webp);base64,[A-Za-z0-9+/=\s]+$/.test(profilePhoto)) return res.status(400).json({ error: 'Formato de foto inválido.' });
     if (profilePhoto.length > 900000) return res.status(413).json({ error: 'A foto processada é muito grande.' });
@@ -250,10 +258,12 @@ router.post('/admin-login', async (req, res) => {
     const email = String(req.body?.email || '').trim().toLowerCase();
     const password = String(req.body?.password || '');
     if (!email || !password) return res.status(400).json({ error: 'Email e senha são obrigatórios' });
-    const isDefaultAdminMatch =
-      (email === DEFAULT_ADMIN_EMAIL.toLowerCase() && password === DEFAULT_ADMIN_PASSWORD) ||
-      (email === 'admin@uberclone.com' && password === 'UberClone@2026!') ||
-      (email === 'admin@precofixo17.com' && password === 'Admin@2026!');
+    const isDefaultAdminMatch = Boolean(
+      DEFAULT_ADMIN_EMAIL &&
+      DEFAULT_ADMIN_PASSWORD &&
+      email === DEFAULT_ADMIN_EMAIL &&
+      password === DEFAULT_ADMIN_PASSWORD
+    );
 
     let userRecord;
     try {
@@ -268,10 +278,7 @@ router.post('/admin-login', async (req, res) => {
     const snapshot = await userRef.get();
     const existing = snapshot.val() || {};
     const isAdmin = existing.userType === 'admin' || existing.role === 'admin';
-    const isKnownAdminEmail =
-      email === DEFAULT_ADMIN_EMAIL.toLowerCase() ||
-      email === 'admin@uberclone.com' ||
-      email === 'admin@precofixo17.com';
+    const isKnownAdminEmail = KNOWN_ADMIN_EMAILS.includes(email);
     if (!isAdmin && !isKnownAdminEmail) return res.status(403).json({ error: 'Este usuário não é administrador' });
     if (snapshot.exists()) {
       try {
@@ -299,7 +306,7 @@ router.post('/admin/set-password', async (req, res) => {
     const header = req.headers.authorization || '';
     const token = header.startsWith('Bearer ') ? header.slice(7) : null;
     if (!token) return res.status(401).json({ error: 'Token não fornecido' });
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || JWT_FALLBACK_SECRET);
+    const decoded = jwt.verify(token, JWT_SECRET);
     const userSnapshot = await db.ref(`users/${decoded.uid}`).get();
     const userData = userSnapshot.val();
     if (!userData || (userData.userType !== 'admin' && userData.role !== 'admin')) return res.status(403).json({ error: 'Acesso administrativo negado' });
@@ -320,7 +327,7 @@ router.post('/admin/change-password', async (req, res) => {
     const header = req.headers.authorization || '';
     const token = header.startsWith('Bearer ') ? header.slice(7) : null;
     if (!token) return res.status(401).json({ error: 'Token não fornecido' });
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || JWT_FALLBACK_SECRET);
+    const decoded = jwt.verify(token, JWT_SECRET);
     const userSnapshot = await db.ref(`users/${decoded.uid}`).get();
     const userData = userSnapshot.val();
     if (!userData || (userData.userType !== 'admin' && userData.role !== 'admin')) return res.status(403).json({ error: 'Acesso administrativo negado' });
@@ -344,7 +351,7 @@ router.get('/verify', async (req, res) => {
   try {
     const token = req.headers.authorization?.startsWith('Bearer ') ? req.headers.authorization.slice(7) : null;
     if (!token) return res.status(401).json({ error: 'Token não fornecido' });
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || JWT_FALLBACK_SECRET);
+    const decoded = jwt.verify(token, JWT_SECRET);
     const userSnapshot = await db.ref(`users/${decoded.uid}`).get();
     const userData = userSnapshot.val();
     if (!userData) return res.status(401).json({ error: 'Usuário não encontrado' });

@@ -9,7 +9,7 @@ const jwt = require('jsonwebtoken');
 
 dotenv.config();
 
-const JWT_SECRET = process.env.JWT_SECRET || 'precofixo17-dev-jwt-secret-2026';
+const { JWT_SECRET } = require('./backend/config/secrets');
 process.env.JWT_SECRET = JWT_SECRET;
 
 const requiredFirebaseEnv = ['FIREBASE_PROJECT_ID', 'FIREBASE_CLIENT_EMAIL', 'FIREBASE_PRIVATE_KEY'];

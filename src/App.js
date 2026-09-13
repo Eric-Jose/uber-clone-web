@@ -9,7 +9,6 @@ import Register from './pages/Register';
 import UserProfile from './pages/UserProfile';
 import DriverRegistration from './pages/DriverRegistration';
 import DriverDashboardMapPro from './pages/DriverDashboardMapPro';
-import AdminPanel from './pages/AdminPanel';
 import Payment from './pages/Payment';
 import NotificationCenter from './pages/NotificationCenter';
 import MapRidePro from './pages/MapRidePro';
@@ -33,6 +32,7 @@ import './styles/FinalDarkTheme.css';
 import './styles/PrecoFixo17Mobile.css';
 import './styles/ReferenceVisualLock.css';
 import './styles/PrecoFixo17AccountMenu.css';
+import './styles/FinalProductionHardening.css';
 
 const getStored = (key) => { try { return JSON.parse(localStorage.getItem(key) || 'null'); } catch (_) { return null; } };
 const resolveUserPage = (user) => { if (!user) return 'home'; if (user.userType !== 'driver') return 'ride'; if (user.driverApprovalStatus === 'approved') return 'driver-dashboard'; if (user.driverApprovalStatus === 'pending') return 'driver-pending'; return 'driver-registration'; };
@@ -68,7 +68,7 @@ function AccountPanel({ account, currentPage, onNavigate, onLogout, children }) 
   return (
     <div className="pf-app-layout" style={{ minHeight: '100vh', background: '#050505' }}>
       <main style={{ minHeight: '100vh', position: 'relative' }}>
-        {React.Children.map(children, (child) => React.isValidElement(child) ? React.cloneElement(child, { onOpenMenu: () => setMenuOpen(true), onOpenNotifications: () => onNavigate('notifications'), onNavigate }) : child)}
+        {React.Children.map(children, (child) => React.isValidElement(child) ? React.cloneElement(child, { onOpenMenu: () => setMenuOpen(true), onOpenNotifications: () => onNavigate('notifications'), onNavigate, onLogout }) : child)}
       </main>
       {menuOpen && (
         <div className="pf-drawer-backdrop" onClick={() => setMenuOpen(false)}>
@@ -101,7 +101,20 @@ function App() {
   useEffect(() => { if (admin && localStorage.getItem('adminToken')) return undefined; const token = localStorage.getItem('token'); const storedUser = getStored('user'); if (!token || !storedUser) return undefined; let cancelled = false; const verifySession = async () => { try { const response = await fetch(`${BACKEND_URL}/api/auth/verify`, { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' }); const data = await response.json().catch(() => ({})); if (cancelled) return; if (response.ok && data.valid && data.user) { localStorage.setItem('user', JSON.stringify(data.user)); setUser(data.user); setCurrentPage((page) => isUserPage(page, data.user) ? page : resolveUserPage(data.user)); } else if (response.status === 401) { localStorage.removeItem('token'); localStorage.removeItem('user'); setUser(null); setCurrentPage('login'); } } catch (_) {} }; verifySession(); const interval = window.setInterval(verifySession, currentPage === 'driver-pending' ? 5000 : 30000); const onFocus = () => verifySession(); const onVisibility = () => { if (document.visibilityState === 'visible') verifySession(); }; window.addEventListener('focus', onFocus); document.addEventListener('visibilitychange', onVisibility); return () => { cancelled = true; window.clearInterval(interval); window.removeEventListener('focus', onFocus); window.removeEventListener('visibilitychange', onVisibility); }; }, [admin, currentPage]);
   useEffect(() => { const onPhoto = (event) => { const uid = event.detail?.uid; const storedUser = getStored('user'); const storedAdmin = getStored('admin'); if (storedUser && (!uid || storedUser.uid === uid)) setUser({ ...storedUser, profilePhoto: event.detail.photo || null }); if (storedAdmin && (!uid || storedAdmin.uid === uid)) setAdmin({ ...storedAdmin, profilePhoto: event.detail.photo || null }); }; window.addEventListener('profile-photo-updated', onPhoto); return () => window.removeEventListener('profile-photo-updated', onPhoto); }, []);
   const handleUserLogin = (userData) => { setUser(userData); setAdmin(null); localStorage.setItem('user', JSON.stringify(userData)); localStorage.removeItem('admin'); localStorage.removeItem('adminToken'); setCurrentPage(resolveUserPage(userData)); };
-  const handleLogout = async () => { await logoutFirebase(); setUser(null); localStorage.removeItem('token'); localStorage.removeItem('user'); setCurrentPage('home'); };
+  const handleLogout = async () => {
+    try { await logoutFirebase(); } catch (_) { /* local session cleanup must continue even if Firebase sign-out fails */ }
+    try {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      localStorage.removeItem('adminToken');
+      localStorage.removeItem('admin');
+      sessionStorage.removeItem('token');
+      sessionStorage.removeItem('user');
+    } catch (_) {}
+    setUser(null);
+    setAdmin(null);
+    setCurrentPage('home');
+  };
   const handleDriverRegistration = (registration) => { const currentUser = getStored('user') || user || {}; const updatedUser = { ...currentUser, userType: 'driver', driverApprovalStatus: registration?.status || 'pending' }; setUser(updatedUser); localStorage.setItem('user', JSON.stringify(updatedUser)); setCurrentPage(resolveUserPage(updatedUser)); };
   const handleAdminLogin = (adminData) => { setUser(null); setAdmin(adminData); localStorage.removeItem('token'); localStorage.removeItem('user'); localStorage.setItem('admin', JSON.stringify(adminData)); setCurrentPage('admin-dashboard'); };
   const handleAdminLogout = () => { try { localStorage.removeItem('adminToken'); localStorage.removeItem('admin'); localStorage.removeItem('token'); localStorage.removeItem('user'); sessionStorage.clear(); } catch (_) {} setAdmin(null); setUser(null); setCurrentPage('home'); window.location.assign('/?loggedOut=1'); };
@@ -121,7 +134,6 @@ function App() {
     case 'driver-pending': return <DriverPending user={user} onLogout={handleLogout} />;
     case 'driver-dashboard': return user ? <AccountPanel account={user} currentPage="driver-dashboard" onNavigate={navigate} onLogout={handleLogout}><LiveStatsBar userType="driver" /><DriverDashboardMapPro /></AccountPanel> : <Login onLoginSuccess={handleUserLogin} onAdminClick={() => setCurrentPage('admin-login')} onDriverRegisterClick={() => setCurrentPage('driver-registration')} onBack={() => setCurrentPage('home')} />;
     case 'profile': return user ? <AccountPanel account={user} currentPage="profile" onNavigate={navigate} onLogout={handleLogout}><UserProfile user={user} onLogout={handleLogout} onBack={() => setCurrentPage('ride')} onNavigate={navigate} onRequestRide={() => setCurrentPage('ride')} onHistory={() => setCurrentPage('ride-history')} /></AccountPanel> : <Login onLoginSuccess={handleUserLogin} onAdminClick={() => setCurrentPage('admin-login')} onDriverRegisterClick={() => setCurrentPage('driver-registration')} onBack={() => setCurrentPage('home')} />;
-    case 'admin-panel': return <AdminPanel />;
     case 'payment': return user ? <AccountPanel account={user} currentPage="payment" onNavigate={navigate} onLogout={handleLogout}><Payment rideId={null} amount={17} onBack={() => setCurrentPage('ride')} onPaymentSuccess={() => setCurrentPage('ride-history')} /></AccountPanel> : <Login onLoginSuccess={handleUserLogin} onAdminClick={() => setCurrentPage('admin-login')} onDriverRegisterClick={() => setCurrentPage('driver-registration')} onBack={() => setCurrentPage('home')} />;
     case 'promos': return user ? <AccountPanel account={user} currentPage="promos" onNavigate={navigate} onLogout={handleLogout}><Promotions userId={user?.uid || user?.id} onApplyCode={(promo) => { if (promo?.code) localStorage.setItem('pf_selected_promo', String(promo.code)); }} /></AccountPanel> : <Login onLoginSuccess={handleUserLogin} onAdminClick={() => setCurrentPage('admin-login')} onDriverRegisterClick={() => setCurrentPage('driver-registration')} onBack={() => setCurrentPage('home')} />;
     case 'help': return user ? <AccountPanel account={user} currentPage="help" onNavigate={navigate} onLogout={handleLogout}><HelpCenter onBack={() => setCurrentPage('ride')} /></AccountPanel> : <Login onLoginSuccess={handleUserLogin} onAdminClick={() => setCurrentPage('admin-login')} onDriverRegisterClick={() => setCurrentPage('driver-registration')} onBack={() => setCurrentPage('home')} />;
