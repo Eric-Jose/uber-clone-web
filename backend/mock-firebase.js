@@ -1,25 +1,24 @@
 // In-memory mock database and auth for Firebase Admin SDK.
 // Allows the PreçoFixo17 app to function fully in development / preview
 // even when external Firebase Admin credentials have not been configured.
+//
+// SEGURANÇA: este store é APENAS um fallback em memória usado quando não há
+// credenciais reais do Firebase (dev/preview). Ele é reiniciado a cada boot e
+// nunca deve conter segredos de produção. As contas administrativas semente
+// derivam das variáveis de ambiente; se ausentes, usa-se um admin de
+// desenvolvimento com senha claramente temporária.
+const SEED_ADMIN_EMAIL = (process.env.ADMIN_EMAIL || 'admin@precofixo17.dev').toLowerCase();
+const SEED_ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'ChangeMe@Dev123';
+const SEED_ADMIN_NAME = process.env.ADMIN_NAME || 'Administrador';
 
 function createInMemoryStore() {
   const store = {
     users: {
       admin_default_uid: {
         uid: 'admin_default_uid',
-        email: 'admin@uberclone.com',
-        password: 'UberClone@2026!',
-        name: 'Administrador',
-        userType: 'admin',
-        role: 'admin',
-        isOnline: false,
-        createdAt: new Date().toISOString(),
-      },
-      admin_precofixo_uid: {
-        uid: 'admin_precofixo_uid',
-        email: 'admin@precofixo17.com',
-        password: 'Admin@2026!',
-        name: 'Administrador PreçoFixo17',
+        email: SEED_ADMIN_EMAIL,
+        password: SEED_ADMIN_PASSWORD,
+        name: SEED_ADMIN_NAME,
         userType: 'admin',
         role: 'admin',
         isOnline: false,

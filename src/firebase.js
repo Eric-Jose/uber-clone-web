@@ -17,6 +17,12 @@ import { BACKEND_URL } from './config';
 // Mantemos as variáveis REACT_APP_* como prioridade e usamos os valores do
 // aplicativo Web PreçoFixo17 como fallback para builds em que o Vercel não
 // injeta essas variáveis no frontend.
+// NOTA DE SEGURANÇA: estes valores da configuração Web do Firebase NÃO são
+// segredos — eles são obrigatoriamente enviados ao navegador em qualquer app
+// Firebase e a proteção real vem das regras de segurança do Firebase e do
+// domínio autorizado. Ainda assim, o ideal é defini-los via variáveis de
+// ambiente REACT_APP_* no provedor de deploy; os fallbacks abaixo existem só
+// para não quebrar builds em que essas variáveis não foram injetadas.
 const firebaseConfig = {
   apiKey: process.env.REACT_APP_FIREBASE_API_KEY || 'AIzaSyC8QSrdP6teQDygalF0Ah2ymPWI35w6pVg',
   authDomain: process.env.REACT_APP_FIREBASE_AUTH_DOMAIN || 'uber-clone-eric-f4327.firebaseapp.com',

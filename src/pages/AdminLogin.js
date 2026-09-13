@@ -2,8 +2,6 @@ import React, { useState } from 'react';
 import '../styles/AdminLogin.css';
 import { BACKEND_URL } from '../config';
 
-const DEFAULT_ADMIN_EMAIL = 'admin@uberclone.com';
-
 async function readJson(response) {
   const text = await response.text();
   try { return text ? JSON.parse(text) : {}; }
@@ -11,7 +9,7 @@ async function readJson(response) {
 }
 
 function AdminLogin({ onAdminLogin, onBack }) {
-  const [email, setEmail] = useState(DEFAULT_ADMIN_EMAIL);
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');

@@ -1,14 +1,14 @@
 const express = require('express');
 const admin = require('firebase-admin');
 const jwt = require('jsonwebtoken');
+const { JWT_SECRET, JWT_EXPIRE } = require('../config/secrets');
 
 const router = express.Router();
 const db = admin.database();
 const auth = admin.auth();
 
 function createToken(uid, email) {
-  const secret = process.env.JWT_SECRET || 'precofixo17-dev-jwt-secret-2026';
-  return jwt.sign({ uid, email }, secret, { expiresIn: '7d' });
+  return jwt.sign({ uid, email }, JWT_SECRET, { expiresIn: JWT_EXPIRE });
 }
 
 async function normalizeUser(userData, uid) {
