@@ -1,4 +1,4 @@
-# IA Pessoal
+# Personaia
 
 Assistente de IA pessoal para Android (APK via Capacitor) e também instalável como PWA.
 
@@ -53,16 +53,16 @@ Copie pro celular, abra o arquivo e autorize "instalar de fontes desconhecidas".
 
 ```bash
 # gera sua chave de assinatura (uma vez, guarde bem esse arquivo!)
-keytool -genkey -v -keystore ia-pessoal.keystore \
-  -alias iapessoal -keyalg RSA -keysize 2048 -validity 10000
+keytool -genkey -v -keystore personaia.keystore \
+  -alias personaia -keyalg RSA -keysize 2048 -validity 10000
 ```
 
 Crie `android/key.properties`:
 
 ```properties
-storeFile=../../ia-pessoal.keystore
+storeFile=../../personaia.keystore
 storePassword=SUA_SENHA
-keyAlias=iapessoal
+keyAlias=personaia
 keyPassword=SUA_SENHA
 ```
 
@@ -92,32 +92,16 @@ npm run apk:release
 # -> android/app/build/outputs/apk/release/app-release.apk
 ```
 
-### Sem Android Studio? Build na nuvem
+### Sem Android Studio? Build na nuvem (recomendado)
 
-Dá pra gerar o APK pelo GitHub Actions. Crie `.github/workflows/apk.yml`:
+Este repo já vem com o workflow `.github/workflows/apk.yml`. Ele roda sozinho a cada
+push na `main`, ou manualmente:
 
-```yaml
-name: Build APK
-on: [push, workflow_dispatch]
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: 20 }
-      - uses: actions/setup-java@v4
-        with: { distribution: temurin, java-version: 17 }
-      - uses: android-actions/setup-android@v3
-      - run: npm ci && npm run build && npx cap add android && npx cap sync android
-      - run: cd android && chmod +x gradlew && ./gradlew assembleDebug
-      - uses: actions/upload-artifact@v4
-        with:
-          name: app-debug
-          path: android/app/build/outputs/apk/debug/app-debug.apk
-```
+1. Vá na aba **Actions** do repositório
+2. Escolha **Build APK** → **Run workflow**
+3. Quando terminar, baixe o artefato **Personaia-apk**
 
-Aí é só baixar o APK na aba **Actions** do GitHub.
+Descompacte e instale o `app-debug.apk` no celular.
 
 ## Instalar como PWA (sem APK)
 

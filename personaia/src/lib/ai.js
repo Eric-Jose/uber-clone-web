@@ -76,7 +76,7 @@ async function openaiLike({ provider, apiKey, model, system, messages, signal, o
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${apiKey}`,
-      ...(provider === 'openrouter' ? { 'X-Title': 'IA Pessoal' } : {}),
+      ...(provider === 'openrouter' ? { 'X-Title': 'Personaia' } : {}),
     },
     body: JSON.stringify({
       model,

@@ -1,6 +1,6 @@
 {
-  "appId": "com.ericjose.iapessoal",
-  "appName": "IA Pessoal",
+  "appId": "com.ericjose.personaia",
+  "appName": "Personaia",
   "webDir": "dist",
   "android": { "allowMixedContent": true },
   "plugins": {

@@ -1,5 +1,5 @@
 {
-  "name": "ia-pessoal",
+  "name": "personaia",
   "private": true,
   "version": "1.0.0",
   "type": "module",
@@ -8,7 +8,7 @@
     "dev": "vite --host 0.0.0.0 --port 5173",
     "build": "vite build",
     "preview": "vite preview --host 0.0.0.0 --port 4173",
-    "cap:init": "cap init \"IA Pessoal\" com.ericjose.iapessoal --web-dir=dist",
+    "cap:init": "cap init \"Personaia\" com.ericjose.personaia --web-dir=dist",
     "cap:add": "cap add android",
     "cap:sync": "npm run build && cap sync android",
     "apk": "npm run cap:sync && cd android && ./gradlew assembleDebug",

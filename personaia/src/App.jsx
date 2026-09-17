@@ -166,7 +166,7 @@ export default function App() {
       <header className="topbar">
         <button className="icon-btn" onClick={() => setShowSidebar(true)} aria-label="Conversas">☰</button>
         <div className="topbar-title">
-          <strong>IA Pessoal</strong>
+          <strong>Personaia</strong>
           <span>{PROVIDERS[settings.provider].label} · {settings.model}</span>
         </div>
         <button className="icon-btn" onClick={() => setShowSettings(true)} aria-label="Ajustes">⚙</button>

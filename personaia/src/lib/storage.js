@@ -1,5 +1,5 @@
 // Persistência local (localStorage). Nada sai do celular além das chamadas à IA.
-const KEY = 'ia-pessoal:v1'
+const KEY = 'personaia:v1'
 
 const DEFAULTS = {
   settings: {
