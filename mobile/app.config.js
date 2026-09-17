@@ -7,6 +7,7 @@ export default ({ config }) => {
     slug: 'precofixo17',
     version: '1.0.0',
     orientation: 'portrait',
+    icon: './assets/icon.png',
     userInterfaceStyle: 'dark',
     scheme: 'precofixo17',
     ios: {
@@ -23,6 +24,11 @@ export default ({ config }) => {
     android: {
       ...(config.android || {}),
       package: 'com.precofixo17.app',
+      versionCode: 1,
+      adaptiveIcon: {
+        foregroundImage: './assets/adaptive-icon.png',
+        backgroundColor: '#ff6a00',
+      },
       permissions: [
         'ACCESS_COARSE_LOCATION',
         'ACCESS_FINE_LOCATION',
